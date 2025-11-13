@@ -683,23 +683,23 @@ impl OpenRouterProvider {
         prompt_cache: Option<PromptCachingConfig>,
         base_url: Option<String>,
     ) -> Self {
-        let (prompt_cache_enabled, prompt_cache_settings) = extract_prompt_cache_settings(
-            prompt_cache,
-            |providers| &providers.openrouter,
-            |cfg, provider_settings| cfg.enabled && provider_settings.enabled,
-        );
+        use super::common::ProviderBuilder;
+
+        let builder = ProviderBuilder::new(api_key, model, urls::OPENROUTER_API_BASE)
+            .with_base_url(base_url, Some(env_vars::OPENROUTER_BASE_URL))
+            .with_prompt_cache(
+                prompt_cache,
+                |providers| &providers.openrouter,
+                |cfg, provider_settings| cfg.enabled && provider_settings.enabled,
+            );
 
         Self {
-            api_key,
-            http_client: HttpClient::new(),
-            base_url: override_base_url(
-                urls::OPENROUTER_API_BASE,
-                base_url,
-                Some(env_vars::OPENROUTER_BASE_URL),
-            ),
-            model,
-            prompt_cache_enabled,
-            prompt_cache_settings,
+            api_key: builder.api_key,
+            http_client: builder.http_client,
+            base_url: builder.base_url,
+            model: builder.model,
+            prompt_cache_enabled: builder.prompt_cache_enabled,
+            prompt_cache_settings: builder.prompt_cache_settings,
         }
     }
 

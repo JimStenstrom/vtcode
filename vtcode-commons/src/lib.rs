@@ -7,12 +7,12 @@
 //! demonstrate how downstream consumers can wire these traits into their own
 //! applications or tests.
 
+mod buffer;
+
 pub mod errors;
 pub mod paths;
-pub mod reference;
 pub mod telemetry;
 
-pub use errors::{DisplayErrorFormatter, ErrorFormatter, ErrorReporter, NoopErrorReporter};
-pub use paths::{PathResolver, PathScope, WorkspacePaths};
-pub use reference::{MemoryErrorReporter, MemoryTelemetry, StaticWorkspacePaths};
-pub use telemetry::{NoopTelemetry, TelemetrySink};
+pub use errors::{DisplayErrorFormatter, ErrorFormatter, ErrorReporter, MemoryErrorReporter, NoopErrorReporter};
+pub use paths::{PathResolver, PathScope, StaticWorkspacePaths, WorkspacePaths};
+pub use telemetry::{MemoryTelemetry, NoopTelemetry, TelemetrySink};

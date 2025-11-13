@@ -1,5 +1,9 @@
 use std::path::{Path, PathBuf};
 
+mod static_impl;
+
+pub use static_impl::StaticWorkspacePaths;
+
 /// Provides the root directories an application uses to store data.
 pub trait WorkspacePaths: Send + Sync {
     /// Absolute path to the application's workspace root.

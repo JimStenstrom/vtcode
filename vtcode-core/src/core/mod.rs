@@ -34,7 +34,7 @@
 
 //!
 pub mod agent;
-
+pub mod cache;
 pub mod context_pruner;
 pub mod decision_tracker;
 pub mod error_recovery;
