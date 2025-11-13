@@ -10,6 +10,7 @@ import { ParticipantRegistry } from "./participantRegistry";
 import { ParticipantContext } from "./types/participant";
 import { ConversationManager } from "./conversation/conversationManager";
 import { parseMentions, getUniqueMentionTypes } from "./utils/mentionParser";
+import { ConfigLimits } from "./configLimits";
 
 interface ChatMessage {
     readonly role: "user" | "assistant" | "system" | "tool" | "error";
@@ -353,14 +354,16 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 
     private async requestToolApproval(call: VtcodeToolCall): Promise<boolean> {
         const detail = JSON.stringify(call.args, null, 2);
+        const maxChars = ConfigLimits.toolApprovalDetailMaxChars;
+        const truncatedDetail = detail.length > maxChars
+            ? `${detail.slice(0, maxChars - 3)}...`
+            : detail;
+
         const selection = await vscode.window.showInformationMessage(
             `VTCode requested tool "${call.name}".`,
             {
                 modal: true,
-                detail:
-                    detail.length > 1200
-                        ? `${detail.slice(0, 1200)}...`
-                        : detail,
+                detail: truncatedDetail,
             },
             { title: "Approve", isCloseAffordance: false },
             { title: "Deny", isCloseAffordance: true }
@@ -485,12 +488,17 @@ ${output}`
             };
 
             // Add file content if it's a reasonable size
-            if (document.lineCount <= 1000) {
+            const maxLines = ConfigLimits.maxActiveFileLines;
+            if (document.lineCount <= maxLines) {
                 try {
                     context.activeFile.content = document.getText();
                 } catch (error) {
                     // Ignore errors reading file content
                 }
+            } else {
+                ConfigLimits.showWarningIfEnabled(
+                    `Active file has ${document.lineCount} lines (limit: ${maxLines}). Content excluded from context.`
+                );
             }
         }
 
@@ -530,6 +538,7 @@ ${output}`
             this.workspaceTrusted ? "granted" : "restricted"
         }. Human-in-the-loop is ${hitlState}. ${toolGuidance} Prefer using VTCode tools or PTY sessions for filesystem or shell access, and reference the IDE context snapshot when available.`;
 
+        const maxMessages = ConfigLimits.maxConversationMessages;
         const relevantMessages = this.messages
             .filter(
                 (message) =>
@@ -537,16 +546,17 @@ ${output}`
                     message.role === "assistant" ||
                     message.role === "tool"
             )
-            .slice(-12);
+            .slice(-maxMessages);
 
         if (relevantMessages.length === 0) {
             return preamble;
         }
 
+        const maxChars = ConfigLimits.conversationContextMaxChars;
         const transcript = relevantMessages
             .map((message) => {
                 const role = message.role === "tool" ? "tool" : message.role;
-                const content = this.truncateForContext(message.content, 2000);
+                const content = this.truncateForContext(message.content, maxChars);
                 return `${role}: ${content}`;
             })
             .join("\n\n");

@@ -505,6 +505,91 @@
           "type": "string",
           "default": "vtcode",
           "description": "Executable used to run VTCode commands. Change this if VTCode is installed with a custom path."
+        },
+        "vtcode.limits.maxActiveFileLines": {
+          "type": "number",
+          "default": 1000,
+          "description": "Maximum number of lines to include from active file in context. Files exceeding this limit will be excluded with a warning."
+        },
+        "vtcode.limits.maxFullDocumentLines": {
+          "type": "number",
+          "default": 400,
+          "description": "Maximum number of lines to include full document context. Larger documents will use a context window around the cursor."
+        },
+        "vtcode.limits.activeEditorContextWindow": {
+          "type": "number",
+          "default": 80,
+          "description": "Number of lines to show around cursor when document exceeds maxFullDocumentLines (±40 lines from cursor)."
+        },
+        "vtcode.limits.maxVisibleEditorContexts": {
+          "type": "number",
+          "default": 3,
+          "description": "Maximum number of visible editor contexts to include."
+        },
+        "vtcode.limits.maxIdeContextChars": {
+          "type": "number",
+          "default": 6000,
+          "description": "Maximum total characters for IDE context."
+        },
+        "vtcode.limits.maxConversationMessages": {
+          "type": "number",
+          "default": 12,
+          "description": "Maximum number of messages to include in conversation context."
+        },
+        "vtcode.limits.toolApprovalDetailMaxChars": {
+          "type": "number",
+          "default": 1200,
+          "description": "Maximum characters to display in tool approval dialog."
+        },
+        "vtcode.limits.conversationContextMaxChars": {
+          "type": "number",
+          "default": 2000,
+          "description": "Maximum characters per message in conversation context."
+        },
+        "vtcode.limits.codeParticipantMaxLines": {
+          "type": "number",
+          "default": 50,
+          "description": "Maximum lines of code to include from code participant."
+        },
+        "vtcode.limits.terminalOutputLines": {
+          "type": "number",
+          "default": 20,
+          "description": "Maximum lines of terminal output to include."
+        },
+        "vtcode.limits.terminalHistoryCommands": {
+          "type": "number",
+          "default": 5,
+          "description": "Maximum number of terminal history commands to include."
+        },
+        "vtcode.limits.workspaceMaxFiles": {
+          "type": "number",
+          "default": 100,
+          "description": "Maximum number of files to scan in workspace participant."
+        },
+        "vtcode.timeouts.cliDetectionMs": {
+          "type": "number",
+          "default": 4000,
+          "description": "Timeout in milliseconds for CLI detection."
+        },
+        "vtcode.timeouts.mcpDiscoveryMs": {
+          "type": "number",
+          "default": 5000,
+          "description": "Timeout in milliseconds for MCP tool discovery."
+        },
+        "vtcode.timeouts.mcpExecutionMs": {
+          "type": "number",
+          "default": 30000,
+          "description": "Timeout in milliseconds for MCP tool execution."
+        },
+        "vtcode.warnings.showLimitExceededWarnings": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show warnings when content limits are exceeded and content is truncated or excluded."
+        },
+        "vtcode.gracefulDegradation.enableWithoutTrust": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable read-only features when workspace is not trusted. Some features will be unavailable for security."
         }
       }
     }

@@ -7,6 +7,8 @@
 
 import { spawn } from "node:child_process";
 import * as vscode from "vscode";
+import * as TOML from "@iarna/toml";
+import { ConfigLimits } from "./configLimits";
 
 export interface McpTool {
     name: string;
@@ -153,11 +155,12 @@ export class McpToolManager {
                 reject(error);
             });
 
-            // Timeout after 5 seconds
+            // Configurable timeout for discovery
+            const timeout = ConfigLimits.mcpDiscoveryTimeoutMs;
             setTimeout(() => {
                 proc.kill();
-                reject(new Error("Tool discovery timed out"));
-            }, 5000);
+                reject(new Error(`Tool discovery timed out after ${timeout}ms`));
+            }, timeout);
         });
     }
 
@@ -263,11 +266,12 @@ export class McpToolManager {
                 reject(error);
             });
 
-            // Timeout after 30 seconds
+            // Configurable timeout for execution
+            const timeout = ConfigLimits.mcpExecutionTimeoutMs;
             setTimeout(() => {
                 proc.kill();
-                reject(new Error("Tool execution timed out"));
-            }, 30000);
+                reject(new Error(`Tool execution timed out after ${timeout}ms`));
+            }, timeout);
         });
     }
 
@@ -295,100 +299,17 @@ export class McpToolManager {
     }
 
     /**
-     * Simple TOML parser (basic implementation)
+     * Parse TOML configuration using proper TOML library
      */
     private parseToml(content: string): Record<string, unknown> {
-        // This is a simplified parser - in production, use a proper TOML library
-        const result: Record<string, unknown> = {};
-        const lines = content.split("\n");
-        let currentSection = result;
-        let currentArraySection: Record<string, unknown>[] | null = null;
-        let currentArrayName = "";
-
-        for (const line of lines) {
-            const trimmed = line.trim();
-
-            // Skip comments and empty lines
-            if (!trimmed || trimmed.startsWith("#")) {
-                continue;
-            }
-
-            // Array table: [[section.name]]
-            if (trimmed.startsWith("[[") && trimmed.endsWith("]]")) {
-                const sectionName = trimmed.slice(2, -2);
-                const parts = sectionName.split(".");
-
-                let target: Record<string, unknown> = result;
-                for (let i = 0; i < parts.length - 1; i++) {
-                    if (!target[parts[i]]) {
-                        target[parts[i]] = {};
-                    }
-                    target = target[parts[i]] as Record<string, unknown>;
-                }
-
-                const lastPart = parts[parts.length - 1];
-                if (!target[lastPart]) {
-                    target[lastPart] = [];
-                }
-
-                currentArraySection = target[lastPart] as Record<
-                    string,
-                    unknown
-                >[];
-                currentArrayName = lastPart;
-                const newObj = {};
-                currentArraySection.push(newObj);
-                currentSection = newObj;
-                continue;
-            }
-
-            // Regular table: [section]
-            if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
-                currentArraySection = null;
-                const sectionName = trimmed.slice(1, -1);
-                const parts = sectionName.split(".");
-
-                let target: Record<string, unknown> = result;
-                for (const part of parts) {
-                    if (!target[part]) {
-                        target[part] = {};
-                    }
-                    target = target[part] as Record<string, unknown>;
-                }
-                currentSection = target;
-                continue;
-            }
-
-            // Key-value pair
-            const equalIndex = trimmed.indexOf("=");
-            if (equalIndex > 0) {
-                const key = trimmed.slice(0, equalIndex).trim();
-                let value = trimmed.slice(equalIndex + 1).trim();
-
-                // Parse value
-                if (value.startsWith('"') && value.endsWith('"')) {
-                    value = value.slice(1, -1);
-                } else if (value === "true") {
-                    value = true as unknown as string;
-                } else if (value === "false") {
-                    value = false as unknown as string;
-                } else if (value.startsWith("[") && value.endsWith("]")) {
-                    // Simple array parsing
-                    value = value
-                        .slice(1, -1)
-                        .split(",")
-                        .map((v) =>
-                            v.trim().replace(/^["']|["']$/g, "")
-                        ) as unknown as string;
-                } else if (!Number.isNaN(Number(value))) {
-                    value = Number(value) as unknown as string;
-                }
-
-                currentSection[key] = value;
-            }
+        try {
+            return TOML.parse(content) as Record<string, unknown>;
+        } catch (error) {
+            this.outputChannel.appendLine(
+                `[MCP] Failed to parse TOML: ${error instanceof Error ? error.message : String(error)}`
+            );
+            throw new Error(`Invalid TOML configuration: ${error instanceof Error ? error.message : String(error)}`);
         }
-
-        return result;
     }
 }
 
