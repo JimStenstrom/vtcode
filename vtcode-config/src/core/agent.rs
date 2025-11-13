@@ -1,5 +1,6 @@
 use crate::constants::{defaults, instructions, llm_generation, project_doc, prompts};
 use crate::types::{ReasoningEffortLevel, UiSurfacePreference};
+use crate::utils::default_true;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
@@ -28,7 +29,7 @@ pub struct AgentConfig {
     pub theme: String,
 
     /// Enable TODO planning workflow integrations (update_plan tool, onboarding hints)
-    #[serde(default = "default_todo_planning_mode")]
+    #[serde(default = "default_true")]
     pub todo_planning_mode: bool,
 
     /// Preferred rendering surface for the interactive chat UI (auto, alternate, inline)
@@ -135,7 +136,7 @@ impl Default for AgentConfig {
             api_key_env: default_api_key_env(),
             default_model: default_model(),
             theme: default_theme(),
-            todo_planning_mode: default_todo_planning_mode(),
+            todo_planning_mode: default_true(),
             ui_surface: UiSurfacePreference::default(),
             max_conversation_turns: default_max_conversation_turns(),
             reasoning_effort: default_reasoning_effort(),
@@ -203,9 +204,6 @@ fn default_theme() -> String {
     defaults::DEFAULT_THEME.to_string()
 }
 
-fn default_todo_planning_mode() -> bool {
-    true
-}
 fn default_max_conversation_turns() -> usize {
     150
 }
@@ -257,7 +255,7 @@ fn default_instruction_max_bytes() -> usize {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct AgentCustomPromptsConfig {
     /// Master switch for custom prompt support
-    #[serde(default = "default_custom_prompts_enabled")]
+    #[serde(default = "default_true")]
     pub enabled: bool,
 
     /// Primary directory for prompt markdown files
@@ -276,16 +274,12 @@ pub struct AgentCustomPromptsConfig {
 impl Default for AgentCustomPromptsConfig {
     fn default() -> Self {
         Self {
-            enabled: default_custom_prompts_enabled(),
+            enabled: default_true(),
             directory: default_custom_prompts_directory(),
             extra_directories: Vec::new(),
             max_file_size_kb: default_custom_prompts_max_file_size_kb(),
         }
     }
-}
-
-fn default_custom_prompts_enabled() -> bool {
-    true
 }
 
 fn default_custom_prompts_directory() -> String {
@@ -300,7 +294,7 @@ fn default_custom_prompts_max_file_size_kb() -> usize {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct AgentCheckpointingConfig {
     /// Enable automatic checkpoints after each successful turn
-    #[serde(default = "default_checkpointing_enabled")]
+    #[serde(default = "default_true")]
     pub enabled: bool,
 
     /// Optional custom directory for storing checkpoints (relative to workspace or absolute)
@@ -319,16 +313,12 @@ pub struct AgentCheckpointingConfig {
 impl Default for AgentCheckpointingConfig {
     fn default() -> Self {
         Self {
-            enabled: default_checkpointing_enabled(),
+            enabled: default_true(),
             storage_dir: None,
             max_snapshots: default_checkpointing_max_snapshots(),
             max_age_days: default_checkpointing_max_age_days(),
         }
     }
-}
-
-fn default_checkpointing_enabled() -> bool {
-    DEFAULT_CHECKPOINTS_ENABLED
 }
 
 fn default_checkpointing_max_snapshots() -> usize {
@@ -343,7 +333,7 @@ fn default_checkpointing_max_age_days() -> Option<u64> {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct AgentOnboardingConfig {
     /// Toggle onboarding message rendering
-    #[serde(default = "default_onboarding_enabled")]
+    #[serde(default = "default_true")]
     pub enabled: bool,
 
     /// Introductory text shown at session start
@@ -351,7 +341,7 @@ pub struct AgentOnboardingConfig {
     pub intro_text: String,
 
     /// Whether to include project overview in onboarding message
-    #[serde(default = "default_show_project_overview")]
+    #[serde(default = "default_true")]
     pub include_project_overview: bool,
 
     /// Whether to include language summary in onboarding message
@@ -359,7 +349,7 @@ pub struct AgentOnboardingConfig {
     pub include_language_summary: bool,
 
     /// Whether to include AGENTS.md highlights in onboarding message
-    #[serde(default = "default_show_guideline_highlights")]
+    #[serde(default = "default_true")]
     pub include_guideline_highlights: bool,
 
     /// Whether to surface usage tips inside the welcome text banner
@@ -390,11 +380,11 @@ pub struct AgentOnboardingConfig {
 impl Default for AgentOnboardingConfig {
     fn default() -> Self {
         Self {
-            enabled: default_onboarding_enabled(),
+            enabled: default_true(),
             intro_text: default_intro_text(),
-            include_project_overview: default_show_project_overview(),
+            include_project_overview: default_true(),
             include_language_summary: default_show_language_summary(),
-            include_guideline_highlights: default_show_guideline_highlights(),
+            include_guideline_highlights: default_true(),
             include_usage_tips_in_welcome: default_show_usage_tips_in_welcome(),
             include_recommended_actions_in_welcome: default_show_recommended_actions_in_welcome(),
             guideline_highlight_limit: default_guideline_highlight_limit(),
@@ -405,24 +395,12 @@ impl Default for AgentOnboardingConfig {
     }
 }
 
-fn default_onboarding_enabled() -> bool {
-    true
-}
-
 fn default_intro_text() -> String {
     "Let's get oriented. I preloaded workspace context so we can move fast.".to_string()
 }
 
-fn default_show_project_overview() -> bool {
-    true
-}
-
 fn default_show_language_summary() -> bool {
     false
-}
-
-fn default_show_guideline_highlights() -> bool {
-    true
 }
 
 fn default_show_usage_tips_in_welcome() -> bool {
@@ -467,7 +445,7 @@ fn default_recommended_actions() -> Vec<String> {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct AgentSmallModelConfig {
     /// Enable small model tier for efficient operations
-    #[serde(default = "default_small_model_enabled")]
+    #[serde(default = "default_true")]
     pub enabled: bool,
 
     /// Small model to use (e.g., "claude-3-5-haiku", "gpt-4o-mini", "gemini-2.0-flash")
@@ -484,34 +462,30 @@ pub struct AgentSmallModelConfig {
     pub temperature: f32,
 
     /// Enable small model for large file reads (>50KB)
-    #[serde(default = "default_small_model_for_large_reads")]
+    #[serde(default = "default_true")]
     pub use_for_large_reads: bool,
 
     /// Enable small model for web content summarization
-    #[serde(default = "default_small_model_for_web_summary")]
+    #[serde(default = "default_true")]
     pub use_for_web_summary: bool,
 
     /// Enable small model for git history processing
-    #[serde(default = "default_small_model_for_git_history")]
+    #[serde(default = "default_true")]
     pub use_for_git_history: bool,
 }
 
 impl Default for AgentSmallModelConfig {
     fn default() -> Self {
         Self {
-            enabled: default_small_model_enabled(),
+            enabled: default_true(),
             model: String::new(),
             max_tokens: default_small_model_max_tokens(),
             temperature: default_small_model_temperature(),
-            use_for_large_reads: default_small_model_for_large_reads(),
-            use_for_web_summary: default_small_model_for_web_summary(),
-            use_for_git_history: default_small_model_for_git_history(),
+            use_for_large_reads: default_true(),
+            use_for_web_summary: default_true(),
+            use_for_git_history: default_true(),
         }
     }
-}
-
-fn default_small_model_enabled() -> bool {
-    true // Enable by default following Claude Code pattern
 }
 
 fn default_small_model_max_tokens() -> u32 {
@@ -520,16 +494,4 @@ fn default_small_model_max_tokens() -> u32 {
 
 fn default_small_model_temperature() -> f32 {
     0.3 // More deterministic for parsing/summarization
-}
-
-fn default_small_model_for_large_reads() -> bool {
-    true
-}
-
-fn default_small_model_for_web_summary() -> bool {
-    true
-}
-
-fn default_small_model_for_git_history() -> bool {
-    true
 }

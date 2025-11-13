@@ -3,6 +3,8 @@
  * Maps technical errors to helpful guidance
  */
 
+import { getErrorMessage as extractErrorMessage } from '../utils/errorUtils';
+
 export interface ErrorMessage {
 	title: string;
 	description: string;
@@ -147,7 +149,7 @@ const ERROR_MESSAGES: Record<string, ErrorMessage> = {
  */
 export function getErrorMessage(
 	errorCode?: string,
-	originalError?: Error | string
+	originalError?: unknown
 ): ErrorMessage {
 	// Check if it's a known error code
 	if (errorCode && errorCode in ERROR_MESSAGES) {
@@ -155,7 +157,7 @@ export function getErrorMessage(
 	}
 
 	// Try to infer from error message
-	const errorStr = typeof originalError === "string" ? originalError : originalError?.message || "";
+	const errorStr = originalError ? extractErrorMessage(originalError) : "";
 
 	if (errorStr.includes("timeout") || errorStr.includes("timed out")) {
 		return ERROR_MESSAGES.NETWORK_TIMEOUT;
@@ -183,7 +185,7 @@ export function getErrorMessage(
 	// Default error message
 	return {
 		title: "An error occurred",
-		description: typeof originalError === "string" ? originalError : originalError?.message || "Unknown error",
+		description: originalError ? extractErrorMessage(originalError) : "Unknown error",
 		suggestion: "Check the output logs for more details or try again.",
 		retryable: true,
 	};
@@ -194,7 +196,7 @@ export function getErrorMessage(
  */
 export function formatErrorMessage(
 	errorCode?: string,
-	originalError?: Error | string
+	originalError?: unknown
 ): string {
 	const msg = getErrorMessage(errorCode, originalError);
 	let output = `❌ ${msg.title}\n`;
@@ -217,7 +219,7 @@ export function formatErrorMessage(
 /**
  * Check if an error is retryable
  */
-export function isErrorRetryable(errorCode?: string, originalError?: Error | string): boolean {
+export function isErrorRetryable(errorCode?: string, originalError?: unknown): boolean {
 	const msg = getErrorMessage(errorCode, originalError);
 	return msg.retryable === true;
 }

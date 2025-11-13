@@ -54,15 +54,17 @@ impl ZAIProvider {
         base_url: Option<String>,
         _prompt_cache: Option<PromptCachingConfig>,
     ) -> Self {
+        use super::common::ProviderBuilder;
+
+        // ZAI doesn't use prompt caching, so we use a unit type
+        let builder: ProviderBuilder<()> = ProviderBuilder::new(api_key, model, urls::Z_AI_API_BASE)
+            .with_base_url(base_url, Some(env_vars::Z_AI_BASE_URL));
+
         Self {
-            api_key,
-            http_client: HttpClient::new(),
-            base_url: override_base_url(
-                urls::Z_AI_API_BASE,
-                base_url,
-                Some(env_vars::Z_AI_BASE_URL),
-            ),
-            model,
+            api_key: builder.api_key,
+            http_client: builder.http_client,
+            base_url: builder.base_url,
+            model: builder.model,
         }
     }
 

@@ -1,3 +1,4 @@
+use crate::utils::{default_true, validate_all_non_empty, validate_greater_than, validate_non_empty};
 use anyhow::{Context, Result, ensure};
 use serde::{Deserialize, Serialize};
 
@@ -72,29 +73,25 @@ impl Default for HeuristicSettings {
 
 impl HeuristicSettings {
     pub fn validate(&self) -> Result<()> {
-        ensure!(
-            self.long_request_min_chars > self.short_request_max_chars,
-            "Router heuristic long_request_min_chars must be greater than short_request_max_chars"
-        );
+        validate_greater_than(
+            self.long_request_min_chars,
+            self.short_request_max_chars,
+            "Router heuristic long_request_min_chars",
+            "short_request_max_chars"
+        )?;
 
-        ensure!(
-            self.code_patch_markers
-                .iter()
-                .all(|marker| !marker.trim().is_empty()),
-            "Router heuristic code_patch_markers must not contain empty entries"
-        );
-        ensure!(
-            self.retrieval_markers
-                .iter()
-                .all(|marker| !marker.trim().is_empty()),
-            "Router heuristic retrieval_markers must not contain empty entries"
-        );
-        ensure!(
-            self.complex_markers
-                .iter()
-                .all(|marker| !marker.trim().is_empty()),
-            "Router heuristic complex_markers must not contain empty entries"
-        );
+        validate_all_non_empty(
+            self.code_patch_markers.iter().map(|s| s.as_str()),
+            "Router heuristic code_patch_markers"
+        )?;
+        validate_all_non_empty(
+            self.retrieval_markers.iter().map(|s| s.as_str()),
+            "Router heuristic retrieval_markers"
+        )?;
+        validate_all_non_empty(
+            self.complex_markers.iter().map(|s| s.as_str()),
+            "Router heuristic complex_markers"
+        )?;
 
         Ok(())
     }
@@ -105,7 +102,7 @@ impl HeuristicSettings {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct RouterConfig {
     /// Enable router decisions for chat/ask commands
-    #[serde(default = "default_enabled")]
+    #[serde(default = "default_true")]
     pub enabled: bool,
     /// Use heuristics to classify complexity (no extra LLM call)
     #[serde(default = "default_true")]
@@ -154,36 +151,14 @@ impl RouterConfig {
             .validate()
             .context("Invalid router heuristics")?;
 
-        ensure!(
-            !self.models.simple.trim().is_empty(),
-            "Router models.simple must not be empty"
-        );
-        ensure!(
-            !self.models.standard.trim().is_empty(),
-            "Router models.standard must not be empty"
-        );
-        ensure!(
-            !self.models.complex.trim().is_empty(),
-            "Router models.complex must not be empty"
-        );
-        ensure!(
-            !self.models.codegen_heavy.trim().is_empty(),
-            "Router models.codegen_heavy must not be empty"
-        );
-        ensure!(
-            !self.models.retrieval_heavy.trim().is_empty(),
-            "Router models.retrieval_heavy must not be empty"
-        );
+        validate_non_empty(&self.models.simple, "Router models.simple")?;
+        validate_non_empty(&self.models.standard, "Router models.standard")?;
+        validate_non_empty(&self.models.complex, "Router models.complex")?;
+        validate_non_empty(&self.models.codegen_heavy, "Router models.codegen_heavy")?;
+        validate_non_empty(&self.models.retrieval_heavy, "Router models.retrieval_heavy")?;
 
         Ok(())
     }
-}
-
-fn default_true() -> bool {
-    true
-}
-fn default_enabled() -> bool {
-    true
 }
 
 fn default_short_request_max_chars() -> usize {

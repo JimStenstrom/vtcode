@@ -1,22 +1,19 @@
 //! System prompt generation with modular architecture
 //!
-//! This module provides flexible system prompt generation with
-//! template-based composition and context-aware customization.
+//! This module re-exports types from vtcode-prompts and provides
+//! vtcode-core specific extensions for integration with the agent runtime.
 
-pub mod config;
-pub mod context;
-pub mod custom;
-pub mod generator;
-pub mod system;
-pub mod templates;
+// Re-export all types from vtcode-prompts for backward compatibility
+pub use vtcode_prompts::*;
 
-// Re-export main types for backward compatibility
-pub use config::SystemPromptConfig;
-pub use context::PromptContext;
-pub use custom::{BuiltinDocs, CustomPrompt, CustomPromptRegistry, PromptInvocation};
-pub use generator::{SystemPromptGenerator, generate_system_instruction_with_config};
-pub use system::{
-    generate_lightweight_instruction, generate_specialized_instruction,
-    generate_system_instruction, read_system_prompt_from_md,
+// vtcode-core specific extensions
+pub mod core_extensions;
+
+// Re-export core-specific functionality
+pub use core_extensions::{
+    compose_system_instruction_text_with_config,
+    generate_system_instruction_content,
+    generate_system_instruction_with_config_and_guidelines,
+    read_agent_guidelines,
+    read_instruction_hierarchy,
 };
-pub use templates::PromptTemplates;

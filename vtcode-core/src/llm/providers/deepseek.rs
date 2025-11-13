@@ -29,30 +29,7 @@ pub struct DeepSeekProvider {
 }
 
 impl DeepSeekProvider {
-    pub fn new(api_key: String) -> Self {
-        Self::with_model_internal(
-            api_key,
-            models::deepseek::DEFAULT_MODEL.to_string(),
-            None,
-            None,
-        )
-    }
-
-    pub fn with_model(api_key: String, model: String) -> Self {
-        Self::with_model_internal(api_key, model, None, None)
-    }
-
-    pub fn from_config(
-        api_key: Option<String>,
-        model: Option<String>,
-        base_url: Option<String>,
-        prompt_cache: Option<PromptCachingConfig>,
-    ) -> Self {
-        let api_key_value = api_key.unwrap_or_default();
-        let model_value = resolve_model(model, models::deepseek::DEFAULT_MODEL);
-
-        Self::with_model_internal(api_key_value, model_value, prompt_cache, base_url)
-    }
+    impl_provider_constructors!(default_model: models::deepseek::DEFAULT_MODEL, resolve_fn: resolve_model);
 
     fn with_model_internal(
         api_key: String,
@@ -60,23 +37,23 @@ impl DeepSeekProvider {
         prompt_cache: Option<PromptCachingConfig>,
         base_url: Option<String>,
     ) -> Self {
-        let (prompt_cache_enabled, prompt_cache_settings) = extract_prompt_cache_settings(
-            prompt_cache,
-            |providers| &providers.deepseek,
-            |cfg, provider_settings| cfg.enabled && provider_settings.enabled,
-        );
+        use super::common::ProviderBuilder;
+
+        let builder = ProviderBuilder::new(api_key, model, urls::DEEPSEEK_API_BASE)
+            .with_base_url(base_url, Some(env_vars::DEEPSEEK_BASE_URL))
+            .with_prompt_cache(
+                prompt_cache,
+                |providers| &providers.deepseek,
+                |cfg, provider_settings| cfg.enabled && provider_settings.enabled,
+            );
 
         Self {
-            api_key,
-            http_client: HttpClient::new(),
-            base_url: override_base_url(
-                urls::DEEPSEEK_API_BASE,
-                base_url,
-                Some(env_vars::DEEPSEEK_BASE_URL),
-            ),
-            model,
-            prompt_cache_enabled,
-            prompt_cache_settings,
+            api_key: builder.api_key,
+            http_client: builder.http_client,
+            base_url: builder.base_url,
+            model: builder.model,
+            prompt_cache_enabled: builder.prompt_cache_enabled,
+            prompt_cache_settings: builder.prompt_cache_settings,
         }
     }
 

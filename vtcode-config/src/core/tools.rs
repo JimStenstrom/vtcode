@@ -2,6 +2,7 @@ use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 
 use crate::constants::{defaults, tools};
+use crate::utils::default_true;
 
 /// Tools configuration
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
@@ -83,7 +84,7 @@ pub struct WebFetchConfig {
     pub audit_log_path: String,
 
     /// Strict HTTPS-only mode
-    #[serde(default = "default_strict_https")]
+    #[serde(default = "default_true")]
     pub strict_https_only: bool,
 }
 
@@ -148,10 +149,6 @@ fn default_max_repeated_tool_calls() -> usize {
 
 fn default_web_fetch_mode() -> String {
     "restricted".to_string()
-}
-
-fn default_strict_https() -> bool {
-    true
 }
 
 const DEFAULT_TOOL_POLICIES: &[(&str, ToolPolicy)] = &[

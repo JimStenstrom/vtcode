@@ -65,27 +65,26 @@ struct BotActivity {
     from: Option<ActivityParticipant>,
     text: Option<String>,
     value: Option<Value>,
+    #[serde(default)]
+    attachments: Vec<Attachment>,
+}
+
+#[derive(Debug, Deserialize)]
+struct Attachment {
+    #[serde(rename = "contentType")]
+    content_type: String,
+    content: Option<Value>,
 }
 
 impl MicrosoftProvider {
-    pub fn new(secret: String) -> Self {
-        Self::from_config(Some(secret), None, None, None)
-    }
+    impl_provider_constructors!(default_model: models::microsoft::DEFAULT_MODEL, resolve_fn: resolve_model);
 
-    pub fn with_model(secret: String, model: String) -> Self {
-        Self::from_config(Some(secret), Some(model), None, None)
-    }
-
-    pub fn from_config(
-        secret: Option<String>,
-        model: Option<String>,
-        base_url: Option<String>,
+    fn with_model_internal(
+        api_key: String,
+        model: String,
         _prompt_cache: Option<PromptCachingConfig>,
+        base_url: Option<String>,
     ) -> Self {
-        let resolved_secret = secret.unwrap_or_else(|| {
-            std::env::var("MICROSOFT_DIRECTLINE_SECRET").unwrap_or_default()
-        });
-        let resolved_model = resolve_model(model, models::microsoft::DEFAULT_MODEL);
         let resolved_base_url = override_base_url(
             urls::MICROSOFT_DIRECTLINE_API_BASE,
             base_url,
@@ -98,9 +97,9 @@ impl MicrosoftProvider {
             .unwrap_or_default();
 
         Self {
-            secret: resolved_secret,
+            secret: api_key,
             base_url: resolved_base_url,
-            model: resolved_model,
+            model,
             http_client,
         }
     }
@@ -285,6 +284,48 @@ impl MicrosoftProvider {
 
         combined.trim().to_string()
     }
+
+    /// Extract content from activity, including Adaptive Cards
+    fn extract_activity_content(&self, activity: &BotActivity) -> Option<String> {
+        // First, check for simple text response
+        if let Some(text) = &activity.text {
+            if !text.trim().is_empty() {
+                return Some(text.clone());
+            }
+        }
+
+        // Check for Adaptive Card attachments
+        for attachment in &activity.attachments {
+            if attachment.content_type == "application/vnd.microsoft.card.adaptive" {
+                if let Some(card_content) = &attachment.content {
+                    // Extract text from Adaptive Card body
+                    if let Some(body) = card_content.get("body").and_then(|b| b.as_array()) {
+                        let mut card_text = String::new();
+                        for element in body {
+                            if let Some(text) = element.get("text").and_then(|t| t.as_str()) {
+                                if !card_text.is_empty() {
+                                    card_text.push('\n');
+                                }
+                                card_text.push_str(text);
+                            }
+                        }
+                        if !card_text.is_empty() {
+                            return Some(card_text);
+                        }
+                    }
+                }
+            }
+        }
+
+        // Check for value field (can contain structured data)
+        if let Some(value) = &activity.value {
+            if let Some(text) = value.get("text").and_then(|t| t.as_str()) {
+                return Some(text.to_string());
+            }
+        }
+
+        None
+    }
 }
 
 #[async_trait]
@@ -384,10 +425,14 @@ impl LLMProvider for MicrosoftProvider {
                         .unwrap_or(true);
 
                     if is_from_bot {
-                        if let Some(text) = activity.text {
+                        if let Some(content) = self.extract_activity_content(&activity) {
                             #[cfg(debug_assertions)]
                             {
-                                let content_len = text.len();
+                                let content_len = content.len();
+                                let has_attachments = !activity.attachments.is_empty();
+                                let has_adaptive_card = activity.attachments.iter().any(|a|
+                                    a.content_type == "application/vnd.microsoft.card.adaptive"
+                                );
                                 debug!(
                                     target = "vtcode::llm::microsoft",
                                     model = %request.model,
@@ -395,12 +440,14 @@ impl LLMProvider for MicrosoftProvider {
                                     elapsed_ms = request_timer.elapsed().as_millis(),
                                     poll_attempts = poll_count,
                                     content_len = content_len,
+                                    has_attachments = has_attachments,
+                                    has_adaptive_card = has_adaptive_card,
                                     "Completed Microsoft Direct Line request"
                                 );
                             }
 
                             return Ok(LLMResponse {
-                                content: text,
+                                content,
                                 finish_reason: FinishReason::Stop,
                                 usage: None,
                                 cached_prompt: None,

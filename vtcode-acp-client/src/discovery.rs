@@ -55,6 +55,15 @@ impl AgentRegistry {
         }
     }
 
+    /// Helper to filter and collect agents based on a predicate
+    async fn filter_agents<F>(&self, predicate: F) -> Vec<AgentInfo>
+    where
+        F: Fn(&AgentInfo) -> bool,
+    {
+        let agents = self.agents.read().await;
+        agents.values().filter(|a| predicate(a)).cloned().collect()
+    }
+
     /// Register an agent
     pub async fn register(&self, agent: AgentInfo) -> AcpResult<()> {
         let mut agents = self.agents.write().await;
@@ -80,25 +89,18 @@ impl AgentRegistry {
 
     /// Find agents by capability
     pub async fn find_by_capability(&self, capability: &str) -> AcpResult<Vec<AgentInfo>> {
-        let agents = self.agents.read().await;
-        let matching = agents
-            .values()
-            .filter(|a| a.online && a.capabilities.contains(&capability.to_string()))
-            .cloned()
-            .collect();
-        Ok(matching)
+        let capability = capability.to_string();
+        Ok(self.filter_agents(|a| a.online && a.capabilities.contains(&capability)).await)
     }
 
     /// List all registered agents
     pub async fn list_all(&self) -> AcpResult<Vec<AgentInfo>> {
-        let agents = self.agents.read().await;
-        Ok(agents.values().cloned().collect())
+        Ok(self.filter_agents(|_| true).await)
     }
 
     /// List online agents
     pub async fn list_online(&self) -> AcpResult<Vec<AgentInfo>> {
-        let agents = self.agents.read().await;
-        Ok(agents.values().filter(|a| a.online).cloned().collect())
+        Ok(self.filter_agents(|a| a.online).await)
     }
 
     /// Update agent status

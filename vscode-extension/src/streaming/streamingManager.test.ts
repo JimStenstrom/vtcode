@@ -1,16 +1,7 @@
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import * as vscode from 'vscode';
 import { StreamingManager, createThrottledGenerator, createBufferedGenerator } from './streamingManager';
 import { VtcodeStreamChunk } from '../vtcodeBackend';
-
-// Mock VS Code API
-jest.mock('vscode', () => ({
-    window: {
-        withProgress: jest.fn(),
-    },
-    ProgressLocation: {
-        Notification: 15,
-    },
-}));
 
 describe('StreamingManager', () => {
     let manager: StreamingManager;
@@ -18,7 +9,7 @@ describe('StreamingManager', () => {
 
     beforeEach(() => {
         manager = new StreamingManager();
-        
+
         // Create a mock chunk generator
         mockGenerator = (async function* () {
             yield { kind: 'text', text: 'Hello' };
@@ -26,8 +17,8 @@ describe('StreamingManager', () => {
             yield { kind: 'text', text: 'World' };
             yield { kind: 'done' };
         })();
-        
-        jest.clearAllMocks();
+
+        vi.clearAllMocks();
     });
 
     afterEach(() => {
@@ -37,13 +28,13 @@ describe('StreamingManager', () => {
     describe('streamChunks', () => {
         it('should stream chunks successfully', async () => {
             const mockProgress = {
-                report: jest.fn(),
+                report: vi.fn(),
             };
             const mockToken = {
                 isCancellationRequested: false,
             };
 
-            (vscode.window.withProgress as jest.Mock).mockImplementation((options, callback) => {
+            vi.spyOn(vscode.window, 'withProgress').mockImplementation((options: any, callback: any) => {
                 return callback(mockProgress, mockToken);
             });
 
@@ -91,13 +82,13 @@ describe('StreamingManager', () => {
 
         it('should show progress indicator when enabled', async () => {
             const mockProgress = {
-                report: jest.fn(),
+                report: vi.fn(),
             };
             const mockToken = {
                 isCancellationRequested: false,
             };
 
-            (vscode.window.withProgress as jest.Mock).mockImplementation((options, callback) => {
+            vi.spyOn(vscode.window, 'withProgress').mockImplementation((options: any, callback: any) => {
                 return callback(mockProgress, mockToken);
             });
 
@@ -130,13 +121,13 @@ describe('StreamingManager', () => {
 
         it('should handle cancellation', async () => {
             const mockProgress = {
-                report: jest.fn(),
+                report: vi.fn(),
             };
             const mockToken = {
                 isCancellationRequested: true, // Simulate cancellation
             };
 
-            (vscode.window.withProgress as jest.Mock).mockImplementation((options, callback) => {
+            vi.spyOn(vscode.window, 'withProgress').mockImplementation((options: any, callback: any) => {
                 return callback(mockProgress, mockToken);
             });
 

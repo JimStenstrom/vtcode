@@ -1,0 +1,78 @@
+[package]
+name = "vtcode-mcp"
+version = "0.43.6"
+edition = "2024"
+authors = ["vinhnx <vinhnx@users.noreply.github.com>"]
+description = "Model Context Protocol (MCP) client for VTCode"
+license = "MIT"
+keywords = ["mcp", "ai", "protocol", "context"]
+categories = ["api-bindings", "development-tools"]
+
+[dependencies]
+# Core dependencies
+anyhow = "1.0"
+thiserror = "2.0"
+async-trait = "0.1"
+futures = "0.3"
+
+# Tokio async runtime
+tokio = { version = "1.48", features = [
+    "fs",
+    "io-util",
+    "macros",
+    "rt-multi-thread",
+    "sync",
+    "process",
+] }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+toml = "0.9.8"
+
+# MCP Protocol
+rmcp = { version = "0.8.3", features = [
+    "client",
+    "transport-child-process",
+    "transport-streamable-http-client-reqwest",
+] }
+mcp-types = { path = "../third-party/mcp-types", version = "0.1.1" }
+
+# HTTP client
+reqwest = { version = "0.12", features = ["json", "rustls-tls", "stream"] }
+url = "2.5"
+
+# Validation
+jsonschema = "0.29"
+
+# Time and timezone handling
+chrono = { version = "0.4", features = ["serde"] }
+iana-time-zone = "0.1"
+
+# Concurrency
+parking_lot = "0.12"
+
+# Logging
+tracing = "0.1"
+
+# Command-line parsing (for CLI subcommands)
+clap = { version = "4.5", features = ["derive"] }
+
+# Home directory detection
+dirs = "6.0"
+
+# Internal dependencies
+vtcode-config = { path = "../vtcode-config", version = "0.43.6" }
+vtcode-commons = { path = "../vtcode-commons", version = "0.43.6" }
+vtcode-tool-traits = { path = "../vtcode-tool-traits", version = "0.43.6", optional = true }
+
+# Schema generation (optional)
+schemars = { version = "0.8", optional = true }
+
+[dev-dependencies]
+tokio = { version = "1.48", features = ["macros", "rt-multi-thread", "test-util"] }
+
+[features]
+default = []
+schema = ["dep:schemars"]
+tool-traits = ["dep:vtcode-tool-traits"]

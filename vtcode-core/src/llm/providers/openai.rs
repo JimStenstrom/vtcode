@@ -471,30 +471,7 @@ impl OpenAIProvider {
         }
     }
 
-    pub fn new(api_key: String) -> Self {
-        Self::with_model_internal(
-            api_key,
-            models::openai::DEFAULT_MODEL.to_string(),
-            None,
-            None,
-        )
-    }
-
-    pub fn with_model(api_key: String, model: String) -> Self {
-        Self::with_model_internal(api_key, model, None, None)
-    }
-
-    pub fn from_config(
-        api_key: Option<String>,
-        model: Option<String>,
-        base_url: Option<String>,
-        prompt_cache: Option<PromptCachingConfig>,
-    ) -> Self {
-        let api_key_value = api_key.unwrap_or_default();
-        let model_value = resolve_model(model, models::openai::DEFAULT_MODEL);
-
-        Self::with_model_internal(api_key_value, model_value, prompt_cache, base_url)
-    }
+    impl_provider_constructors!(default_model: models::openai::DEFAULT_MODEL, resolve_fn: resolve_model);
 
     fn with_model_internal(
         api_key: String,
@@ -502,30 +479,32 @@ impl OpenAIProvider {
         prompt_cache: Option<PromptCachingConfig>,
         base_url: Option<String>,
     ) -> Self {
-        let (prompt_cache_enabled, prompt_cache_settings) = extract_prompt_cache_settings(
-            prompt_cache,
-            |providers| &providers.openai,
-            |cfg, provider_settings| cfg.enabled && provider_settings.enabled,
-        );
+        use super::common::ProviderBuilder;
+
+        let mut builder = ProviderBuilder::new(api_key, model.clone(), urls::OPENAI_API_BASE)
+            .with_base_url(base_url, Some(env_vars::OPENAI_BASE_URL))
+            .with_prompt_cache(
+                prompt_cache,
+                |providers| &providers.openai,
+                |cfg, provider_settings| cfg.enabled && provider_settings.enabled,
+            );
+
+        // OpenAI needs longer timeout (120s vs default 30s)
+        builder.http_client = crate::http_client::with_timeout(120).unwrap_or_else(|_| {
+            crate::http_client::shared_client().clone()
+        });
 
         let mut responses_api_modes = HashMap::new();
-        responses_api_modes.insert(model.clone(), Self::default_responses_state(&model));
+        responses_api_modes.insert(builder.model.clone(), Self::default_responses_state(&builder.model));
 
         Self {
-            api_key,
-            http_client: HttpClient::builder()
-                .timeout(Duration::from_secs(120))
-                .build()
-                .unwrap_or_else(|_| HttpClient::new()),
-            base_url: override_base_url(
-                urls::OPENAI_API_BASE,
-                base_url,
-                Some(env_vars::OPENAI_BASE_URL),
-            ),
-            model,
+            api_key: builder.api_key,
+            http_client: builder.http_client,
+            base_url: builder.base_url,
+            model: builder.model,
             responses_api_modes: Mutex::new(responses_api_modes),
-            prompt_cache_enabled,
-            prompt_cache_settings,
+            prompt_cache_enabled: builder.prompt_cache_enabled,
+            prompt_cache_settings: builder.prompt_cache_settings,
         }
     }
 

@@ -132,8 +132,6 @@ pub mod commands;
 pub mod config;
 pub mod constants;
 pub mod core;
-pub mod exec;
-pub mod execpolicy;
 pub mod gemini;
 pub mod http_client;
 pub mod instructions;
@@ -143,13 +141,14 @@ pub mod metrics;
 pub mod models;
 pub mod project_doc;
 pub mod prompts;
-pub mod safety;
-pub mod sandbox;
 pub mod tool_policy;
 pub mod tools;
 pub mod types;
 pub mod ui;
 pub mod utils;
+
+// Re-export execution modules from vtcode-execution crate
+pub use vtcode_execution::{exec, policy as execpolicy, sandbox};
 
 // New MCP enhancement modules
 // Re-exports for convenience
@@ -174,24 +173,26 @@ pub use core::agent::task::{
 
 pub use core::prompt_caching::{CacheStats, PromptCache, PromptCacheConfig, PromptOptimizer};
 pub use core::timeout_detector::TimeoutDetector;
-pub use exec::events::{
+pub use vtcode_exec_events::{
     AgentMessageItem, CommandExecutionItem, CommandExecutionStatus, EVENT_SCHEMA_VERSION,
     ErrorItem, FileChangeItem, FileUpdateChange, ItemCompletedEvent, ItemStartedEvent,
     ItemUpdatedEvent, McpToolCallItem, McpToolCallStatus, PatchApplyStatus, PatchChangeKind,
     ReasoningItem, ThreadEvent, ThreadItem, ThreadItemDetails, TurnCompletedEvent, TurnFailedEvent,
     TurnStartedEvent, Usage, VersionedThreadEvent, WebSearchItem,
 };
-pub use exec::{CodeExecutor, ExecutionConfig, ExecutionResult, Language};
+pub use vtcode_execution::{CodeExecutor, ExecutionConfig, ExecutionResult, Language};
+pub use vtcode_execution::{
+    SandboxEnvironment, SandboxProfile, SandboxRuntimeKind, SandboxSettings,
+};
 pub use gemini::{Content, FunctionDeclaration, Part};
 pub use llm::{AnyClient, make_client};
 pub use mcp::{
-    tool_discovery::{DetailLevel, ToolDiscovery, ToolDiscoveryResult},
+    DetailLevel, ToolDiscovery, ToolDiscoveryResult,
     validate_mcp_config,
 };
 pub use prompts::{
     generate_lightweight_instruction, generate_specialized_instruction, generate_system_instruction,
 };
-pub use sandbox::{SandboxEnvironment, SandboxProfile, SandboxRuntimeKind, SandboxSettings}; // Configuration for Anthropic sandbox runtime integration
 pub use tool_policy::{ToolPolicy, ToolPolicyManager};
 pub use tools::grep_file::GrepSearchManager;
 pub use tools::tree_sitter::TreeSitterAnalyzer;

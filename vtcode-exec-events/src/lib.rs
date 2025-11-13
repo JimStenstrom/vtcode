@@ -162,42 +162,27 @@ mod tracing_support {
 
     impl EventEmitter for TracingEmitter {
         fn emit(&mut self, event: &ThreadEvent) {
+            let versioned_event = VersionedThreadEvent::new(event.clone());
+
+            // Macro to reduce duplication across log levels
+            macro_rules! emit_at_level {
+                ($level:expr) => {
+                    tracing::event!(
+                        target: "vtcode_exec_events",
+                        $level,
+                        schema_version = EVENT_SCHEMA_VERSION,
+                        event = ?versioned_event,
+                        "vtcode_exec_event"
+                    )
+                };
+            }
+
             match self.level {
-                Level::TRACE => tracing::event!(
-                    target: "vtcode_exec_events",
-                    Level::TRACE,
-                    schema_version = EVENT_SCHEMA_VERSION,
-                    event = ?VersionedThreadEvent::new(event.clone()),
-                    "vtcode_exec_event"
-                ),
-                Level::DEBUG => tracing::event!(
-                    target: "vtcode_exec_events",
-                    Level::DEBUG,
-                    schema_version = EVENT_SCHEMA_VERSION,
-                    event = ?VersionedThreadEvent::new(event.clone()),
-                    "vtcode_exec_event"
-                ),
-                Level::INFO => tracing::event!(
-                    target: "vtcode_exec_events",
-                    Level::INFO,
-                    schema_version = EVENT_SCHEMA_VERSION,
-                    event = ?VersionedThreadEvent::new(event.clone()),
-                    "vtcode_exec_event"
-                ),
-                Level::WARN => tracing::event!(
-                    target: "vtcode_exec_events",
-                    Level::WARN,
-                    schema_version = EVENT_SCHEMA_VERSION,
-                    event = ?VersionedThreadEvent::new(event.clone()),
-                    "vtcode_exec_event"
-                ),
-                Level::ERROR => tracing::event!(
-                    target: "vtcode_exec_events",
-                    Level::ERROR,
-                    schema_version = EVENT_SCHEMA_VERSION,
-                    event = ?VersionedThreadEvent::new(event.clone()),
-                    "vtcode_exec_event"
-                ),
+                Level::TRACE => emit_at_level!(Level::TRACE),
+                Level::DEBUG => emit_at_level!(Level::DEBUG),
+                Level::INFO => emit_at_level!(Level::INFO),
+                Level::WARN => emit_at_level!(Level::WARN),
+                Level::ERROR => emit_at_level!(Level::ERROR),
             }
         }
     }
@@ -295,23 +280,33 @@ pub struct Usage {
     pub output_tokens: u64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct ItemCompletedEvent {
-    /// Snapshot of the thread item that completed.
-    pub item: ThreadItem,
+/// Macro to define item event structs that all share the same structure.
+macro_rules! define_item_event {
+    ($(#[$attr:meta])* $name:ident, $doc:expr) => {
+        $(#[$attr])*
+        #[doc = $doc]
+        #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+        pub struct $name {
+            /// Snapshot of the thread item.
+            pub item: ThreadItem,
+        }
+    };
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct ItemStartedEvent {
-    /// Snapshot of the thread item that began processing.
-    pub item: ThreadItem,
-}
+define_item_event!(
+    ItemCompletedEvent,
+    "Event indicating that an item reached a terminal state."
+);
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct ItemUpdatedEvent {
-    /// Snapshot of the thread item after it was updated.
-    pub item: ThreadItem,
-}
+define_item_event!(
+    ItemStartedEvent,
+    "Event indicating that an item has started processing."
+);
+
+define_item_event!(
+    ItemUpdatedEvent,
+    "Event indicating that an item has been updated."
+);
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ThreadItem {

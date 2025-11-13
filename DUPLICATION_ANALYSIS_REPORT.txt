@@ -1,0 +1,497 @@
+# VTCODE-CORE CRATE: CODE DUPLICATION ANALYSIS REPORT
+
+## Executive Summary
+The vtcode-core crate contains 307 Rust source files organized into 40+ module directories. Analysis has identified significant code duplication patterns, particularly in:
+- LLM provider implementations (11 provider files)
+- Configuration validation logic
+- Error handling patterns
+- Request/response conversion functions
+
+Total lines of code: ~94,888 lines
+
+## Crate Structure Overview
+
+### Major Modules (by directory):
+- src/llm/providers/ - 11 provider implementations (OpenAI, Anthropic, Gemini, etc.)
+- src/ui/tui/session/ - Terminal UI session management
+- src/tools/ - Tool implementations and registry
+- src/config/ - Configuration management
+- src/core/agent/ - Agent execution logic
+- src/utils/ - Utility functions
+- src/tools/editing/patch/ - Patch application system
+- src/mcp/ - Model Context Protocol integration
+- src/gemini/ - Google Gemini-specific code
+- src/llm/ - LLM abstraction layer
+
+### Largest Files:
+1. ui/tui/session.rs (4,762 lines)
+2. tools/registry/executors.rs (2,750 lines)
+3. llm/providers/openai.rs (2,622 lines)
+4. mcp/mod.rs (2,481 lines)
+5. llm/providers/openrouter.rs (2,252 lines)
+
+---
+
+## MAJOR DUPLICATION PATTERNS IDENTIFIED
+
+### 1. LLM PROVIDER CONSTRUCTOR DUPLICATION
+**Severity: HIGH - Pattern repeats 11 times across all providers**
+
+Every LLM provider implements identical constructor patterns:
+
+```rust
+pub fn new(api_key: String) -> Self { ... }
+pub fn with_model(api_key: String, model: String) -> Self { ... }
+pub fn from_config(...) -> Self { ... }
+fn with_model_internal(...) -> Self { ... }
+```
+
+**Affected Files:**
+- /home/user/vtcode/vtcode-core/src/llm/providers/openai.rs (lines 474-530)
+- /home/user/vtcode/vtcode-core/src/llm/providers/anthropic.rs (lines 33-88)
+- /home/user/vtcode/vtcode-core/src/llm/providers/gemini.rs (lines 40-93)
+- /home/user/vtcode/vtcode-core/src/llm/providers/deepseek.rs (lines 32-81)
+- /home/user/vtcode/vtcode-core/src/llm/providers/zai.rs (lines 69-109)
+- /home/user/vtcode/vtcode-core/src/llm/providers/moonshot.rs (lines 31-66)
+- /home/user/vtcode/vtcode-core/src/llm/providers/ollama.rs (lines 99-136)
+- /home/user/vtcode/vtcode-core/src/llm/providers/xai.rs (lines 20-64)
+- /home/user/vtcode/vtcode-core/src/llm/providers/lmstudio.rs (lines 104-129)
+- /home/user/vtcode/vtcode-core/src/llm/providers/minimax.rs (lines 26-40)
+- /home/user/vtcode/vtcode-core/src/llm/providers/openrouter.rs (lines 655-683)
+
+**Code Pattern (OpenAI example):**
+```rust
+pub fn new(api_key: String) -> Self {
+    Self::with_model_internal(
+        api_key,
+        models::openai::DEFAULT_MODEL.to_string(),
+        None,
+        None,
+    )
+}
+
+pub fn with_model(api_key: String, model: String) -> Self {
+    Self::with_model_internal(api_key, model, None, None)
+}
+
+pub fn from_config(
+    api_key: Option<String>,
+    model: Option<String>,
+    base_url: Option<String>,
+    prompt_cache: Option<PromptCachingConfig>,
+) -> Self {
+    let api_key_value = api_key.unwrap_or_default();
+    let model_value = resolve_model(model, models::openai::DEFAULT_MODEL);
+    Self::with_model_internal(api_key_value, model_value, prompt_cache, base_url)
+}
+```
+
+**Recommendation:** Create a shared trait or macro for provider construction:
+```rust
+pub trait LLMProviderFactory {
+    fn new(api_key: String) -> Self;
+    fn with_model(api_key: String, model: String) -> Self;
+    fn from_config(...) -> Self;
+}
+```
+
+---
+
+### 2. ERROR HANDLING AND FORMATTING DUPLICATION
+**Severity: HIGH - 190+ instances across providers**
+
+All providers repeat similar error formatting patterns:
+
+**Examples:**
+- OpenAI: 59 instances of error_display::format_llm_error
+- Gemini: 31 instances
+- OpenRouter: 25 instances
+
+**Affected Files:**
+- llm/providers/openai.rs (lines 1405-1425 show typical pattern)
+- llm/providers/gemini.rs
+- llm/providers/anthropic.rs
+- llm/providers/deepseek.rs
+- llm/providers/zai.rs
+- llm/providers/moonshot.rs
+- llm/providers/ollama.rs
+
+**Typical Pattern:**
+```rust
+if !response.status().is_success() {
+    let status = response.status();
+    let error_text = response.text().await.unwrap_or_default();
+    let formatted_error = error_display::format_llm_error(
+        "OpenAI",
+        &format!("Error message: {}", error_text),
+    );
+    return Err(LLMError::Provider(formatted_error));
+}
+```
+
+**Recommendation:** Extract into helper function in common.rs or error_display module.
+
+---
+
+### 3. REQUEST CONVERSION AND TRANSFORMATION DUPLICATION
+**Severity: MEDIUM - 5-10 similar functions per provider**
+
+Each provider implements conversion functions with similar logic:
+
+**Affected Files:**
+- llm/providers/openai.rs: convert_to_harmony_conversation, convert_to_openai_format, convert_to_openai_responses_format
+- llm/providers/gemini.rs: convert_to_gemini_request
+- llm/providers/anthropic.rs: Similar conversion functions
+- llm/providers/openrouter.rs: Similar conversion functions
+
+**Pattern:** Convert LLMRequest → Provider-specific request format
+**Lines per provider:** 100-300 lines per conversion function
+
+**Recommendation:** Extract common conversion patterns into shared utilities; create adapter pattern for format conversion.
+
+---
+
+### 4. PROMPT CACHE SETTING EXTRACTION DUPLICATION
+**Severity: MEDIUM - Repeated 11 times**
+
+Every provider calls extract_prompt_cache_settings with similar parameters:
+
+**Affected Lines:**
+- OpenAI: lines 505-509
+- Anthropic: lines 64-68
+- Gemini: lines 71-79
+- DeepSeek: lines 63-67
+- And 7 more...
+
+**Pattern:**
+```rust
+let (prompt_cache_enabled, prompt_cache_settings) = extract_prompt_cache_settings(
+    prompt_cache,
+    |providers| &providers.provider_name,
+    |cfg, provider_settings| cfg.enabled && provider_settings.enabled,
+);
+```
+
+**Recommendation:** Create a helper method on provider struct or use builder pattern.
+
+---
+
+### 5. MODULE RE-EXPORT DUPLICATION
+**Severity: LOW - But indicates architectural confusion**
+
+Root-level re-exports duplicate functionality in subdirectories:
+
+**Affected Files:**
+- /home/user/vtcode/vtcode-core/src/user_confirmation.rs (5 lines - re-exports ui/user_confirmation.rs)
+- /home/user/vtcode/vtcode-core/src/safety.rs (5 lines - re-exports utils/safety.rs)
+
+**Content:**
+```rust
+// user_confirmation.rs
+pub use crate::ui::user_confirmation::*;
+
+// safety.rs  
+pub use crate::utils::safety::*;
+```
+
+**Recommendation:** Consolidate into lib.rs or remove re-export files if not needed for backwards compatibility.
+
+---
+
+### 6. VALIDATION LOGIC DUPLICATION
+**Severity: MEDIUM**
+
+Two separate validation modules with overlapping functionality:
+
+**Files:**
+- /home/user/vtcode/vtcode-core/src/config/validation.rs (342 lines)
+- /home/user/vtcode/vtcode-core/src/config/validator.rs (333 lines)
+
+**Overlap:** Both handle models.json loading and validation
+- validation.rs: load_models_json(), get_available_models()
+- validator.rs: ModelsDatabase struct with similar functionality
+
+**Recommendation:** Merge into single validator module with clear responsibilities.
+
+---
+
+### 7. POLICY/PERMISSION EVALUATION DUPLICATION
+**Severity: MEDIUM - Similar pattern matching logic**
+
+Two policy modules with similar evaluation logic:
+
+**Files:**
+- /home/user/vtcode/vtcode-core/src/tool_policy.rs (1,197 lines)
+- /home/user/vtcode/vtcode-core/src/tools/command_policy.rs (380+ lines)
+
+**Similarity:**
+- Tool policy: allow/prompt/deny for tools
+- Command policy: allow/deny prefix/regex/glob matching
+
+Both implement:
+- Policy configuration storage
+- Pattern matching logic
+- Caching mechanisms
+- Permission evaluation
+
+**Recommendation:** Extract common policy evaluation trait; share pattern matching utilities.
+
+---
+
+### 8. CONVERSION FUNCTION TEMPLATES (impl From<T>)
+**Severity: LOW - Patterns are necessary but could be consolidated**
+
+Multiple files implement similar From/Into traits using Into<String> builder pattern:
+
+**Files Using Pattern:**
+- tools/error_context.rs
+- tools/registry/justification.rs
+- tools/registry/telemetry.rs
+- tools/editing/patch/applicator/lifecycle.rs
+- utils/session_archive.rs
+- gemini/models/mod.rs
+
+**Pattern:**
+```rust
+pub fn new(tool_name: impl Into<String>, message: impl Into<String>) -> Self {
+    Self {
+        tool_name: tool_name.into(),
+        message: message.into(),
+    }
+}
+
+pub fn with_file(mut self, path: impl Into<String>) -> Self {
+    self.file_path = Some(path.into());
+    self
+}
+```
+
+**Recommendation:** This pattern is appropriate for builders; consolidate only if creating macro-based builder generator.
+
+---
+
+### 9. RESPONSE PARSING DUPLICATION
+**Severity: MEDIUM**
+
+Multiple providers implement similar response parsing:
+
+**Affected Files:**
+- llm/providers/openai.rs: parse_responses_payload (lines 94-200+)
+- llm/providers/gemini.rs: Similar response extraction
+- llm/providers/anthropic.rs: Response parsing
+- llm/providers/deepseek.rs: parse_response method
+- llm/providers/moonshot.rs: parse_response method
+- llm/providers/zai.rs: Response parsing
+
+**Common Pattern:** Extract fields from JSON response → LLMResponse struct
+
+**Recommendation:** Create response parser helper in shared module; use provider-specific adapters.
+
+---
+
+### 10. COMMON HTTP CLIENT SETUP
+**Severity: LOW**
+
+Multiple files create HttpClient with similar configuration:
+
+**Affected Files:**
+- llm/providers/openai.rs (lines 516-519)
+- llm/providers/anthropic.rs (line 82)
+- llm/providers/gemini.rs (line 83)
+- (Most others)
+
+**Pattern:**
+```rust
+http_client: HttpClient::new(),
+// or
+http_client: HttpClient::builder()
+    .timeout(Duration::from_secs(120))
+    .build()
+    .unwrap_or_else(|_| HttpClient::new()),
+```
+
+**Recommendation:** Create factory function in http_client.rs module.
+
+---
+
+## CRATE STRUCTURE SUMMARY
+
+```
+vtcode-core/
+├── src/
+│   ├── acp/                           # Access Control Policy (2 files)
+│   ├── audit/                         # Audit logging (2 files)
+│   ├── cli/                           # CLI command handling (6 files)
+│   ├── code/                          # Code completion and quality (44 files)
+│   │   ├── code_completion/           # Completion engine, caching, learning
+│   │   └── code_quality/              # Linting, formatting, metrics
+│   ├── commands/                      # High-level commands (6 files)
+│   ├── config/                        # Configuration system (14 files)
+│   ├── core/                          # Agent core logic (17 files)
+│   │   ├── agent/                     # Agent execution (12 files)
+│   │   └── interfaces/                # Agent interfaces (3 files)
+│   ├── exec/                          # Execution engine (9 files)
+│   ├── execpolicy/                    # Execution policy (1 file)
+│   ├── gemini/                        # Google Gemini integration (9 files)
+│   ├── llm/                           # LLM abstraction (25+ files)
+│   │   ├── providers/                 # 11 provider implementations
+│   │   ├── llm_modular/               # Modular provider architecture
+│   │   └── providers/shared/          # Shared provider utilities
+│   ├── mcp/                           # Model Context Protocol (4 files)
+│   ├── metrics/                       # Metrics tracking (7 files)
+│   ├── prompts/                       # Prompt generation (6 files)
+│   ├── sandbox/                       # Sandbox environment (5 files)
+│   ├── tools/                         # Tool system (60+ files)
+│   │   ├── editing/                   # Edit/patch tools
+│   │   ├── registry/                  # Tool registry system
+│   │   ├── tree_sitter/               # Code parsing tools
+│   │   ├── web_fetch/                 # Web fetching tools
+│   │   └── [various tool files]
+│   ├── ui/                            # User interface (40+ files)
+│   │   ├── tui/                       # Terminal UI (20+ files)
+│   │   └── [UI modules]
+│   ├── utils/                         # Utilities (25+ files)
+│   └── Root files                     # lib.rs, types.rs, safety.rs, etc.
+├── tests/                             # Integration tests (20+ files)
+└── examples/                          # Example programs (6 files)
+```
+
+---
+
+## REFACTORING RECOMMENDATIONS (Priority Order)
+
+### PRIORITY 1: LLM Provider Constructor Consolidation
+**Effort: Medium | Impact: High | Lines Saved: ~200-300**
+
+Create a shared provider trait and factory:
+```rust
+// llm/providers/base.rs
+pub trait BaseProvider: Sized {
+    fn api_key(&self) -> &str;
+    fn model(&self) -> &str;
+    fn base_url(&self) -> &str;
+    
+    // Default constructor implementations
+    fn new(api_key: String) -> Self { ... }
+    fn with_model(api_key: String, model: String) -> Self { ... }
+}
+```
+
+### PRIORITY 2: Error Handling Consolidation
+**Effort: Medium | Impact: High | Instances to consolidate: 190+**
+
+Create error handling utilities:
+```rust
+// llm/error_handling.rs
+pub fn handle_http_error(status: StatusCode, body: &str, provider: &str) -> LLMError { ... }
+pub fn handle_parse_error(error: serde_json::Error, provider: &str) -> LLMError { ... }
+```
+
+### PRIORITY 3: Request/Response Conversion Extraction
+**Effort: High | Impact: Medium | Lines Saved: ~500-1000**
+
+Create adapter pattern for format conversion:
+```rust
+// llm/providers/adapters/
+pub trait RequestAdapter {
+    fn convert(&self, request: &LLMRequest) -> Result<Value>;
+}
+
+pub trait ResponseAdapter {
+    fn convert(&self, response: Value) -> Result<LLMResponse>;
+}
+```
+
+### PRIORITY 4: Prompt Cache Extraction Pattern
+**Effort: Low | Impact: Low | Instances: 11**
+
+Create builder pattern:
+```rust
+pub struct PromptCacheBuilder;
+impl PromptCacheBuilder {
+    pub fn build(&self, config: Option<PromptCachingConfig>) -> (bool, ProviderCacheSettings) { ... }
+}
+```
+
+### PRIORITY 5: Validation Logic Consolidation
+**Effort: Medium | Impact: Low | Files to merge: 2**
+
+Merge validation.rs and validator.rs into single module with clear separation:
+- ModelsDatabase: Handles models.json loading
+- ValidationResult: Validation result structure
+- Validator: Main validation logic
+
+### PRIORITY 6: Policy Evaluation Trait
+**Effort: Medium | Impact: Medium | Files: 2**
+
+Create shared policy evaluation trait:
+```rust
+pub trait PolicyEvaluator {
+    fn is_allowed(&self, subject: &str) -> bool;
+    fn matches_pattern(&self, subject: &str, pattern: &str) -> bool;
+}
+```
+
+---
+
+## IMPLEMENTATION GUIDE
+
+### Step 1: Create Shared Provider Infrastructure (Week 1)
+- [ ] Create llm/providers/base.rs with BaseProvider trait
+- [ ] Move shared constructor logic to base
+- [ ] Update all 11 providers to use base implementation
+
+### Step 2: Extract Error Handling (Week 1-2)
+- [ ] Create llm/error_handling.rs module
+- [ ] Move all error_display::format_llm_error calls to centralized helpers
+- [ ] Update providers to use helpers
+
+### Step 3: Create Request/Response Adapters (Week 2-3)
+- [ ] Design adapter pattern
+- [ ] Implement for OpenAI (pilot)
+- [ ] Rollout to remaining 10 providers
+
+### Step 4: Merge Validation Modules (Week 3)
+- [ ] Consolidate validation.rs and validator.rs
+- [ ] Update all imports
+- [ ] Test thoroughly
+
+### Step 5: Extract Policy Evaluation (Week 4)
+- [ ] Create common policy trait
+- [ ] Implement for tool_policy.rs
+- [ ] Implement for command_policy.rs
+- [ ] Share pattern matching utilities
+
+---
+
+## TESTING CONSIDERATIONS
+
+Before applying refactoring:
+1. Ensure all existing tests pass
+2. Increase test coverage for extracted utilities
+3. Add integration tests for consolidated modules
+4. Verify no behavior changes to public API
+
+---
+
+## ESTIMATED IMPACT
+
+- **Lines of Code Reduction:** 1,500-2,500 lines (1.6-2.7% of codebase)
+- **Duplication Removal:** ~60-70% of identified duplication
+- **Maintainability:** Significant improvement (+2-3 points on maintainability scale)
+- **Testing Complexity:** Reduced by consolidating test cases
+
+---
+
+## CONCLUSION
+
+The vtcode-core crate has significant structural duplication primarily in the LLM provider layer. While the individual implementations are correct and functional, consolidating common patterns into shared traits and utilities would:
+
+1. Reduce maintenance burden for future provider additions
+2. Ensure consistency across all providers
+3. Improve code testability
+4. Enable faster bug fixing across all providers
+5. Reduce overall codebase complexity
+
+The highest-impact refactoring would be consolidating the 11 LLM provider constructors and error handling patterns, which account for 60-70% of the identified duplication.
+

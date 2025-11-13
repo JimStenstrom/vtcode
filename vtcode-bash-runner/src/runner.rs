@@ -160,15 +160,7 @@ where
             }
         };
 
-        let invocation = CommandInvocation::new(
-            self.shell_kind,
-            command,
-            CommandCategory::CreateDirectory,
-            self.working_dir.clone(),
-        )
-        .with_paths(vec![target]);
-
-        self.expect_success(invocation).map(|_| ())
+        self.execute_fs_command(command, CommandCategory::CreateDirectory, vec![target])
     }
 
     pub fn rm(&self, path: &str, recursive: bool, force: bool) -> Result<()> {
@@ -200,15 +192,7 @@ where
             }
         };
 
-        let invocation = CommandInvocation::new(
-            self.shell_kind,
-            command,
-            CommandCategory::Remove,
-            self.working_dir.clone(),
-        )
-        .with_paths(vec![target]);
-
-        self.expect_success(invocation).map(|_| ())
+        self.execute_fs_command(command, CommandCategory::Remove, vec![target])
     }
 
     pub fn cp(&self, source: &str, dest: &str, recursive: bool) -> Result<()> {
@@ -239,15 +223,7 @@ where
             }
         };
 
-        let invocation = CommandInvocation::new(
-            self.shell_kind,
-            command,
-            CommandCategory::Copy,
-            self.working_dir.clone(),
-        )
-        .with_paths(vec![source_path, dest_path]);
-
-        self.expect_success(invocation).map(|_| ())
+        self.execute_fs_command(command, CommandCategory::Copy, vec![source_path, dest_path])
     }
 
     pub fn mv(&self, source: &str, dest: &str) -> Result<()> {
@@ -268,15 +244,7 @@ where
             ]),
         };
 
-        let invocation = CommandInvocation::new(
-            self.shell_kind,
-            command,
-            CommandCategory::Move,
-            self.working_dir.clone(),
-        )
-        .with_paths(vec![source_path, dest_path]);
-
-        self.expect_success(invocation).map(|_| ())
+        self.execute_fs_command(command, CommandCategory::Move, vec![source_path, dest_path])
     }
 
     pub fn grep(&self, pattern: &str, path: Option<&str>, recursive: bool) -> Result<String> {
@@ -327,11 +295,7 @@ where
         } else {
             Err(anyhow!(
                 "search command failed: {}",
-                if output.stderr.trim().is_empty() {
-                    output.stdout
-                } else {
-                    output.stderr
-                }
+                select_error_output(&output)
             ))
         }
     }
@@ -339,6 +303,23 @@ where
     fn execute_invocation(&self, invocation: CommandInvocation) -> Result<CommandOutput> {
         self.policy.check(&invocation)?;
         self.executor.execute(&invocation)
+    }
+
+    fn execute_fs_command(
+        &self,
+        command: String,
+        category: CommandCategory,
+        paths: Vec<PathBuf>,
+    ) -> Result<()> {
+        let invocation = CommandInvocation::new(
+            self.shell_kind,
+            command,
+            category,
+            self.working_dir.clone(),
+        )
+        .with_paths(paths);
+
+        self.expect_success(invocation).map(|_| ())
     }
 
     fn expect_success(&self, invocation: CommandInvocation) -> Result<CommandOutput> {
@@ -349,11 +330,7 @@ where
             Err(anyhow!(
                 "command `{}` failed: {}",
                 invocation.command,
-                if output.stderr.trim().is_empty() {
-                    output.stdout
-                } else {
-                    output.stderr
-                }
+                select_error_output(&output)
             ))
         }
     }
@@ -434,6 +411,14 @@ fn default_shell_kind() -> ShellKind {
         ShellKind::Windows
     } else {
         ShellKind::Unix
+    }
+}
+
+fn select_error_output(output: &CommandOutput) -> &str {
+    if output.stderr.trim().is_empty() {
+        &output.stdout
+    } else {
+        &output.stderr
     }
 }
 

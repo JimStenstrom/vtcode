@@ -16,6 +16,7 @@ mod registration;
 mod risk_scorer;
 mod telemetry;
 mod utils;
+pub mod validation;
 
 pub use approval_recorder::ApprovalRecorder;
 pub use declarations::{
@@ -52,7 +53,7 @@ use std::time::Duration;
 use tracing::{debug, warn};
 
 use super::plan::PlanManager;
-use crate::mcp::{McpClient, McpToolExecutor, McpToolInfo};
+use vtcode_mcp::{McpClient, McpToolExecutor, McpToolInfo};
 
 #[cfg(test)]
 use super::traits::Tool;

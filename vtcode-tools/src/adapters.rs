@@ -174,26 +174,25 @@ where
 
     fn record_event(&self, event: RegistryEvent) {
         if let Err(err) = self.telemetry.record(&event) {
-            self.handle_error(
+            self.record_error(
                 err.context("failed to record vtcode-tools registry adapter telemetry event"),
+                |message| RegistryEvent::TelemetryFailure { message },
             );
         }
     }
 
-    fn report_error(&self, error: Error) {
+    /// Generic error recording that captures error and emits telemetry event
+    fn record_error<F>(&self, error: Error, event_factory: F)
+    where
+        F: FnOnce(String) -> RegistryEvent,
+    {
         let message = self.error_formatter.format_error(&error).into_owned();
         let _ = self.error_reporter.capture(&error);
-        let _ = self
-            .telemetry
-            .record(&RegistryEvent::AdapterError { message });
+        let _ = self.telemetry.record(&event_factory(message));
     }
 
-    fn handle_error(&self, error: Error) {
-        let message = self.error_formatter.format_error(&error).into_owned();
-        let _ = self.error_reporter.capture(&error);
-        let _ = self
-            .telemetry
-            .record(&RegistryEvent::TelemetryFailure { message });
+    fn report_error(&self, error: Error) {
+        self.record_error(error, |message| RegistryEvent::AdapterError { message });
     }
 }
 

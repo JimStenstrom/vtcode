@@ -95,35 +95,24 @@ colorchoice-clap = "1.0"
 quick_cache = "0.6"
 roff = "0.2"
 syntect = "5.2"
-unicode-segmentation = "1.11"
-unicode-width = "0.2.0"
-crossterm = "0.29.0"
-ratatui = { version = "0.29", default-features = false, features = [
-    "crossterm",
-    "unstable-rendered-line-info",
-    "unstable-widget-ref",
-] }
-tui-popup = "0.6"
-tui-prompts = "0.5"
-perg = "0.8.0"
-nucleo-matcher = "0.3"
-line-clipping = "0.3"
-pulldown-cmark = { version = "0.13", default-features = false, features = [
-    "simd",
-] }
-catppuccin = { version = "2.5", default-features = false }
-dissimilar = "1.0"
+# UI dependencies moved to vtcode-ui crate
+# unicode-segmentation, unicode-width, crossterm, ratatui, tui-popup, tui-prompts,
+# perg, nucleo-matcher, line-clipping, pulldown-cmark, catppuccin, dissimilar,
+# vt100, portable-pty, ansi-to-tui are now in vtcode-ui
+
 rig = { package = "rig-core", version = "0.23.1", default-features = false, features = [
     "reqwest-rustls",
 ] }
-vt100 = "0.15.2"
-portable-pty = "0.9.0"
-ansi-to-tui = "7.0.0"
 vtcode-commons = { path = "../vtcode-commons", version = "0.43.6" }
 vtcode-exec-events = { path = "../vtcode-exec-events", version = "0.43.6" }
+vtcode-execution = { path = "../vtcode-execution", version = "0.43.6" }
+vtcode-tool-traits = { path = "../vtcode-tool-traits", version = "0.43.6" }
 vtcode-config = { path = "../vtcode-config", version = "0.43.6" }
+vtcode-prompts = { path = "../vtcode-prompts", version = "0.43.6" }
 vtcode-markdown-store = { path = "../vtcode-markdown-store", version = "0.43.6" }
 vtcode-indexer = { path = "../vtcode-indexer", version = "0.43.6" }
+vtcode-mcp = { path = "../vtcode-mcp", version = "0.43.6" }
+vtcode-ui = { path = "../vtcode-ui", version = "0.43.6" }
 
 # Token counting for attention budget management
 tokenizers = { version = "0.22", features = ["http"] }
@@ -131,16 +120,10 @@ tokenizers = { version = "0.22", features = ["http"] }
 # Schema generation
 schemars = { version = "0.8", optional = true }
 
-# MCP (Model Context Protocol) support
-rmcp = { version = "0.8.3", features = [
-    "client",
-    "transport-child-process",
-    "transport-streamable-http-client-reqwest",
-] }
-mcp-types = { path = "../third-party/mcp-types", version = "0.1.1" }
+# MCP (Model Context Protocol) support is now in vtcode-mcp crate
+# Keeping these dependencies for other parts of vtcode-core that might use them
 openai-harmony = "0.0.3"
 url = "2.5"
-jsonschema = "0.29"
 uuid = { version = "1.8.0", features = ["v4", "fast-rng"] }
 which = "8.0.0"
 textwrap = "0.16"
@@ -162,6 +145,10 @@ path = "examples/dialoguer_example.rs"
 name = "migration_test"
 path = "examples/migration_test.rs"
 
+[[bench]]
+name = "provider_performance"
+harness = false
+
 [features]
 default = []
 swift = ["dep:tree-sitter-swift"]
@@ -181,3 +168,5 @@ rustdoc-args = ["--cfg", "docsrs"]
 [dev-dependencies]
 assert_fs = "1.1"
 nix = { version = "0.30", features = ["user"] }
+criterion = { version = "0.5", features = ["html_reports"] }
+tokio-test = "0.4"

@@ -1,3 +1,4 @@
+use crate::utils::default_true;
 use serde::{Deserialize, Serialize};
 
 /// Security configuration
@@ -28,8 +29,4 @@ impl Default for SecurityConfig {
             auto_apply_detected_patches: false,
         }
     }
-}
-
-fn default_true() -> bool {
-    true
 }
