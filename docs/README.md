@@ -327,15 +327,15 @@ VT Code builds upon key developments in AI agent technology:
 
 ---
 
-**Documentation Version:** 2.1.0
-**Last Updated:** September 2025
-**VT Code Version:** 0.15.9
+**Documentation Version:** 2.2.0
+**Last Updated:** November 2025
+**VT Code Version:** 0.43.6
 
 **Ready to get started?** **[Installation Guide](../README.md#quick-start)**
 
 ## Documentation Version
 
-This documentation reflects version 0.15.9 of VT Code, which includes significant enhancements including:
+This documentation reflects version 0.43.6 of VT Code, which includes significant enhancements including:
 
 -   Decision Ledger system for transparent decision tracking
 -   Error recovery and resilience with intelligent pattern detection

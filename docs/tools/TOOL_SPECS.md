@@ -1,6 +1,11 @@
-# VT Code Tool Specifications (Anthropic-Aligned)
+# VT Code Tool Specifications
 
-This document summarizes the updated tool schemas and guidance following Anthropic’s best practices for agent tools. Use these specs when writing prompts and building evaluations.
+This document provides comprehensive specifications for all tools available to VTCode agents. Tool schemas follow Anthropic's best practices for agent tools.
+
+**See Also:**
+- **[Web Fetch Security](./web_fetch_security.md)** - Security configuration for the web_fetch tool
+- **[Git Commands Reference](../user-guide/GIT_QUICK_REFERENCE.md)** - Git command usage guide
+- **[Tool Development Guide](../development/tool-development.md)** - Guide for implementing custom tools
 
 ## Common Conventions
 
@@ -48,6 +53,35 @@ This document summarizes the updated tool schemas and guidance following Anthrop
     -   Purpose: Execute a program with arguments.
     -   Key args: `command` (string|string[]), `working_dir` (string), `timeout_secs` (int), `mode` (string: pty|terminal|streaming), `response_format`.
     -   Default mode is `pty` so output retains ANSI styling.
+
+-   apply_patch
+
+    -   Purpose: Apply unified diff patches to files.
+    -   Key args: `patch` (string), `working_dir` (string), `dry_run` (bool).
+    -   Supports multi-file patches with context matching.
+    -   Returns: List of files modified with status (success/failure/skipped).
+
+-   web_fetch
+
+    -   Purpose: Fetch content from URLs with security controls.
+    -   Key args: `url` (string), `method` (string: GET|POST|HEAD), `headers` (object), `body` (string).
+    -   Security modes: `restricted` (default) | `open` | `custom`.
+    -   See [Web Fetch Security](./web_fetch_security.md) for configuration details.
+
+-   tree_sitter
+
+    -   Purpose: Syntax-aware code analysis and querying.
+    -   Key args: `path` (string), `query` (string), `language` (string).
+    -   Supports structural queries for code navigation and refactoring.
+    -   Returns: AST nodes matching the query pattern.
+
+## Additional Tools
+
+The following tools are available but may require specific configuration or MCP server integration:
+
+-   **plan** - Generate execution plans for complex multi-step tasks
+-   **git_status**, **git_diff**, **git_log** - Git operations (see [Git Commands](../user-guide/GIT_QUICK_REFERENCE.md))
+-   **MCP tools** - Model Context Protocol servers can provide additional tools (filesystem, database access, etc.)
 
 ## Policy Constraints (scoped)
 

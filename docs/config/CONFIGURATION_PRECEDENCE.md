@@ -1,6 +1,10 @@
 # Configuration Precedence in VT Code
 
-This document summarizes how VT Code discovers configuration at startup and how default values and runtime validation interact with user-provided settings.
+This document provides detailed information about how VT Code discovers and resolves configuration at startup, including precedence rules, validation, and default values.
+
+**For the main configuration reference**, see [VTCode Configuration](../config.md).
+
+**For developer migration guides**, see [Config Crate Migration](../development/config-crate-migration.md).
 
 ## Resolution Order
 
