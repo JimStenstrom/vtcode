@@ -2,6 +2,10 @@ use std::borrow::Cow;
 
 use anyhow::{Error, Result};
 
+mod memory;
+
+pub use memory::MemoryErrorReporter;
+
 /// Formats an error into a user-facing description. This allows extracted
 /// components to present consistent error messaging without depending on the
 /// CLI presentation layer.

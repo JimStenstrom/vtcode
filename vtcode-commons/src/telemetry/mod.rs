@@ -1,5 +1,9 @@
 use anyhow::Result;
 
+mod memory;
+
+pub use memory::MemoryTelemetry;
+
 /// A lightweight sink used to record telemetry events emitted by extracted
 /// components. The `Event` type is intentionally generic so downstream
 /// consumers can supply their own event schema without depending on
