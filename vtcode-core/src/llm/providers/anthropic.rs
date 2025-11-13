@@ -61,29 +61,29 @@ impl AnthropicProvider {
         prompt_cache: Option<PromptCachingConfig>,
         base_url: Option<String>,
     ) -> Self {
-        let (prompt_cache_enabled, prompt_cache_settings) = extract_prompt_cache_settings(
-            prompt_cache,
-            |providers| &providers.anthropic,
-            |cfg, provider_settings| cfg.enabled && provider_settings.enabled,
-        );
+        use super::common::ProviderBuilder;
 
         let base_url_value = if model.as_str() == models::minimax::MINIMAX_M2 {
-            Self::resolve_minimax_base_url(base_url)
+            Self::resolve_minimax_base_url(base_url.clone())
         } else {
-            override_base_url(
-                urls::ANTHROPIC_API_BASE,
-                base_url,
-                Some(env_vars::ANTHROPIC_BASE_URL),
-            )
+            urls::ANTHROPIC_API_BASE.to_string()
         };
 
+        let builder = ProviderBuilder::new(api_key, model, &base_url_value)
+            .with_base_url(base_url, Some(env_vars::ANTHROPIC_BASE_URL))
+            .with_prompt_cache(
+                prompt_cache,
+                |providers| &providers.anthropic,
+                |cfg, provider_settings| cfg.enabled && provider_settings.enabled,
+            );
+
         Self {
-            api_key,
-            http_client: HttpClient::new(),
-            base_url: base_url_value,
-            model,
-            prompt_cache_enabled,
-            prompt_cache_settings,
+            api_key: builder.api_key,
+            http_client: builder.http_client,
+            base_url: builder.base_url,
+            model: builder.model,
+            prompt_cache_enabled: builder.prompt_cache_enabled,
+            prompt_cache_settings: builder.prompt_cache_settings,
         }
     }
 
