@@ -99,6 +99,13 @@ pub mod providers {
     pub use vtcode_core::llm::providers::zai::*;
 }
 
+// Re-export modular providers when their features are enabled
+#[cfg(feature = "openai")]
+pub mod modular {
+    //! Modular provider implementations from standalone packages
+    pub use vtcode_llm_openai::*;
+}
+
 #[cfg(feature = "telemetry")]
 pub mod telemetry {
     //! Streaming telemetry helpers shared across provider implementations.
