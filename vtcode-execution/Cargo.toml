@@ -25,6 +25,7 @@ tokio = { version = "1.48", features = [
     "io-util",
     "macros",
     "process",
+    "rt-multi-thread",
     "sync",
     "time",
 ] }
@@ -36,6 +37,11 @@ futures-lite = "2.3"
 
 # Logging and tracing
 tracing = "0.1"
+
+# Utilities
+regex = "1.12"
+uuid = { version = "1.8.0", features = ["v4", "fast-rng"] }
+chrono = { version = "0.4", features = ["serde"] }
 
 # Path manipulation
 walkdir = "2.5"

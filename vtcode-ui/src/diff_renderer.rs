@@ -1,5 +1,5 @@
-use crate::ui::git_config::GitColorConfig;
-use crate::utils::style_helpers::style_from_color_name;
+use crate::git_config::GitColorConfig;
+use crate::utils::style_from_color_name;
 use anstyle::{Reset, Style};
 use std::path::Path;
 

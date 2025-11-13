@@ -41,10 +41,13 @@ pub mod tool_discovery;
 
 // Re-export main types for convenience
 pub use client::{
-    McpClient, McpClientStatus, McpElicitationHandler, McpElicitationRequest,
+    McpClient, McpElicitationHandler, McpElicitationRequest,
     McpElicitationResponse, McpPromptDetail, McpPromptInfo, McpResourceData, McpResourceInfo,
-    McpToolExecutor, McpToolInfo, validate_mcp_config,
+    validate_mcp_config,
 };
+
+// Re-export tool trait types directly
+pub use vtcode_tool_traits::{McpClientStatus, McpToolExecutor, McpToolInfo};
 pub use cli::{
     AddArgs, GetArgs, ListArgs, LoginArgs, LogoutArgs, McpCommands, RemoveArgs,
     handle_mcp_command,

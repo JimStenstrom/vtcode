@@ -8,8 +8,8 @@ use super::{
     PROMPT_INVOKE_PREFIX,
 };
 use crate::prompts::{CustomPrompt, CustomPromptRegistry};
-use crate::ui::search::normalize_query;
-use crate::ui::slash::{SlashCommandInfo, suggestions_for};
+use crate::search::normalize_query;
+use crate::slash::{SlashCommandInfo, suggestions_for};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SlashCommandRange {
@@ -205,10 +205,7 @@ impl SlashPalette {
                     for prompt in registry.iter() {
                         if search_part.is_empty()
                             || prompt.name.to_lowercase().starts_with(&normalized)
-                            || prompt
-                                .description
-                                .as_ref()
-                                .map_or(false, |desc| desc.to_lowercase().contains(&normalized))
+                            || prompt.description.to_lowercase().contains(&normalized)
                         {
                             new_suggestions.push(SlashPaletteSuggestion::Custom(prompt.clone()));
                         }
@@ -217,7 +214,7 @@ impl SlashPalette {
             }
         } else if prefix == PROMPT_COMMAND_NAME || prefix == LEGACY_PROMPT_COMMAND_NAME {
             // When just typing the command, include the static entry and all custom prompts
-            if let Some(command) = crate::ui::slash::SLASH_COMMANDS.iter().find(|cmd| {
+            if let Some(command) = crate::slash::SLASH_COMMANDS.iter().find(|cmd| {
                 cmd.name == PROMPT_COMMAND_NAME || cmd.name == LEGACY_PROMPT_COMMAND_NAME
             }) {
                 new_suggestions.push(SlashPaletteSuggestion::Static(command));

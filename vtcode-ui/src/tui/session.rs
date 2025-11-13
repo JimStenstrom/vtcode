@@ -28,7 +28,7 @@ use super::{
         SecurePromptConfig,
     },
 };
-use crate::config::constants::{prompts, ui};
+use vtcode_config::constants::{prompts, ui};
 
 mod file_palette;
 mod header;

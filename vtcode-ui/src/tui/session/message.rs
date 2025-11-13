@@ -1,4 +1,4 @@
-use crate::ui::tui::types::{InlineMessageKind, InlineSegment};
+use crate::tui::types::{InlineMessageKind, InlineSegment};
 
 #[derive(Clone)]
 pub struct MessageLine {

@@ -134,9 +134,9 @@
 //!     .build(); // No network access by default
 //! ```
 
-mod environment;
-mod profile;
-mod settings;
+pub mod environment;
+pub mod profile;
+pub mod settings;
 
 #[cfg(test)]
 mod tests;

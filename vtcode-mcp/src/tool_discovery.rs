@@ -16,7 +16,7 @@
 //! let detail = discovery.get_tool_detail("read_file").await?;
 //! ```
 
-use crate::client::McpToolInfo;
+use crate::McpToolInfo;
 use anyhow::Result;
 use serde_json::Value;
 use std::cmp::Ordering;
@@ -80,12 +80,12 @@ impl ToolDiscoveryResult {
 
 /// Tool discovery service for progressive disclosure of MCP tools.
 pub struct ToolDiscovery {
-    mcp_client: Arc<dyn crate::client::McpToolExecutor>,
+    mcp_client: Arc<dyn crate::McpToolExecutor>,
 }
 
 impl ToolDiscovery {
     /// Create a new tool discovery service.
-    pub fn new(mcp_client: Arc<dyn crate::client::McpToolExecutor>) -> Self {
+    pub fn new(mcp_client: Arc<dyn crate::McpToolExecutor>) -> Self {
         Self { mcp_client }
     }
 

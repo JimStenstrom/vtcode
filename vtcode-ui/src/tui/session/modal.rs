@@ -1,6 +1,6 @@
-use crate::config::constants::ui;
-use crate::ui::search::{fuzzy_match, normalize_query};
-use crate::ui::tui::types::{
+use vtcode_config::constants::ui;
+use crate::search::{fuzzy_match, normalize_query};
+use crate::tui::types::{
     InlineEvent, InlineListItem, InlineListSearchConfig, InlineListSelection, SecurePromptConfig,
 };
 use crossterm::event::{KeyCode, KeyEvent};

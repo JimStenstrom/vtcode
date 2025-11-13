@@ -2,8 +2,8 @@
 
 use anyhow::Result;
 use tokio::sync::mpsc;
-use crate::ui::tui::session::Session;
-use crate::ui::tui::types::{InlineCommand, InlineEvent, InlineEventCallback, InlineTheme};
+use crate::tui::session::Session;
+use crate::tui::types::{InlineCommand, InlineEvent, InlineEventCallback, InlineTheme};
 use crate::config::types::UiSurfacePreference;
 
 use super::modern_tui::{ModernTui, Event};

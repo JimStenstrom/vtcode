@@ -1,10 +1,9 @@
-use tokio_util::sync::CancellationToken;
-
 use std::future::Future;
 
-use tokio::task_local;
+// Re-export CancellationToken for convenience
+pub use tokio_util::sync::CancellationToken;
 
-task_local! {
+tokio::task_local! {
     static ACTIVE_TOOL_TOKEN: CancellationToken;
 }
 

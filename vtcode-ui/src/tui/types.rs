@@ -3,7 +3,7 @@ use std::sync::Arc;
 use anstyle::{Color as AnsiColorEnum, Effects, Style as AnsiStyle};
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 
-use crate::config::{constants::ui, types::ReasoningEffortLevel};
+use vtcode_config::{constants::ui, types::ReasoningEffortLevel};
 use crate::tools::TaskPlan;
 
 #[derive(Clone, Debug)]

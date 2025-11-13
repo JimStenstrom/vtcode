@@ -2,7 +2,7 @@ use anstyle::{AnsiColor, Color as AnsiColorEnum, Effects, RgbColor, Style as Ans
 use ratatui::style::{Color, Modifier, Style};
 use unicode_width::UnicodeWidthStr;
 
-use crate::ui::theme;
+use crate::theme;
 
 use super::types::{InlineTextStyle, InlineTheme};
 

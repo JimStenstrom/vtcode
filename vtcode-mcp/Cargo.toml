@@ -64,7 +64,7 @@ dirs = "6.0"
 # Internal dependencies
 vtcode-config = { path = "../vtcode-config", version = "0.43.6" }
 vtcode-commons = { path = "../vtcode-commons", version = "0.43.6" }
-vtcode-tool-traits = { path = "../vtcode-tool-traits", version = "0.43.6", optional = true }
+vtcode-tool-traits = { path = "../vtcode-tool-traits", version = "0.43.6" }
 
 # Schema generation (optional)
 schemars = { version = "0.8", optional = true }
@@ -75,4 +75,3 @@ tokio = { version = "1.48", features = ["macros", "rt-multi-thread", "test-util"
 [features]
 default = []
 schema = ["dep:schemars"]
-tool-traits = ["dep:vtcode-tool-traits"]

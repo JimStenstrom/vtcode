@@ -3,7 +3,7 @@
 //! This module provides functionality to load custom theme configurations
 //! from .vtcode/theme.toml files and apply them to the application.
 
-use crate::ui::{FileColorizer, GitColorConfig, ThemeConfig};
+use crate::{FileColorizer, GitColorConfig, ThemeConfig};
 use anyhow::Result;
 use std::path::Path;
 

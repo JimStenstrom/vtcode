@@ -1,6 +1,6 @@
 use once_cell::sync::Lazy;
 
-use crate::ui::search::{fuzzy_match, normalize_query};
+use crate::search::{fuzzy_match, normalize_query};
 
 /// Metadata describing a slash command supported by the chat interface.
 #[derive(Clone, Copy, Debug)]

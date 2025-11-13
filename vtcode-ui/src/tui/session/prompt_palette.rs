@@ -64,7 +64,7 @@ impl PromptPalette {
     pub fn append_custom_prompts<'a>(&mut self, prompts: impl Iterator<Item = &'a CustomPrompt>) {
         let entries = prompts.map(|prompt| PromptEntry {
             name: prompt.name.clone(),
-            description: prompt.description.clone().unwrap_or_default(),
+            description: prompt.description.clone(),
         });
         self.append_entries(entries);
     }

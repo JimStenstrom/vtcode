@@ -9,7 +9,7 @@ use ratatui::{
 };
 use unicode_segmentation::UnicodeSegmentation;
 
-use crate::config::constants::ui;
+use vtcode_config::constants::ui;
 
 use super::super::types::{InlineHeaderContext, InlineHeaderHighlight};
 use super::{PROMPT_COMMAND_NAME, Session, ratatui_color_from_ansi};
