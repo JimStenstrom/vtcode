@@ -264,6 +264,8 @@ pub enum ModelId {
     // Ollama models
     /// GPT-OSS 20B - Open-weight GPT-OSS 20B model served via Ollama locally
     OllamaGptOss20b,
+    /// GPT-OSS 20B Cloud - Cloud-hosted GPT-OSS 20B served via Ollama Cloud
+    OllamaGptOss20bCloud,
     /// GPT-OSS 120B Cloud - Cloud-hosted GPT-OSS 120B served via Ollama Cloud
     OllamaGptOss120bCloud,
     /// Qwen3 1.7B - Qwen3 1.7B model served via Ollama
@@ -271,14 +273,14 @@ pub enum ModelId {
     /// DeepSeek V3.1 671B Cloud - DeepSeek reasoning deployment via Ollama Cloud
     OllamaDeepseekV31_671bCloud,
 
-    /// Kimi K2 Thinking Cloud - Cloud-hosted Kimi K2 Thinking model served via Ollama Cloud
-    OllamaKimiK2ThinkingCloud,
     /// Kimi K2 1T Cloud - Cloud-hosted Kimi K2 1T model served via Ollama Cloud
     OllamaKimiK21tCloud,
     /// Qwen3 Coder 480B Cloud - Large Qwen3 coding specialist via Ollama Cloud
     OllamaQwen3Coder480bCloud,
     /// GLM 4.6 Cloud - GLM 4.6 reasoning model via Ollama Cloud
     OllamaGlm46Cloud,
+    /// MiniMax-M2 Cloud - MiniMax reasoning model via Ollama Cloud
+    OllamaMinimaxM2Cloud,
 
     // LM Studio models
     /// Meta Llama 3 8B Instruct served locally via LM Studio
@@ -441,6 +443,8 @@ impl ModelId {
             ModelId::GPT5Mini => models::GPT_5_MINI,
             ModelId::GPT5Nano => models::GPT_5_NANO,
             ModelId::CodexMiniLatest => models::CODEX_MINI_LATEST,
+            ModelId::OpenAIGptOss20b => models::openai::GPT_OSS_20B,
+            ModelId::OpenAIGptOss120b => models::openai::GPT_OSS_120B,
             // Anthropic models
             ModelId::ClaudeOpus41 => models::CLAUDE_OPUS_4_1_20250805,
             ModelId::ClaudeSonnet45 => models::CLAUDE_SONNET_4_5,
@@ -475,14 +479,15 @@ impl ModelId {
             ModelId::MoonshotKimiLatest128k => models::MOONSHOT_KIMI_LATEST_128K,
             // Ollama models
             ModelId::OllamaGptOss20b => models::ollama::GPT_OSS_20B,
+            ModelId::OllamaGptOss20bCloud => models::ollama::GPT_OSS_20B_CLOUD,
             ModelId::OllamaGptOss120bCloud => models::ollama::GPT_OSS_120B_CLOUD,
             ModelId::OllamaQwen317b => models::ollama::QWEN3_1_7B,
             ModelId::OllamaDeepseekV31_671bCloud => models::ollama::DEEPSEEK_V31_671B_CLOUD,
 
-            ModelId::OllamaKimiK2ThinkingCloud => models::ollama::KIMI_K2_THINKING_CLOUD,
             ModelId::OllamaKimiK21tCloud => models::ollama::KIMI_K2_1T_CLOUD,
             ModelId::OllamaQwen3Coder480bCloud => models::ollama::QWEN3_CODER_480B_CLOUD,
             ModelId::OllamaGlm46Cloud => models::ollama::GLM_46_CLOUD,
+            ModelId::OllamaMinimaxM2Cloud => models::ollama::MINIMAX_M2_CLOUD,
             ModelId::LmStudioMetaLlama38BInstruct => models::lmstudio::META_LLAMA_3_8B_INSTRUCT,
             ModelId::LmStudioMetaLlama318BInstruct => models::lmstudio::META_LLAMA_31_8B_INSTRUCT,
             ModelId::LmStudioQwen257BInstruct => models::lmstudio::QWEN25_7B_INSTRUCT,
@@ -491,8 +496,58 @@ impl ModelId {
             ModelId::LmStudioPhi31Mini4kInstruct => models::lmstudio::PHI_31_MINI_4K_INSTRUCT,
             // MiniMax models
             ModelId::MinimaxM2 => models::minimax::MINIMAX_M2,
-            // OpenRouter models
-            _ => unreachable!(),
+            // OpenRouter models - fallback for any OpenRouter model without metadata
+            ModelId::OpenRouterGrokCodeFast1
+            | ModelId::OpenRouterGrok4Fast
+            | ModelId::OpenRouterGrok4
+            | ModelId::OpenRouterZaiGlm46
+            | ModelId::OpenRouterMoonshotaiKimiK20905
+            | ModelId::OpenRouterMoonshotaiKimiK2Thinking
+            | ModelId::OpenRouterMoonshotaiKimiK2Free
+            | ModelId::OpenRouterQwen3Max
+            | ModelId::OpenRouterQwen3235bA22b
+            | ModelId::OpenRouterQwen3235bA22bFree
+            | ModelId::OpenRouterQwen3235bA22b2507
+            | ModelId::OpenRouterQwen3235bA22bThinking2507
+            | ModelId::OpenRouterQwen332b
+            | ModelId::OpenRouterQwen330bA3b
+            | ModelId::OpenRouterQwen330bA3bFree
+            | ModelId::OpenRouterQwen330bA3bInstruct2507
+            | ModelId::OpenRouterQwen330bA3bThinking2507
+            | ModelId::OpenRouterQwen314b
+            | ModelId::OpenRouterQwen314bFree
+            | ModelId::OpenRouterQwen38b
+            | ModelId::OpenRouterQwen38bFree
+            | ModelId::OpenRouterQwen34bFree
+            | ModelId::OpenRouterQwen3Next80bA3bInstruct
+            | ModelId::OpenRouterQwen3Next80bA3bThinking
+            | ModelId::OpenRouterQwen3Coder
+            | ModelId::OpenRouterQwen3CoderFree
+            | ModelId::OpenRouterQwen3CoderPlus
+            | ModelId::OpenRouterQwen3CoderFlash
+            | ModelId::OpenRouterQwen3Coder30bA3bInstruct
+            | ModelId::OpenRouterDeepSeekV32Exp
+            | ModelId::OpenRouterDeepSeekChatV31
+            | ModelId::OpenRouterDeepSeekR1
+            | ModelId::OpenRouterDeepSeekChatV31Free
+            | ModelId::OpenRouterNvidiaNemotronNano9bV2Free
+            | ModelId::OpenRouterOpenAIGptOss120b
+            | ModelId::OpenRouterOpenAIGptOss20b
+            | ModelId::OpenRouterOpenAIGptOss20bFree
+            | ModelId::OpenRouterOpenAIGpt5
+            | ModelId::OpenRouterOpenAIGpt5Codex
+            | ModelId::OpenRouterOpenAIGpt5Chat
+            | ModelId::OpenRouterOpenAIGpt4oSearchPreview
+            | ModelId::OpenRouterOpenAIGpt4oMiniSearchPreview
+            | ModelId::OpenRouterOpenAIChatgpt4oLatest
+            | ModelId::OpenRouterAnthropicClaudeSonnet45
+            | ModelId::OpenRouterAnthropicClaudeHaiku45
+            | ModelId::OpenRouterAnthropicClaudeOpus41
+            | ModelId::OpenRouterMinimaxM2Free => {
+                // Fallback to a default value for OpenRouter models without metadata
+                // In production, these should have metadata
+                "openrouter-model"
+            }
         }
     }
 
@@ -540,13 +595,14 @@ impl ModelId {
             | ModelId::MoonshotKimiLatest32k
             | ModelId::MoonshotKimiLatest128k => Provider::Moonshot,
             ModelId::OllamaGptOss20b
+            | ModelId::OllamaGptOss20bCloud
             | ModelId::OllamaGptOss120bCloud
             | ModelId::OllamaQwen317b
             | ModelId::OllamaDeepseekV31_671bCloud
-            | ModelId::OllamaKimiK2ThinkingCloud
             | ModelId::OllamaKimiK21tCloud
             | ModelId::OllamaQwen3Coder480bCloud
-            | ModelId::OllamaGlm46Cloud => Provider::Ollama,
+            | ModelId::OllamaGlm46Cloud
+            | ModelId::OllamaMinimaxM2Cloud => Provider::Ollama,
             ModelId::LmStudioMetaLlama38BInstruct
             | ModelId::LmStudioMetaLlama318BInstruct
             | ModelId::LmStudioQwen257BInstruct
@@ -554,7 +610,54 @@ impl ModelId {
             | ModelId::LmStudioGemma29BIt
             | ModelId::LmStudioPhi31Mini4kInstruct => Provider::LmStudio,
             ModelId::MinimaxM2 => Provider::Minimax,
-            _ => unreachable!(),
+            // OpenRouter models - fallback for any OpenRouter model without metadata
+            ModelId::OpenRouterGrokCodeFast1
+            | ModelId::OpenRouterGrok4Fast
+            | ModelId::OpenRouterGrok4
+            | ModelId::OpenRouterZaiGlm46
+            | ModelId::OpenRouterMoonshotaiKimiK20905
+            | ModelId::OpenRouterMoonshotaiKimiK2Thinking
+            | ModelId::OpenRouterMoonshotaiKimiK2Free
+            | ModelId::OpenRouterQwen3Max
+            | ModelId::OpenRouterQwen3235bA22b
+            | ModelId::OpenRouterQwen3235bA22bFree
+            | ModelId::OpenRouterQwen3235bA22b2507
+            | ModelId::OpenRouterQwen3235bA22bThinking2507
+            | ModelId::OpenRouterQwen332b
+            | ModelId::OpenRouterQwen330bA3b
+            | ModelId::OpenRouterQwen330bA3bFree
+            | ModelId::OpenRouterQwen330bA3bInstruct2507
+            | ModelId::OpenRouterQwen330bA3bThinking2507
+            | ModelId::OpenRouterQwen314b
+            | ModelId::OpenRouterQwen314bFree
+            | ModelId::OpenRouterQwen38b
+            | ModelId::OpenRouterQwen38bFree
+            | ModelId::OpenRouterQwen34bFree
+            | ModelId::OpenRouterQwen3Next80bA3bInstruct
+            | ModelId::OpenRouterQwen3Next80bA3bThinking
+            | ModelId::OpenRouterQwen3Coder
+            | ModelId::OpenRouterQwen3CoderFree
+            | ModelId::OpenRouterQwen3CoderPlus
+            | ModelId::OpenRouterQwen3CoderFlash
+            | ModelId::OpenRouterQwen3Coder30bA3bInstruct
+            | ModelId::OpenRouterDeepSeekV32Exp
+            | ModelId::OpenRouterDeepSeekChatV31
+            | ModelId::OpenRouterDeepSeekR1
+            | ModelId::OpenRouterDeepSeekChatV31Free
+            | ModelId::OpenRouterNvidiaNemotronNano9bV2Free
+            | ModelId::OpenRouterOpenAIGptOss120b
+            | ModelId::OpenRouterOpenAIGptOss20b
+            | ModelId::OpenRouterOpenAIGptOss20bFree
+            | ModelId::OpenRouterOpenAIGpt5
+            | ModelId::OpenRouterOpenAIGpt5Codex
+            | ModelId::OpenRouterOpenAIGpt5Chat
+            | ModelId::OpenRouterOpenAIGpt4oSearchPreview
+            | ModelId::OpenRouterOpenAIGpt4oMiniSearchPreview
+            | ModelId::OpenRouterOpenAIChatgpt4oLatest
+            | ModelId::OpenRouterAnthropicClaudeSonnet45
+            | ModelId::OpenRouterAnthropicClaudeHaiku45
+            | ModelId::OpenRouterAnthropicClaudeOpus41
+            | ModelId::OpenRouterMinimaxM2Free => Provider::OpenRouter,
         }
     }
 
@@ -678,14 +781,15 @@ impl ModelId {
             ModelId::MoonshotKimiLatest128k => "Kimi Latest 128K",
             // Ollama models
             ModelId::OllamaGptOss20b => "GPT-OSS 20B (local)",
+            ModelId::OllamaGptOss20bCloud => "GPT-OSS 20B (cloud)",
             ModelId::OllamaGptOss120bCloud => "GPT-OSS 120B (cloud)",
             ModelId::OllamaQwen317b => "Qwen3 1.7B (local)",
             ModelId::OllamaDeepseekV31_671bCloud => "DeepSeek V3.1 671B (cloud)",
 
-            ModelId::OllamaKimiK2ThinkingCloud => "Kimi K2 Thinking (cloud)",
             ModelId::OllamaKimiK21tCloud => "Kimi K2 1T (cloud)",
             ModelId::OllamaQwen3Coder480bCloud => "Qwen3 Coder 480B (cloud)",
             ModelId::OllamaGlm46Cloud => "GLM 4.6 (cloud)",
+            ModelId::OllamaMinimaxM2Cloud => "MiniMax-M2 (cloud)",
             ModelId::LmStudioMetaLlama38BInstruct => "Meta Llama 3 8B (LM Studio)",
             ModelId::LmStudioMetaLlama318BInstruct => "Meta Llama 3.1 8B (LM Studio)",
             ModelId::LmStudioQwen257BInstruct => "Qwen2.5 7B (LM Studio)",
@@ -800,6 +904,9 @@ impl ModelId {
             ModelId::OllamaGptOss120bCloud => {
                 "Cloud-hosted GPT-OSS 120B accessed through Ollama Cloud for larger reasoning tasks"
             }
+            ModelId::OllamaGptOss20bCloud => {
+                "Cloud-hosted GPT-OSS 20B accessed through Ollama Cloud for enhanced reasoning tasks"
+            }
             ModelId::OllamaQwen317b => {
                 "Qwen3 1.7B served locally through Ollama without external API requirements"
             }
@@ -807,11 +914,11 @@ impl ModelId {
                 "DeepSeek V3.1 671B cloud deployment via Ollama with tool use and long-form reasoning"
             }
 
-            ModelId::OllamaKimiK2ThinkingCloud => {
-                "Cloud-hosted Kimi K2 Thinking model accessed through Ollama Cloud for advanced reasoning tasks"
-            }
             ModelId::OllamaKimiK21tCloud => {
                 "Cloud-hosted Kimi K2 1T model accessed through Ollama Cloud for high-capacity reasoning tasks"
+            }
+            ModelId::OllamaMinimaxM2Cloud => {
+                "Cloud-hosted MiniMax-M2 accessed through Ollama Cloud with reasoning and tool use"
             }
             ModelId::OllamaQwen3Coder480bCloud => {
                 "Qwen3 Coder 480B expert model provided by Ollama Cloud for complex code generation"
@@ -841,8 +948,58 @@ impl ModelId {
             ModelId::MinimaxM2 => {
                 "MiniMax-M2 via Anthropic-compatible API with reasoning and tool use"
             }
-            // OpenRouter models
-            _ => unreachable!(),
+            // OpenRouter models - fallback for any OpenRouter model without metadata
+            ModelId::OpenRouterGrokCodeFast1
+            | ModelId::OpenRouterGrok4Fast
+            | ModelId::OpenRouterGrok4
+            | ModelId::OpenRouterZaiGlm46
+            | ModelId::OpenRouterMoonshotaiKimiK20905
+            | ModelId::OpenRouterMoonshotaiKimiK2Thinking
+            | ModelId::OpenRouterMoonshotaiKimiK2Free
+            | ModelId::OpenRouterQwen3Max
+            | ModelId::OpenRouterQwen3235bA22b
+            | ModelId::OpenRouterQwen3235bA22bFree
+            | ModelId::OpenRouterQwen3235bA22b2507
+            | ModelId::OpenRouterQwen3235bA22bThinking2507
+            | ModelId::OpenRouterQwen332b
+            | ModelId::OpenRouterQwen330bA3b
+            | ModelId::OpenRouterQwen330bA3bFree
+            | ModelId::OpenRouterQwen330bA3bInstruct2507
+            | ModelId::OpenRouterQwen330bA3bThinking2507
+            | ModelId::OpenRouterQwen314b
+            | ModelId::OpenRouterQwen314bFree
+            | ModelId::OpenRouterQwen38b
+            | ModelId::OpenRouterQwen38bFree
+            | ModelId::OpenRouterQwen34bFree
+            | ModelId::OpenRouterQwen3Next80bA3bInstruct
+            | ModelId::OpenRouterQwen3Next80bA3bThinking
+            | ModelId::OpenRouterQwen3Coder
+            | ModelId::OpenRouterQwen3CoderFree
+            | ModelId::OpenRouterQwen3CoderPlus
+            | ModelId::OpenRouterQwen3CoderFlash
+            | ModelId::OpenRouterQwen3Coder30bA3bInstruct
+            | ModelId::OpenRouterDeepSeekV32Exp
+            | ModelId::OpenRouterDeepSeekChatV31
+            | ModelId::OpenRouterDeepSeekR1
+            | ModelId::OpenRouterDeepSeekChatV31Free
+            | ModelId::OpenRouterNvidiaNemotronNano9bV2Free
+            | ModelId::OpenRouterOpenAIGptOss120b
+            | ModelId::OpenRouterOpenAIGptOss20b
+            | ModelId::OpenRouterOpenAIGptOss20bFree
+            | ModelId::OpenRouterOpenAIGpt5
+            | ModelId::OpenRouterOpenAIGpt5Codex
+            | ModelId::OpenRouterOpenAIGpt5Chat
+            | ModelId::OpenRouterOpenAIGpt4oSearchPreview
+            | ModelId::OpenRouterOpenAIGpt4oMiniSearchPreview
+            | ModelId::OpenRouterOpenAIChatgpt4oLatest
+            | ModelId::OpenRouterAnthropicClaudeSonnet45
+            | ModelId::OpenRouterAnthropicClaudeHaiku45
+            | ModelId::OpenRouterAnthropicClaudeOpus41
+            | ModelId::OpenRouterMinimaxM2Free => {
+                // Fallback description for OpenRouter models
+                // In production, these should have metadata
+                "Model available via OpenRouter marketplace"
+            }
         }
     }
 
@@ -899,13 +1056,14 @@ impl ModelId {
             ModelId::MoonshotKimiLatest128k,
             // Ollama models
             ModelId::OllamaGptOss20b,
+            ModelId::OllamaGptOss20bCloud,
             ModelId::OllamaGptOss120bCloud,
             ModelId::OllamaQwen317b,
             ModelId::OllamaDeepseekV31_671bCloud,
-            ModelId::OllamaKimiK2ThinkingCloud,
             ModelId::OllamaKimiK21tCloud,
             ModelId::OllamaQwen3Coder480bCloud,
             ModelId::OllamaGlm46Cloud,
+            ModelId::OllamaMinimaxM2Cloud,
             // LM Studio models
             ModelId::LmStudioMetaLlama38BInstruct,
             ModelId::LmStudioMetaLlama318BInstruct,
@@ -1125,7 +1283,9 @@ impl ModelId {
             | ModelId::GPT5Codex
             | ModelId::GPT5Mini
             | ModelId::GPT5Nano
-            | ModelId::CodexMiniLatest => "5",
+            | ModelId::CodexMiniLatest
+            | ModelId::OpenAIGptOss20b
+            | ModelId::OpenAIGptOss120b => "5",
             // Anthropic generations
             ModelId::ClaudeSonnet45 | ModelId::ClaudeHaiku45 => "4.5",
             ModelId::ClaudeSonnet4 => "4",
@@ -1148,6 +1308,7 @@ impl ModelId {
             ModelId::ZaiGlm432b0414128k => "4-32B",
             // Moonshot generations
             ModelId::MoonshotKimiK2TurboPreview
+            | ModelId::MoonshotKimiK2ThinkingHeavy
             | ModelId::MoonshotKimiK20905Preview
             | ModelId::MoonshotKimiK20711Preview => "k2",
             ModelId::MoonshotKimiK2Thinking => "k2-thinking",
@@ -1156,12 +1317,15 @@ impl ModelId {
             | ModelId::MoonshotKimiLatest32k
             | ModelId::MoonshotKimiLatest128k => "latest",
             ModelId::OllamaGptOss20b => "oss",
+            ModelId::OllamaGptOss20bCloud => "oss-cloud",
             ModelId::OllamaGptOss120bCloud => "oss-cloud",
             ModelId::OllamaQwen317b => "oss",
             ModelId::OllamaDeepseekV31_671bCloud => "deepseek-v3.1",
 
+            ModelId::OllamaKimiK21tCloud => "kimi-k2",
             ModelId::OllamaQwen3Coder480bCloud => "qwen3",
             ModelId::OllamaGlm46Cloud => "glm-4.6",
+            ModelId::OllamaMinimaxM2Cloud => "minimax-m2",
             ModelId::LmStudioMetaLlama38BInstruct => "meta-llama-3",
             ModelId::LmStudioMetaLlama318BInstruct => "meta-llama-3.1",
             ModelId::LmStudioQwen257BInstruct => "qwen2.5",
@@ -1170,7 +1334,54 @@ impl ModelId {
             ModelId::LmStudioPhi31Mini4kInstruct => "phi-3.1",
             // MiniMax models
             ModelId::MinimaxM2 => "m2",
-            _ => unreachable!(),
+            // OpenRouter models - fallback for any OpenRouter model without metadata
+            ModelId::OpenRouterGrokCodeFast1
+            | ModelId::OpenRouterGrok4Fast
+            | ModelId::OpenRouterGrok4
+            | ModelId::OpenRouterZaiGlm46
+            | ModelId::OpenRouterMoonshotaiKimiK20905
+            | ModelId::OpenRouterMoonshotaiKimiK2Thinking
+            | ModelId::OpenRouterMoonshotaiKimiK2Free
+            | ModelId::OpenRouterQwen3Max
+            | ModelId::OpenRouterQwen3235bA22b
+            | ModelId::OpenRouterQwen3235bA22bFree
+            | ModelId::OpenRouterQwen3235bA22b2507
+            | ModelId::OpenRouterQwen3235bA22bThinking2507
+            | ModelId::OpenRouterQwen332b
+            | ModelId::OpenRouterQwen330bA3b
+            | ModelId::OpenRouterQwen330bA3bFree
+            | ModelId::OpenRouterQwen330bA3bInstruct2507
+            | ModelId::OpenRouterQwen330bA3bThinking2507
+            | ModelId::OpenRouterQwen314b
+            | ModelId::OpenRouterQwen314bFree
+            | ModelId::OpenRouterQwen38b
+            | ModelId::OpenRouterQwen38bFree
+            | ModelId::OpenRouterQwen34bFree
+            | ModelId::OpenRouterQwen3Next80bA3bInstruct
+            | ModelId::OpenRouterQwen3Next80bA3bThinking
+            | ModelId::OpenRouterQwen3Coder
+            | ModelId::OpenRouterQwen3CoderFree
+            | ModelId::OpenRouterQwen3CoderPlus
+            | ModelId::OpenRouterQwen3CoderFlash
+            | ModelId::OpenRouterQwen3Coder30bA3bInstruct
+            | ModelId::OpenRouterDeepSeekV32Exp
+            | ModelId::OpenRouterDeepSeekChatV31
+            | ModelId::OpenRouterDeepSeekR1
+            | ModelId::OpenRouterDeepSeekChatV31Free
+            | ModelId::OpenRouterNvidiaNemotronNano9bV2Free
+            | ModelId::OpenRouterOpenAIGptOss120b
+            | ModelId::OpenRouterOpenAIGptOss20b
+            | ModelId::OpenRouterOpenAIGptOss20bFree
+            | ModelId::OpenRouterOpenAIGpt5
+            | ModelId::OpenRouterOpenAIGpt5Codex
+            | ModelId::OpenRouterOpenAIGpt5Chat
+            | ModelId::OpenRouterOpenAIGpt4oSearchPreview
+            | ModelId::OpenRouterOpenAIGpt4oMiniSearchPreview
+            | ModelId::OpenRouterOpenAIChatgpt4oLatest
+            | ModelId::OpenRouterAnthropicClaudeSonnet45
+            | ModelId::OpenRouterAnthropicClaudeHaiku45
+            | ModelId::OpenRouterAnthropicClaudeOpus41
+            | ModelId::OpenRouterMinimaxM2Free => "unknown", // fallback generation for OpenRouter models
         }
     }
 }
@@ -1241,20 +1452,19 @@ impl FromStr for ModelId {
             s if s == models::MOONSHOT_KIMI_LATEST_32K => Ok(ModelId::MoonshotKimiLatest32k),
             s if s == models::MOONSHOT_KIMI_LATEST_128K => Ok(ModelId::MoonshotKimiLatest128k),
             s if s == models::ollama::GPT_OSS_20B => Ok(ModelId::OllamaGptOss20b),
+            s if s == models::ollama::GPT_OSS_20B_CLOUD => Ok(ModelId::OllamaGptOss20bCloud),
             s if s == models::ollama::GPT_OSS_120B_CLOUD => Ok(ModelId::OllamaGptOss120bCloud),
             s if s == models::ollama::QWEN3_1_7B => Ok(ModelId::OllamaQwen317b),
             s if s == models::ollama::DEEPSEEK_V31_671B_CLOUD => {
                 Ok(ModelId::OllamaDeepseekV31_671bCloud)
             }
 
-            s if s == models::ollama::KIMI_K2_THINKING_CLOUD => {
-                Ok(ModelId::OllamaKimiK2ThinkingCloud)
-            }
             s if s == models::ollama::KIMI_K2_1T_CLOUD => Ok(ModelId::OllamaKimiK21tCloud),
             s if s == models::ollama::QWEN3_CODER_480B_CLOUD => {
                 Ok(ModelId::OllamaQwen3Coder480bCloud)
             }
             s if s == models::ollama::GLM_46_CLOUD => Ok(ModelId::OllamaGlm46Cloud),
+            s if s == models::ollama::MINIMAX_M2_CLOUD => Ok(ModelId::OllamaMinimaxM2Cloud),
             s if s == models::lmstudio::META_LLAMA_3_8B_INSTRUCT => {
                 Ok(ModelId::LmStudioMetaLlama38BInstruct)
             }
@@ -1595,10 +1805,6 @@ mod tests {
         assert_eq!(ModelId::OllamaGptOss120bCloud.provider(), Provider::Ollama);
         assert_eq!(ModelId::OllamaQwen317b.provider(), Provider::Ollama);
         assert_eq!(
-            ModelId::OllamaKimiK2ThinkingCloud.provider(),
-            Provider::Ollama
-        );
-        assert_eq!(
             ModelId::LmStudioMetaLlama38BInstruct.provider(),
             Provider::LmStudio
         );
@@ -1851,10 +2057,6 @@ mod tests {
         assert_eq!(
             ModelId::OllamaDeepseekV31_671bCloud.generation(),
             "deepseek-v3.1"
-        );
-        assert_eq!(
-            ModelId::OllamaKimiK2ThinkingCloud.generation(),
-            "kimi-k2-thinking"
         );
         assert_eq!(ModelId::OllamaQwen3Coder480bCloud.generation(), "qwen3");
         assert_eq!(ModelId::OllamaGlm46Cloud.generation(), "glm-4.6");

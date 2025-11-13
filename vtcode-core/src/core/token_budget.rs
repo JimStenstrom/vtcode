@@ -1,9 +1,11 @@
-//! Token budget management for context engineering
+//! Token budget management for context tracking
 //!
 //! This module implements token counting and budget tracking to manage
-//! the attention budget of LLMs. Following Anthropic's context engineering
-//! principles, it helps prevent context rot by tracking token usage and
-//! triggering compaction when thresholds are exceeded.
+//! the attention budget of LLMs. It helps track token usage and monitor
+//! thresholds for awareness of context size.
+
+/// Maximum tokens allowed per tool response (token-based truncation limit)
+pub const MAX_TOOL_RESPONSE_TOKENS: usize = 25_000;
 
 use anyhow::{Context, Result, anyhow};
 use serde::{Deserialize, Serialize};
@@ -16,6 +18,12 @@ use tokio::sync::RwLock;
 use tokio::task;
 use tracing::{debug, warn};
 
+use super::token_constants::{
+    CODE_DETECTION_THRESHOLD, CODE_INDICATOR_CHARS, CODE_TOKEN_MULTIPLIER,
+    LONG_WORD_CHAR_REDUCTION, LONG_WORD_SCALE_FACTOR, LONG_WORD_THRESHOLD, MIN_TOKEN_COUNT,
+    TOKENS_PER_CHARACTER, TOKENS_PER_LINE,
+};
+
 /// Token budget configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TokenBudgetConfig {
@@ -23,8 +31,8 @@ pub struct TokenBudgetConfig {
     pub max_context_tokens: usize,
     /// Threshold percentage to trigger warnings (0.0-1.0)
     pub warning_threshold: f64,
-    /// Threshold percentage to trigger compaction (0.0-1.0)
-    pub compaction_threshold: f64,
+    /// Threshold percentage to trigger warnings (0.0-1.0)
+    pub alert_threshold: f64,
     /// Model name for tokenizer selection
     pub model: String,
     /// Optional override for tokenizer identifier or local path
@@ -38,7 +46,7 @@ impl Default for TokenBudgetConfig {
         Self {
             max_context_tokens: 128_000,
             warning_threshold: 0.75,
-            compaction_threshold: 0.85,
+            alert_threshold: 0.85,
             model: "gpt-5".to_string(),
             tokenizer_id: None,
             detailed_tracking: false,
@@ -99,8 +107,8 @@ impl TokenUsageStats {
         self.total_tokens as f64 / max_tokens as f64
     }
 
-    /// Check if compaction is needed
-    pub fn needs_compaction(&self, max_tokens: usize, threshold: f64) -> bool {
+    /// Check if alert threshold is exceeded
+    pub fn exceeds_alert_threshold(&self, max_tokens: usize, threshold: f64) -> bool {
         self.usage_ratio(max_tokens) >= threshold
     }
 }
@@ -325,14 +333,14 @@ impl TokenBudgetManager {
     pub async fn is_warning_threshold_exceeded(&self) -> bool {
         let stats = self.stats.read().await;
         let config = self.config.read().await;
-        stats.needs_compaction(config.max_context_tokens, config.warning_threshold)
+        stats.exceeds_alert_threshold(config.max_context_tokens, config.warning_threshold)
     }
 
-    /// Check if compaction threshold is exceeded
-    pub async fn is_compaction_threshold_exceeded(&self) -> bool {
+    /// Check if alert threshold is exceeded
+    pub async fn is_alert_threshold_exceeded(&self) -> bool {
         let stats = self.stats.read().await;
         let config = self.config.read().await;
-        stats.needs_compaction(config.max_context_tokens, config.compaction_threshold)
+        stats.exceeds_alert_threshold(config.max_context_tokens, config.alert_threshold)
     }
 
     /// Get current usage percentage
@@ -356,7 +364,7 @@ impl TokenBudgetManager {
         config.max_context_tokens.saturating_sub(stats.total_tokens)
     }
 
-    /// Reset token counts (e.g., after compaction)
+    /// Reset token counts (e.g., after cleanup)
     pub async fn reset(&self) {
         let mut stats = self.stats.write().await;
         *stats = TokenUsageStats::new();
@@ -365,7 +373,7 @@ impl TokenBudgetManager {
         debug!("Token budget reset");
     }
 
-    /// Deduct tokens (after compaction/removal)
+    /// Deduct tokens (after removal)
     pub async fn deduct_tokens(&self, component: ContextComponent, tokens: usize) {
         let mut stats = self.stats.write().await;
         stats.total_tokens = stats.total_tokens.saturating_sub(tokens);
@@ -434,8 +442,8 @@ impl TokenBudgetManager {
             }
         }
 
-        if usage_ratio >= config.compaction_threshold {
-            report.push_str("\nALERT: Compaction threshold exceeded");
+        if usage_ratio >= config.alert_threshold {
+            report.push_str("\nALERT: Alert threshold exceeded");
         } else if usage_ratio >= config.warning_threshold {
             report.push_str("\nWARNING: Approaching token limit");
         }
@@ -449,10 +457,64 @@ fn approximate_token_count(text: &str) -> usize {
         return 0;
     }
 
-    let whitespace_tokens = text.split_whitespace().count();
-    let char_estimate = (text.chars().count() as f64 / 4.0).ceil() as usize;
+    // Improved approximation with content-aware heuristics:
+    //
+    // Empirical observations:
+    // - Regular prose: ~1 token per 4-5 characters
+    // - Code (has brackets/operators): ~1 token per 3 characters (more fragments)
+    // - Whitespace-heavy (logs): ~1 token per 4.5 characters
+    //
+    // We use three independent methods and take their median for robustness:
 
-    whitespace_tokens.max(char_estimate).max(1)
+    let word_count = text.split_whitespace().count();
+    let char_count = text.chars().count();
+    let line_count = text.lines().count();
+
+    // Method 1: Character-based (conservative)
+    // Accounts for punctuation, brackets, operators as separate tokens
+    let char_tokens = (char_count as f64 / TOKENS_PER_CHARACTER).ceil() as usize;
+
+    // Method 2: Word-based
+    // Most words = 1 token, longer words above threshold = 2+ tokens
+    // If no words, fall back to char-based estimate
+    let word_tokens = if word_count == 0 {
+        char_tokens
+    } else {
+        let avg_word_len = char_count / word_count;
+        // Base: 1 token per word
+        // Add extra tokens for longer average word length
+        let extra_tokens =
+            (avg_word_len.saturating_sub(LONG_WORD_THRESHOLD) / LONG_WORD_CHAR_REDUCTION).max(0);
+        word_count + (word_count * extra_tokens / LONG_WORD_SCALE_FACTOR).max(0)
+    };
+
+    // Method 3: Line-based (for structured output like diffs, logs)
+    // Most lines have ~TOKENS_PER_LINE tokens, empty lines: 1 token
+    // More reliable for structured output (logs, diffs, stack traces)
+    let non_empty_lines = text.lines().filter(|l| !l.trim().is_empty()).count();
+    let empty_lines = line_count.saturating_sub(non_empty_lines);
+    let line_tokens = non_empty_lines * TOKENS_PER_LINE + empty_lines;
+
+    // Take median of three estimates for robustness
+    // This prevents any single heuristic from being too aggressive or conservative
+    let mut estimates = [char_tokens, word_tokens, line_tokens];
+    estimates.sort_unstable();
+    let median = estimates[1];
+
+    // Apply content-specific adjustment
+    // Code (has brackets/braces): increase estimate
+    let bracket_count: usize = text
+        .chars()
+        .filter(|c| CODE_INDICATOR_CHARS.contains(*c))
+        .count();
+    let is_likely_code = bracket_count > (char_count / CODE_DETECTION_THRESHOLD);
+    let result = if is_likely_code {
+        (median as f64 * CODE_TOKEN_MULTIPLIER).ceil() as usize
+    } else {
+        median
+    };
+
+    result.max(MIN_TOKEN_COUNT)
 }
 
 fn load_tokenizer_for_model(model: &str, tokenizer_id: Option<&str>) -> Result<Tokenizer> {
@@ -614,13 +676,13 @@ mod tests {
             .await
             .unwrap();
 
-        // Reconfigure thresholds so the current usage exceeds the compaction threshold
+        // Reconfigure thresholds so the current usage exceeds the alert threshold
         let mut updated_config = TokenBudgetConfig::default();
         updated_config.max_context_tokens = total_tokens.max(1);
-        updated_config.compaction_threshold = 0.5;
+        updated_config.alert_threshold = 0.5;
         manager.update_config(updated_config).await;
 
-        assert!(manager.is_compaction_threshold_exceeded().await);
+        assert!(manager.is_alert_threshold_exceeded().await);
     }
 
     #[tokio::test]
@@ -658,10 +720,91 @@ mod tests {
 
         let mut new_config = TokenBudgetConfig::for_model("gpt-4", 200);
         new_config.warning_threshold = 0.6;
-        new_config.compaction_threshold = 0.8;
+        new_config.alert_threshold = 0.8;
         manager.update_config(new_config).await;
 
         let updated_ratio = manager.usage_ratio().await;
         assert!((updated_ratio - 0.1).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_approximate_token_count_basic() {
+        // Empty text
+        assert_eq!(approximate_token_count(""), 0);
+        assert_eq!(approximate_token_count("   \n  \t  "), 0);
+
+        // Single word
+        let single_word = approximate_token_count("hello");
+        assert!(single_word > 0 && single_word <= 2);
+
+        // Regular prose (typical)
+        let prose = "The quick brown fox jumps over the lazy dog";
+        let prose_count = approximate_token_count(prose);
+        assert!(prose_count > 6 && prose_count < 12); // ~8-10 tokens expected
+
+        // Code snippet (more tokens due to brackets/operators)
+        let code = "fn foo() { let x = 42; return x + 1; }";
+        let code_count = approximate_token_count(code);
+        // Code should have more tokens than equivalent prose due to bracket detection
+        assert!(code_count > prose_count || code_count == prose_count);
+    }
+
+    #[test]
+    fn test_approximate_token_count_variance() {
+        // Ensure different content types get different estimates
+        let short_code = "var x = 1 + 2;";
+        let short_prose = "The cat sat on the mat";
+
+        let code_tokens = approximate_token_count(short_code);
+        let prose_tokens = approximate_token_count(short_prose);
+
+        // Both should be reasonable (not wildly off)
+        assert!(code_tokens > 0 && prose_tokens > 0);
+        // Code with operators should have comparable or more tokens
+        assert!(code_tokens >= 2);
+        assert!(prose_tokens >= 3);
+    }
+
+    #[test]
+    fn test_approximate_token_count_scaling() {
+        // Double the content should roughly double the tokens
+        let short = "hello world";
+        let long = "hello world hello world hello world hello world hello world";
+
+        let short_tokens = approximate_token_count(short);
+        let long_tokens = approximate_token_count(long);
+
+        // Long should be significantly more
+        assert!(long_tokens > short_tokens * 4);
+    }
+
+    #[test]
+    fn test_approximate_token_count_with_code() {
+        let code = "
+fn main() {
+    let vec = vec![1, 2, 3, 4, 5];
+    for i in vec.iter() {
+        println!(\"{}\", i);
+    }
+}
+";
+        let count = approximate_token_count(code);
+        // Code should be detected and adjusted
+        assert!(count > 20); // Reasonable estimate for a code block
+    }
+
+    #[test]
+    fn test_approximate_token_count_with_logs() {
+        let logs = "
+[INFO] Starting process
+[INFO] Loading config from /path/to/config.toml
+[DEBUG] Configuration loaded: Config { debug: true }
+[ERROR] Failed to connect: Connection refused
+[ERROR] Retrying connection attempt 2/3
+[WARN] Degraded mode activated
+";
+        let count = approximate_token_count(logs);
+        // Log output should be estimated
+        assert!(count > 30); // Reasonable estimate for logs
     }
 }

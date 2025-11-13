@@ -1,20 +1,21 @@
 mod async_mcp_manager;
-mod compression;
+
 mod context_manager;
-mod curator;
+
 mod diagnostics;
 mod display;
 mod driver;
 mod inline_events;
-mod llm_summarizer;
+mod loop_detection;
+
 mod mcp_support;
+mod mcp_tool_manager;
 mod model_selection;
 mod palettes;
 mod progress;
 mod prompts;
 mod session_setup;
 mod shell;
-mod smart_summarizer;
 mod state;
 mod status_line;
 mod tool_pipeline;

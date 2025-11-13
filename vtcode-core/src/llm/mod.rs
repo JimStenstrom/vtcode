@@ -163,22 +163,28 @@
 //! This module provides a unified interface for different LLM providers
 //! with provider-specific implementations.
 
+pub mod capabilities;
 pub mod client;
 pub mod error_display;
 pub mod factory;
 pub mod provider;
 pub mod providers;
 pub mod rig_adapter;
+
+pub mod token_metrics;
 pub mod types;
 
 #[cfg(test)]
 mod error_display_test;
 
 // Re-export main types for backward compatibility
+pub use capabilities::ProviderCapabilities;
 pub use client::{AnyClient, make_client};
 pub use factory::{create_provider_with_config, get_factory};
 pub use provider::{LLMStream, LLMStreamEvent};
 pub use providers::{
     AnthropicProvider, GeminiProvider, OllamaProvider, OpenAIProvider, XAIProvider, ZAIProvider,
 };
+
+pub use token_metrics::{TokenCounter, TokenMetrics, TokenTypeMetrics};
 pub use types::{BackendKind, LLMError, LLMResponse};

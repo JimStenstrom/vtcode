@@ -32,7 +32,7 @@
 //! - `config/`: configuration loader, defaults, and schema validation.
 //! - `llm/`: provider clients, request shaping, and response handling.
 //! - `tools/`: built-in tool implementations plus registration utilities.
-//! - `context/`: conversation management, summarization, and memory.
+//! - `context/`: conversation management and memory.
 //! - `executor/`: async orchestration for tool invocations and streaming output.
 //! - `tree_sitter/`: language-specific parsers, syntax tree caching, and
 //!   semantic extraction helpers.
@@ -123,6 +123,7 @@
 //! including tool implementations, LLM integration, and utility functions.
 
 // Public modules
+pub mod acp;
 pub mod audit;
 pub mod bash_runner;
 pub mod cli;
@@ -157,8 +158,8 @@ pub use cli::args::{Cli, Commands};
 pub use code::code_completion::{CompletionEngine, CompletionSuggestion};
 pub use commands::stats::handle_stats_command;
 pub use config::types::{
-    AnalysisDepth, CapabilityLevel, CommandResult, CompressionLevel, ContextConfig, LoggingConfig,
-    OutputFormat, PerformanceMetrics, ReasoningEffortLevel, SessionInfo, ToolConfig,
+    AnalysisDepth, CapabilityLevel, CommandResult, ContextConfig, LoggingConfig, OutputFormat,
+    PerformanceMetrics, ReasoningEffortLevel, SessionInfo, ToolConfig,
 };
 pub use config::{
     AgentClientProtocolConfig, AgentClientProtocolTransport, AgentClientProtocolZedConfig,
@@ -170,10 +171,7 @@ pub use core::agent::task::{
     ContextItem as RunnerContextItem, Task as RunnerTask, TaskOutcome as RunnerTaskOutcome,
     TaskResults as RunnerTaskResults,
 };
-pub use core::context_compression::{
-    CompressedContext, ContextCompressionConfig, ContextCompressor,
-};
-pub use core::conversation_summarizer::ConversationSummarizer;
+
 pub use core::prompt_caching::{CacheStats, PromptCache, PromptCacheConfig, PromptOptimizer};
 pub use core::timeout_detector::TimeoutDetector;
 pub use exec::events::{

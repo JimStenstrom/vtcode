@@ -4,11 +4,11 @@ use crate::config::core::PromptCachingConfig;
 use crate::config::models::{ModelId, Provider};
 use crate::config::types::*;
 use crate::core::agent::bootstrap::{AgentComponentBuilder, AgentComponentSet};
-use crate::core::agent::compaction::CompactionEngine;
+
 use crate::core::agent::snapshots::{
     DEFAULT_CHECKPOINTS_ENABLED, DEFAULT_MAX_AGE_DAYS, DEFAULT_MAX_SNAPSHOTS,
 };
-use crate::core::conversation_summarizer::ConversationSummarizer;
+
 use crate::core::decision_tracker::DecisionTracker;
 use crate::core::error_recovery::{ErrorRecoveryManager, ErrorType};
 use crate::llm::AnyClient;
@@ -26,9 +26,8 @@ pub struct Agent {
     tool_registry: Arc<ToolRegistry>,
     decision_tracker: DecisionTracker,
     error_recovery: ErrorRecoveryManager,
-    summarizer: ConversationSummarizer,
+
     tree_sitter_analyzer: TreeSitterAnalyzer,
-    compaction_engine: Arc<CompactionEngine>,
     session_info: SessionInfo,
     start_time: std::time::Instant,
 }
@@ -52,9 +51,7 @@ impl Agent {
             tool_registry: components.tool_registry,
             decision_tracker: components.decision_tracker,
             error_recovery: components.error_recovery,
-            summarizer: components.summarizer,
             tree_sitter_analyzer: components.tree_sitter_analyzer,
-            compaction_engine: components.compaction_engine,
             session_info: components.session_info,
             start_time: std::time::Instant::now(),
         }
@@ -143,11 +140,6 @@ impl Agent {
         &mut self.error_recovery
     }
 
-    /// Get conversation summarizer reference
-    pub fn summarizer(&self) -> &ConversationSummarizer {
-        &self.summarizer
-    }
-
     /// Get tool registry reference
     pub fn tool_registry(&self) -> Arc<ToolRegistry> {
         Arc::clone(&self.tool_registry)
@@ -172,66 +164,6 @@ impl Agent {
     /// Get mutable tree-sitter analyzer reference
     pub fn tree_sitter_analyzer_mut(&mut self) -> &mut TreeSitterAnalyzer {
         &mut self.tree_sitter_analyzer
-    }
-
-    /// Get compaction engine reference
-    pub fn compaction_engine(&self) -> Arc<CompactionEngine> {
-        Arc::clone(&self.compaction_engine)
-    }
-
-    /// Make intelligent compaction decision using context analysis
-    pub async fn make_intelligent_compaction_decision(
-        &self,
-    ) -> Result<crate::core::agent::intelligence::CompactionDecision> {
-        let stats = self.compaction_engine.get_statistics().await?;
-        let should_compact = self.compaction_engine.should_compact().await?;
-        let strategy = if should_compact {
-            crate::core::agent::intelligence::CompactionStrategy::Aggressive
-        } else {
-            crate::core::agent::intelligence::CompactionStrategy::Conservative
-        };
-        let reasoning = if should_compact {
-            format!("{} messages exceed thresholds", stats.total_messages)
-        } else {
-            "within configured thresholds".to_string()
-        };
-
-        Ok(crate::core::agent::intelligence::CompactionDecision {
-            should_compact,
-            strategy,
-            reasoning,
-            estimated_benefit: stats.total_memory_usage,
-        })
-    }
-
-    /// Check if compaction is needed
-    pub async fn should_compact(&self) -> Result<bool> {
-        self.compaction_engine.should_compact().await
-    }
-
-    /// Perform intelligent message compaction
-    pub async fn compact_messages(&self) -> Result<crate::core::agent::types::CompactionResult> {
-        self.compaction_engine
-            .compact_messages_intelligently()
-            .await
-    }
-
-    /// Perform context compaction
-    pub async fn compact_context(
-        &self,
-        context_key: &str,
-        context_data: &mut std::collections::HashMap<String, serde_json::Value>,
-    ) -> Result<crate::core::agent::types::CompactionResult> {
-        self.compaction_engine
-            .compact_context(context_key, context_data)
-            .await
-    }
-
-    /// Get compaction statistics
-    pub async fn get_compaction_stats(
-        &self,
-    ) -> Result<crate::core::agent::types::CompactionStatistics> {
-        self.compaction_engine.get_statistics().await
     }
 
     /// Analyze a file using tree-sitter
@@ -294,10 +226,7 @@ impl Agent {
         self.session_info.error_count = errors;
     }
 
-    /// Check if context compression is needed
-    pub fn should_compress_context(&self, context_size: usize) -> bool {
-        self.error_recovery.should_compress_context(context_size)
-    }
+    // Removed: Context compression check has been removed as part of complete context optimization feature removal
 
     /// Generate context preservation plan
     pub fn generate_context_plan(
@@ -387,25 +316,6 @@ impl Agent {
                 "  {:.1} average recovery attempts per error",
                 style(error_stats.avg_recovery_attempts).yellow()
             );
-
-            // Conversation summarization statistics
-            let summaries = self.summarizer.get_summaries();
-            if !summaries.is_empty() {
-                println!(
-                    "\n{} {}",
-                    style("[CONVERSATION SUMMARY]").green().bold(),
-                    "Statistics:"
-                );
-                println!("  {} summaries generated", style(summaries.len()).cyan());
-                if let Some(latest) = self.summarizer.get_latest_summary() {
-                    println!(
-                        "  {} Latest summary: {} turns, {:.1}% compression",
-                        style("(SUMMARY)").dim(),
-                        latest.total_turns,
-                        latest.compression_ratio * 100.0
-                    );
-                }
-            }
         } else {
             // Brief summary for non-verbose mode
             println!("{}", style(format!("  ↳ Session complete: {} decisions, {} successful ({}% success rate), {} errors",

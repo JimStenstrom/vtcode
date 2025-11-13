@@ -128,12 +128,16 @@ pub mod command_cache;
 pub mod command_policy;
 pub mod command_resolver;
 pub mod editing;
+pub mod error_context;
 pub mod file_ops;
 pub mod grep_file;
 pub mod names;
+pub(crate) mod path_env;
 pub mod plan;
 pub mod pty;
 pub mod registry;
+pub mod result_cache;
+pub mod search_metrics;
 pub mod traits;
 pub mod tree_sitter;
 pub mod types;
@@ -144,13 +148,20 @@ pub use cache::FileCache;
 pub use command_cache::PermissionCache;
 pub use command_resolver::CommandResolver;
 pub use editing::{Patch, PatchError, PatchHunk, PatchLine, PatchOperation};
+pub use error_context::ToolErrorContext;
 pub use grep_file::GrepSearchManager;
 pub use plan::{
     PlanCompletionState, PlanManager, PlanStep, PlanSummary, PlanUpdateResult, StepStatus,
     TaskPlan, UpdatePlanArgs,
 };
 pub use pty::{PtyCommandRequest, PtyCommandResult, PtyManager};
-pub use registry::{ToolRegistration, ToolRegistry};
+pub use registry::{
+    ApprovalPattern, ApprovalRecorder, JustificationExtractor, JustificationManager, RiskLevel,
+    ToolJustification, ToolRegistration, ToolRegistry, ToolRiskContext, ToolRiskScorer, ToolSource,
+    WorkspaceTrust,
+};
+pub use result_cache::{CacheKey, CacheStats, CachedResult, ToolResultCache};
+pub use search_metrics::{SearchMetric, SearchMetrics, SearchMetricsStats};
 pub use traits::{Tool, ToolExecutor};
 pub use types::*;
 pub use web_fetch::WebFetchTool;

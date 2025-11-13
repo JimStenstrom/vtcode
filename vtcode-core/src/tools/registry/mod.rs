@@ -1,24 +1,32 @@
 //! Tool registry and function declarations
 
+mod approval_recorder;
 mod builtins;
 mod cache;
 mod declarations;
 mod error;
 mod executors;
 mod inventory;
+mod justification;
+mod justification_extractor;
 mod legacy;
 mod policy;
 mod pty;
 mod registration;
+mod risk_scorer;
 mod telemetry;
 mod utils;
 
+pub use approval_recorder::ApprovalRecorder;
 pub use declarations::{
     build_function_declarations, build_function_declarations_for_level,
     build_function_declarations_with_mode,
 };
 pub use error::{ToolErrorType, ToolExecutionError, classify_error};
+pub use justification::{ApprovalPattern, JustificationManager, ToolJustification};
+pub use justification_extractor::JustificationExtractor;
 pub use registration::{ToolExecutorFn, ToolHandler, ToolRegistration};
+pub use risk_scorer::{RiskLevel, ToolRiskContext, ToolRiskScorer, ToolSource, WorkspaceTrust};
 pub use telemetry::ToolTelemetryEvent;
 
 use builtins::register_builtin_tools;
@@ -509,7 +517,10 @@ impl ToolRegistry {
     pub fn apply_commands_config(&mut self, commands_config: &CommandsConfig) {
         self.inventory
             .command_tool_mut()
-            .update_commands_config(commands_config.clone());
+            .update_commands_config(commands_config);
+        self.pty_sessions
+            .manager()
+            .apply_commands_config(commands_config);
     }
 
     pub fn apply_timeout_policy(&mut self, timeouts: &TimeoutsConfig) {

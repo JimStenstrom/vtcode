@@ -15,13 +15,15 @@ use tracing::debug;
 use tracing::warn;
 use vtcode_core::config::constants::{defaults, ui};
 use vtcode_core::config::loader::VTCodeConfig;
-use vtcode_core::config::types::AgentConfig as CoreAgentConfig;
+use vtcode_core::config::types::{AgentConfig as CoreAgentConfig, UiSurfacePreference};
 use vtcode_core::core::agent::snapshots::{SnapshotConfig, SnapshotManager};
 use vtcode_core::core::decision_tracker::{Action as DTAction, DecisionOutcome};
 use vtcode_core::core::router::{Router, TaskClass};
 use vtcode_core::llm::error_display;
 use vtcode_core::llm::provider::{self as uni};
+use vtcode_core::tools::error_context::ToolErrorContext;
 use vtcode_core::tools::registry::{ToolErrorType, ToolExecutionError, classify_error};
+use vtcode_core::tools::{ApprovalRecorder, result_cache::CacheKey};
 use vtcode_core::ui::theme;
 use vtcode_core::ui::tui::{InlineEvent, InlineEventCallback, spawn_session, theme_from_styles};
 use vtcode_core::utils::ansi::{AnsiRenderer, MessageStyle};
@@ -30,7 +32,6 @@ use vtcode_core::utils::session_archive::{SessionArchive, SessionArchiveMetadata
 use vtcode_core::utils::style_helpers::{ColorPalette, render_styled};
 use vtcode_core::utils::transcript;
 
-use crate::agent::agents::is_context_overflow_error;
 use crate::agent::runloop::ResumeSession;
 use crate::agent::runloop::git::confirm_changes_with_git_diff;
 use crate::agent::runloop::model_picker::{ModelPickerProgress, ModelPickerState};
@@ -40,6 +41,7 @@ use crate::agent::runloop::text_tools::{detect_textual_tool_call, extract_code_f
 use crate::agent::runloop::tool_output::render_code_fence_blocks;
 use crate::agent::runloop::tool_output::render_tool_output;
 use crate::agent::runloop::ui::{build_inline_header_context, render_session_banner};
+use crate::agent::runloop::unified::mcp_tool_manager::McpToolManager;
 use crate::agent::runloop::unified::ui_interaction::{
     PlaceholderSpinner, stream_and_render_response,
 };
@@ -51,12 +53,13 @@ use super::workspace::{load_workspace_files, refresh_vt_config};
 use crate::agent::runloop::mcp_events;
 use crate::agent::runloop::unified::async_mcp_manager::McpInitStatus;
 use crate::agent::runloop::unified::context_manager::ContextManager;
-use crate::agent::runloop::unified::curator::{
-    build_curator_tools, format_provider_label, resolve_mode_label,
-};
+
 use crate::agent::runloop::unified::display::{display_user_message, ensure_turn_bottom_gap};
 use crate::agent::runloop::unified::inline_events::{
     InlineEventLoopResources, InlineInterruptCoordinator, InlineLoopAction, poll_inline_loop_action,
+};
+use crate::agent::runloop::unified::loop_detection::{
+    LoopDetectionResponse, LoopDetector, prompt_for_loop_detection,
 };
 use crate::agent::runloop::unified::model_selection::finalize_model_selection;
 use crate::agent::runloop::unified::palettes::{ActivePalette, apply_prompt_style};
@@ -69,7 +72,7 @@ use crate::agent::runloop::unified::shell::{
 };
 use crate::agent::runloop::unified::state::{CtrlCSignal, CtrlCState, SessionStats};
 use crate::agent::runloop::unified::status_line::{
-    InputStatusState, update_input_status_if_changed,
+    InputStatusState, update_context_efficiency, update_input_status_if_changed,
 };
 use crate::agent::runloop::unified::tool_pipeline::{
     ToolExecutionStatus, execute_tool_with_timeout,
@@ -109,6 +112,9 @@ pub(crate) async fn run_single_agent_loop_unified(
         // The cleanup will happen in the Drop implementations
         original_hook(panic_info);
     }));
+
+    // Note: The original hook will not be restored during this session
+    // but Rust runtime should handle this appropriately
     let mut config = config.clone();
     let mut resume_state = resume;
 
@@ -134,6 +140,7 @@ pub(crate) async fn run_single_agent_loop_unified(
             trim_config,
             mut conversation_history,
             decision_ledger,
+            pruning_ledger,
             trajectory: traj,
             base_system_prompt,
             full_auto_allowlist,
@@ -142,22 +149,21 @@ pub(crate) async fn run_single_agent_loop_unified(
             mut mcp_panel_state,
             token_budget,
             token_budget_enabled,
-            curator,
+            token_counter,
+            tool_result_cache,
+            tool_permission_cache,
+            search_metrics: _,
             custom_prompts,
             mut sandbox,
         } = initialize_session(&config, vt_cfg.as_ref(), full_auto, resume_ref).await?;
 
         let mut session_end_reason = SessionEndReason::Completed;
 
-        let initial_tool_snapshot = tools.read().await.clone();
-        let curator_tool_catalog = build_curator_tools(&initial_tool_snapshot);
         let mut context_manager = ContextManager::new(
             base_system_prompt,
             trim_config,
-            token_budget,
+            token_budget.clone(),
             token_budget_enabled,
-            curator,
-            curator_tool_catalog,
         );
         let trim_config = context_manager.trim_config();
         let token_budget_enabled = context_manager.token_budget_enabled();
@@ -184,9 +190,7 @@ pub(crate) async fn run_single_agent_loop_unified(
 
         // Set environment variable to indicate TUI mode is active
         // This prevents CLI dialoguer prompts from corrupting the TUI display
-        // SAFETY: We're setting this at the start of the TUI session and it's only read
-        // by the tool policy manager to detect TUI mode. No other threads are modifying
-        // this variable concurrently.
+        // SAFETY: Setting a process-local environment variable is safe; the OS copies the value.
         unsafe {
             std::env::set_var("VTCODE_TUI_MODE", "1");
         }
@@ -275,9 +279,9 @@ pub(crate) async fn run_single_agent_loop_unified(
             .unwrap_or_else(|| "workspace".to_string());
         let workspace_path = config.workspace.to_string_lossy().into_owned();
         let provider_label = if config.provider.trim().is_empty() {
-            format_provider_label(provider_client.name())
+            provider_client.name().to_string()
         } else {
-            format_provider_label(&config.provider)
+            config.provider.clone()
         };
         let header_provider_label = provider_label.clone();
         let archive_metadata = SessionArchiveMetadata::new(
@@ -369,7 +373,13 @@ pub(crate) async fn run_single_agent_loop_unified(
                 }
             }
         }
-        let mode_label = resolve_mode_label(config.ui_surface, full_auto);
+        let mode_label = match (config.ui_surface, full_auto) {
+            (UiSurfacePreference::Inline, true) => "auto".to_string(),
+            (UiSurfacePreference::Inline, false) => "inline".to_string(),
+            (UiSurfacePreference::Alternate, _) => "alt".to_string(),
+            (UiSurfacePreference::Auto, true) => "auto".to_string(),
+            (UiSurfacePreference::Auto, false) => "std".to_string(),
+        };
         let header_context = build_inline_header_context(
             &config,
             &session_bootstrap,
@@ -446,6 +456,11 @@ pub(crate) async fn run_single_agent_loop_unified(
         }
 
         let mut session_stats = SessionStats::default();
+        let cache_dir = std::env::var("HOME")
+            .ok()
+            .map(|home| PathBuf::from(home).join(".vtcode").join("cache"))
+            .unwrap_or_else(|| PathBuf::from(".vtcode/cache"));
+        let approval_recorder = Arc::new(ApprovalRecorder::new(cache_dir));
         let mut linked_directories: Vec<LinkedDirectory> = Vec::new();
         let mut model_picker_state: Option<ModelPickerState> = None;
         let mut palette_state: Option<ActivePalette> = None;
@@ -494,6 +509,17 @@ pub(crate) async fn run_single_agent_loop_unified(
                     "Failed to refresh status line"
                 );
             }
+
+            // Update context efficiency metrics in status line
+            if let Some(efficiency) = context_manager.last_efficiency() {
+                update_context_efficiency(
+                    &mut input_status_state,
+                    efficiency.context_utilization_percent,
+                    efficiency.total_tokens,
+                    efficiency.semantic_value_per_token,
+                );
+            }
+
             if ctrl_c_state.is_exit_requested() {
                 session_end_reason = SessionEndReason::Exit;
                 break;
@@ -515,7 +541,7 @@ pub(crate) async fn run_single_agent_loop_unified(
                                             let new_definitions =
                                                 build_mcp_tool_definitions(&mcp_tools);
                                             registered_tools = new_definitions.len();
-                                            let updated_snapshot = {
+                                            let _updated_snapshot = {
                                                 let mut guard = tools.write().await;
                                                 guard.retain(|tool| {
                                                     !tool.function.name.starts_with("mcp_")
@@ -523,15 +549,15 @@ pub(crate) async fn run_single_agent_loop_unified(
                                                 guard.extend(new_definitions);
                                                 guard.clone()
                                             };
-                                            context_manager.update_tool_catalog(
-                                                build_curator_tools(&updated_snapshot),
-                                            );
 
-                                            // Store the initial tool names to track changes later
-                                            last_known_mcp_tools = mcp_tools
-                                                .iter()
-                                                .map(|t| format!("{}-{}", t.provider, t.name))
-                                                .collect();
+                                            // Enumerate MCP tools after initial setup (with detailed tool discovery messages)
+                                            McpToolManager::enumerate_mcp_tools_after_initial_setup(
+                                                &mut tool_registry,
+                                                &tools,
+                                                mcp_tools,
+                                                &mut last_known_mcp_tools,
+                                                &mut renderer,
+                                            ).await?;
                                         }
                                         Err(err) => {
                                             warn!(
@@ -592,7 +618,7 @@ pub(crate) async fn run_single_agent_loop_unified(
                                         Ok(new_mcp_tools) => {
                                             let new_definitions =
                                                 build_mcp_tool_definitions(&new_mcp_tools);
-                                            let updated_snapshot = {
+                                            let _updated_snapshot = {
                                                 let mut guard = tools.write().await;
                                                 guard.retain(|tool| {
                                                     !tool.function.name.starts_with("mcp_")
@@ -600,34 +626,15 @@ pub(crate) async fn run_single_agent_loop_unified(
                                                 guard.extend(new_definitions);
                                                 guard.clone()
                                             };
-                                            context_manager.update_tool_catalog(
-                                                build_curator_tools(&updated_snapshot),
-                                            );
 
-                                            let added_count = new_mcp_tools
-                                                .len()
-                                                .saturating_sub(last_known_mcp_tools.len());
-                                            let message = if added_count > 0 {
-                                                format!(
-                                                    "Discovered {} new MCP tool{}",
-                                                    added_count,
-                                                    if added_count == 1 { "" } else { "s" }
-                                                )
-                                            } else {
-                                                "MCP tools updated".to_string()
-                                            };
-
-                                            renderer.line(
-                                                MessageStyle::Info,
-                                                &format!("{}", message),
-                                            )?;
-                                            renderer.line_if_not_empty(MessageStyle::Output)?;
-
-                                            // Update the last known tools
-                                            last_known_mcp_tools = new_mcp_tools
-                                                .iter()
-                                                .map(|t| format!("{}-{}", t.provider, t.name))
-                                                .collect();
+                                            // Enumerate MCP tools after refresh (with detailed tool discovery messages)
+                                            McpToolManager::enumerate_mcp_tools_after_refresh(
+                                                &mut tool_registry,
+                                                &tools,
+                                                &mut last_known_mcp_tools,
+                                                &mut renderer,
+                                            )
+                                            .await?;
                                         }
                                         Err(err) => {
                                             warn!(
@@ -741,6 +748,7 @@ pub(crate) async fn run_single_agent_loop_unified(
                                 tool_registry: &mut tool_registry,
                                 conversation_history: &mut conversation_history,
                                 decision_ledger: &decision_ledger,
+                                pruning_ledger: &pruning_ledger,
                                 context_manager: &mut context_manager,
                                 session_stats: &mut session_stats,
                                 tools: &tools,
@@ -754,6 +762,8 @@ pub(crate) async fn run_single_agent_loop_unified(
                                 default_placeholder: &default_placeholder,
                                 lifecycle_hooks: lifecycle_hooks.as_ref(),
                                 full_auto,
+                                approval_recorder: Some(&approval_recorder),
+                                tool_permission_cache: &tool_permission_cache,
                             },
                         )
                         .await?;
@@ -892,18 +902,8 @@ pub(crate) async fn run_single_agent_loop_unified(
             };
 
             conversation_history.push(user_message);
-            let _pruned_tools = context_manager.prune_tool_responses(&mut conversation_history);
-            // Removed: Tool response pruning message
-            let trim_result = context_manager.enforce_context_window(&mut conversation_history);
-            if trim_result.is_trimmed() {
-                renderer.line(
-                    MessageStyle::Info,
-                    &format!(
-                        "Trimmed {} earlier messages to respect the context window (~{} tokens).",
-                        trim_result.removed_messages, trim_config.max_tokens,
-                    ),
-                )?;
-            }
+            // Removed: Tool response pruning
+            // Removed: Context window enforcement to respect token limits
 
             let mut working_history = conversation_history.clone();
             let max_tool_loops = vt_cfg
@@ -924,6 +924,26 @@ pub(crate) async fn run_single_agent_loop_unified(
                 .filter(|&value| value > 0)
                 .unwrap_or(defaults::DEFAULT_MAX_REPEATED_TOOL_CALLS);
             let mut repeated_tool_attempts: HashMap<String, usize> = HashMap::new();
+
+            // Initialize loop detection
+            let loop_detection_enabled = vt_cfg
+                .as_ref()
+                .map(|cfg| !cfg.model.skip_loop_detection)
+                .unwrap_or(true);
+            let loop_detection_threshold = vt_cfg
+                .as_ref()
+                .map(|cfg| cfg.model.loop_detection_threshold)
+                .unwrap_or(3);
+            let loop_detection_interactive = vt_cfg
+                .as_ref()
+                .map(|cfg| cfg.model.loop_detection_interactive)
+                .unwrap_or(true);
+            let mut loop_detector = LoopDetector::new(
+                loop_detection_threshold,
+                loop_detection_enabled,
+                loop_detection_interactive,
+            );
+            let mut loop_detection_disabled_for_session = false;
 
             let turn_result = 'outer: loop {
                 if ctrl_c_state.is_cancel_requested() {
@@ -953,8 +973,6 @@ pub(crate) async fn run_single_agent_loop_unified(
                     working_history.push(uni::Message::assistant(notice));
                     break TurnLoopResult::Completed;
                 }
-
-                let _ = context_manager.enforce_context_window(&mut working_history);
 
                 let decision = if let Some(cfg) = vt_cfg.as_ref().filter(|cfg| cfg.router.enabled) {
                     Router::route_async(cfg, &config, &config.api_key, input).await
@@ -1015,49 +1033,19 @@ pub(crate) async fn run_single_agent_loop_unified(
                     ledger.update_available_tools(tool_names);
                 }
 
-                // Automatic summarization: prevent context overflow and blocking
-                // Check if the feature is enabled in config (disabled by default)
-                let optimization_enabled = vt_cfg
-                    .as_ref()
-                    .map(|cfg| {
-                        cfg.agent
-                            .smart_summarization
-                            .show_context_optimization_message
-                    })
-                    .unwrap_or(false);
+                let _conversation_len = working_history.len();
 
-                let conversation_len = working_history.len();
-                let should_compress = optimization_enabled
-                    && (if token_budget_enabled {
-                        let budget = context_manager.token_budget();
-                        let usage_percent = budget.usage_percentage().await;
-                        conversation_len >= 20 || usage_percent >= 85.0
-                    } else {
-                        conversation_len >= 20
-                    });
-
-                if should_compress && working_history.len() > 15 {
-                    renderer.line(
-                        MessageStyle::Info,
-                        &format!(
-                            "Optimizing context ({} messages -> 15 recent)",
-                            conversation_len
-                        ),
-                    )?;
-
-                    // Keep system message + recent 15 messages
-                    let mut compressed = Vec::new();
-                    if let Some(first) = working_history.first()
-                        && matches!(first.role, uni::MessageRole::System)
-                    {
-                        compressed.push(first.clone());
-                    }
-                    compressed.extend(working_history.iter().rev().take(15).rev().cloned());
-                    working_history = compressed;
+                // Apply semantic pruning with decision tracking if configured
+                if trim_config.semantic_compression {
+                    let mut pruning_ledger_mut = pruning_ledger.write().await;
+                    context_manager.prune_with_semantic_priority(
+                        &mut working_history,
+                        Some(&mut *pruning_ledger_mut),
+                        step_count,
+                    );
                 }
 
-                let mut request_history = working_history.clone();
-                let _ = context_manager.enforce_context_window(&mut request_history);
+                let request_history = working_history.clone();
                 context_manager.reset_token_budget().await;
                 let system_prompt = context_manager
                     .build_system_prompt(&request_history, step_count)
@@ -1186,20 +1174,7 @@ pub(crate) async fn run_single_agent_loop_unified(
                         }
 
                         let error_text = error.to_string();
-                        if is_context_overflow_error(&error_text) {
-                            let removed_tool_messages =
-                                context_manager.prune_tool_responses(&mut working_history);
-                            let removed_turns =
-                                context_manager.aggressive_trim(&mut working_history);
-                            if removed_tool_messages + removed_turns > 0 {
-                                renderer.line(
-                                    MessageStyle::Info,
-                                    "Context overflow detected; trimmed earlier messages and will retry.",
-                                )?;
-                                allow_follow_up = true;
-                                continue 'outer;
-                            }
-                        }
+                        // Removed: Context overflow handling and automatic retry logic
 
                         let has_recent_tool = working_history
                             .iter()
@@ -1300,6 +1275,47 @@ pub(crate) async fn run_single_agent_loop_unified(
                             name,
                             serde_json::to_string(&args_val).unwrap_or_else(|_| "{}".to_string())
                         );
+
+                        // Check for loop hang detection
+                        let (is_loop_detected, repeat_count) =
+                            if !loop_detection_disabled_for_session {
+                                loop_detector.record_tool_call(&signature_key)
+                            } else {
+                                (false, 0)
+                            };
+
+                        if is_loop_detected {
+                            // Get user's choice with context information
+                            match prompt_for_loop_detection(
+                                loop_detection_interactive,
+                                &signature_key,
+                                repeat_count,
+                            ) {
+                                Ok(LoopDetectionResponse::KeepEnabled) => {
+                                    renderer.line(
+                                        MessageStyle::Info,
+                                        "Loop detection remains enabled. Skipping this tool call.",
+                                    )?;
+                                    // Reset only this signature for fresh monitoring
+                                    loop_detector.reset_signature(&signature_key);
+                                    continue; // Skip processing this tool call
+                                }
+                                Ok(LoopDetectionResponse::DisableForSession) => {
+                                    renderer.line(MessageStyle::Info, "Loop detection disabled for this session. Proceeding with tool call.")?;
+                                    loop_detection_disabled_for_session = true;
+                                    // Clear all tracking for fresh start after user override
+                                    loop_detector.reset();
+                                    // Continue processing the tool call below
+                                }
+                                Err(e) => {
+                                    warn!("Loop detection prompt failed: {}", e);
+                                    // Graceful degradation: disable detection and continue
+                                    loop_detection_disabled_for_session = true;
+                                    loop_detector.reset();
+                                }
+                            }
+                        }
+
                         let attempts = repeated_tool_attempts
                             .entry(signature_key.clone())
                             .or_insert(0);
@@ -1374,6 +1390,10 @@ pub(crate) async fn run_single_agent_loop_unified(
                             &ctrl_c_state,
                             &ctrl_c_notify,
                             lifecycle_hooks.as_ref(),
+                            None, // justification from agent - TODO: extract from context
+                            Some(&approval_recorder),
+                            Some(&decision_ledger),
+                            Some(&tool_permission_cache),
                         )
                         .await
                         {
@@ -1391,6 +1411,16 @@ pub(crate) async fn run_single_agent_loop_unified(
                                     )?;
                                     break 'outer TurnLoopResult::Cancelled;
                                 }
+
+                                // Check if this is a read-only tool that can be cached
+                                let is_read_only_tool = matches!(
+                                    name,
+                                    "read_file"
+                                        | "list_files"
+                                        | "grep_search"
+                                        | "find_files"
+                                        | "tree_sitter_analyze"
+                                );
 
                                 // Create a progress reporter for the tool execution
                                 let progress_reporter = ProgressReporter::new();
@@ -1410,18 +1440,76 @@ pub(crate) async fn run_single_agent_loop_unified(
                                     Some(&progress_reporter),
                                 );
 
-                                // Force TUI refresh to ensure display stability
-                                safe_force_redraw(&handle, &mut last_forced_redraw);
-
-                                let pipeline_outcome = execute_tool_with_timeout(
-                                    &mut tool_registry,
+                                // Try to get from cache first for read-only tools
+                                let mut cache_hit = false;
+                                let params_str =
+                                    serde_json::to_string(&args_val).unwrap_or_default();
+                                let cache_key = CacheKey::new(
                                     name,
-                                    args_val.clone(),
-                                    &ctrl_c_state,
-                                    &ctrl_c_notify,
-                                    Some(&progress_reporter),
-                                )
-                                .await;
+                                    &params_str,
+                                    "", // No specific file path for generic tools
+                                );
+
+                                let pipeline_outcome = if is_read_only_tool {
+                                    let mut tool_cache = tool_result_cache.write().await;
+                                    if let Some(cached_output) = tool_cache.get(&cache_key) {
+                                        cache_hit = true;
+                                        #[cfg(debug_assertions)]
+                                        debug!("Cache hit for tool: {}", name);
+
+                                        // Return cached result wrapped as tool success
+                                        let cached_json: serde_json::Value =
+                                            serde_json::from_str(&cached_output)
+                                                .unwrap_or(serde_json::json!({}));
+                                        ToolExecutionStatus::Success {
+                                            output: cached_json,
+                                            stdout: None,
+                                            modified_files: vec![],
+                                            command_success: true,
+                                            has_more: false,
+                                        }
+                                    } else {
+                                        drop(tool_cache);
+                                        // Force TUI refresh to ensure display stability
+                                        safe_force_redraw(&handle, &mut last_forced_redraw);
+
+                                        let result = execute_tool_with_timeout(
+                                            &mut tool_registry,
+                                            name,
+                                            args_val.clone(),
+                                            &ctrl_c_state,
+                                            &ctrl_c_notify,
+                                            Some(&progress_reporter),
+                                        )
+                                        .await;
+
+                                        // Cache successful read-only results
+                                        if let ToolExecutionStatus::Success { ref output, .. } =
+                                            result
+                                        {
+                                            let output_json = serde_json::to_string(output)
+                                                .unwrap_or_else(|_| "{}".to_string());
+                                            let mut cache = tool_result_cache.write().await;
+                                            cache.insert(cache_key, output_json);
+                                        }
+
+                                        result
+                                    }
+                                } else {
+                                    // Non-cached path for write tools
+                                    // Force TUI refresh to ensure display stability
+                                    safe_force_redraw(&handle, &mut last_forced_redraw);
+
+                                    execute_tool_with_timeout(
+                                        &mut tool_registry,
+                                        name,
+                                        args_val.clone(),
+                                        &ctrl_c_state,
+                                        &ctrl_c_notify,
+                                        Some(&progress_reporter),
+                                    )
+                                    .await
+                                };
 
                                 match pipeline_outcome {
                                     ToolExecutionStatus::Progress(progress) => {
@@ -1486,7 +1574,9 @@ pub(crate) async fn run_single_agent_loop_unified(
                                             Some(name),
                                             &output,
                                             vt_cfg.as_ref(),
-                                        )?;
+                                            Some(&token_budget),
+                                        )
+                                        .await?;
                                         last_tool_stdout = if command_success {
                                             stdout.clone()
                                         } else {
@@ -1516,6 +1606,12 @@ pub(crate) async fn run_single_agent_loop_unified(
                                             )?;
                                             turn_modified_files
                                                 .extend(modified_files.iter().map(PathBuf::from));
+
+                                            // Invalidate cache for modified files
+                                            for file_path in &modified_files {
+                                                let mut cache = tool_result_cache.write().await;
+                                                cache.invalidate_for_path(file_path);
+                                            }
                                         } else if !modified_files.is_empty() {
                                             renderer
                                                 .line(MessageStyle::Info, "Changes discarded.")?;
@@ -1549,10 +1645,25 @@ pub(crate) async fn run_single_agent_loop_unified(
 
                                         let content = serde_json::to_string(&output)
                                             .unwrap_or_else(|_| "{}".to_string());
-                                        working_history.push(uni::Message::tool_response(
-                                            call.id.clone(),
-                                            content,
-                                        ));
+
+                                        // Track token usage for this tool result
+                                        {
+                                            let mut counter = token_counter.write().await;
+                                            let content_type = if cache_hit {
+                                                "tool_output"
+                                            } else {
+                                                "tool_output"
+                                            };
+                                            counter.count_with_profiling(content_type, &content);
+                                        }
+
+                                        working_history.push(
+                                            uni::Message::tool_response_with_origin(
+                                                call.id.clone(),
+                                                content,
+                                                name.to_string(),
+                                            ),
+                                        );
 
                                         let mut hook_block_reason: Option<String> = None;
 
@@ -1721,10 +1832,17 @@ pub(crate) async fn run_single_agent_loop_unified(
                                             mcp_panel_state.add_event(mcp_event);
                                         }
 
-                                        // Display error details
+                                        // Create structured error context for better diagnostics
+                                        let error_ctx = ToolErrorContext::new(
+                                            name.to_string(),
+                                            error_message.clone(),
+                                        )
+                                        .with_auto_recovery();
+
+                                        // Display user-friendly error
                                         renderer.line(
                                             MessageStyle::Error,
-                                            &format!("Error: {}", error_message),
+                                            &error_ctx.format_for_user(),
                                         )?;
 
                                         // Display error type for better understanding
@@ -1744,23 +1862,33 @@ pub(crate) async fn run_single_agent_loop_unified(
                                             MessageStyle::Info,
                                             &format!("Type: {}", error_type_msg),
                                         )?;
-
-                                        // Encourage retry with helpful message
-                                        renderer.line(
-                                        MessageStyle::Info,
-                                        "💡 Tip: Review the error and try again with corrected parameters",
-                                    )?;
                                         render_tool_output(
                                             &mut renderer,
                                             Some(name),
                                             &error_json,
                                             vt_cfg.as_ref(),
-                                        )?;
-                                        working_history.push(uni::Message::tool_response(
-                                            call.id.clone(),
-                                            serde_json::to_string(&error_json)
-                                                .unwrap_or_else(|_| "{}".to_string()),
-                                        ));
+                                            Some(&token_budget),
+                                        )
+                                        .await?;
+                                        let error_content = serde_json::to_string(&error_json)
+                                            .unwrap_or_else(|_| "{}".to_string());
+
+                                        // Track error token usage
+                                        {
+                                            let mut counter = token_counter.write().await;
+                                            counter.count_with_profiling(
+                                                "tool_output",
+                                                &error_content,
+                                            );
+                                        }
+
+                                        working_history.push(
+                                            uni::Message::tool_response_with_origin(
+                                                call.id.clone(),
+                                                error_content,
+                                                name.to_string(),
+                                            ),
+                                        );
                                         let _ = last_tool_stdout.take();
                                         {
                                             let mut ledger = decision_ledger.write().await;
@@ -1795,11 +1923,25 @@ pub(crate) async fn run_single_agent_loop_unified(
 
                                         let err_json = error.to_json_value();
                                         let error_message = error.message.clone();
-                                        working_history.push(uni::Message::tool_response(
-                                            call.id.clone(),
-                                            serde_json::to_string(&err_json)
-                                                .unwrap_or_else(|_| "{}".to_string()),
-                                        ));
+                                        let timeout_content = serde_json::to_string(&err_json)
+                                            .unwrap_or_else(|_| "{}".to_string());
+
+                                        // Track timeout error token usage
+                                        {
+                                            let mut counter = token_counter.write().await;
+                                            counter.count_with_profiling(
+                                                "tool_output",
+                                                &timeout_content,
+                                            );
+                                        }
+
+                                        working_history.push(
+                                            uni::Message::tool_response_with_origin(
+                                                call.id.clone(),
+                                                timeout_content,
+                                                name.to_string(),
+                                            ),
+                                        );
                                         let _ = last_tool_stdout.take();
                                         {
                                             let mut ledger = decision_ledger.write().await;
@@ -1832,11 +1974,14 @@ pub(crate) async fn run_single_agent_loop_unified(
                                         );
                                         let err_json = cancel_error.to_json_value();
 
-                                        working_history.push(uni::Message::tool_response(
-                                            call.id.clone(),
-                                            serde_json::to_string(&err_json)
-                                                .unwrap_or_else(|_| "{}".to_string()),
-                                        ));
+                                        working_history.push(
+                                            uni::Message::tool_response_with_origin(
+                                                call.id.clone(),
+                                                serde_json::to_string(&err_json)
+                                                    .unwrap_or_else(|_| "{}".to_string()),
+                                                name.to_string(),
+                                            ),
+                                        );
                                         let _ = last_tool_stdout.take();
 
                                         {
@@ -1873,11 +2018,16 @@ pub(crate) async fn run_single_agent_loop_unified(
                                     Some(name),
                                     &denial,
                                     vt_cfg.as_ref(),
-                                )?;
+                                    Some(&token_budget),
+                                )
+                                .await?;
                                 let content =
                                     serde_json::to_string(&denial).unwrap_or("{}".to_string());
-                                working_history
-                                    .push(uni::Message::tool_response(call.id.clone(), content));
+                                working_history.push(uni::Message::tool_response_with_origin(
+                                    call.id.clone(),
+                                    content,
+                                    name.to_string(),
+                                ));
                                 {
                                     let mut ledger = decision_ledger.write().await;
                                     ledger.record_outcome(
@@ -1929,9 +2079,10 @@ pub(crate) async fn run_single_agent_loop_unified(
                                         name, err
                                     )
                                 });
-                                working_history.push(uni::Message::tool_response(
+                                working_history.push(uni::Message::tool_response_with_origin(
                                     call.id.clone(),
                                     err_json.to_string(),
+                                    name.to_string(),
                                 ));
                                 let _ = last_tool_stdout.take();
                                 {
@@ -2065,20 +2216,8 @@ pub(crate) async fn run_single_agent_loop_unified(
                 TurnLoopResult::Completed => {
                     conversation_history = working_history;
 
-                    let _pruned_after_turn =
-                        context_manager.prune_tool_responses(&mut conversation_history);
-                    // Removed: Tool response pruning message after completion
-                    let post_trim =
-                        context_manager.enforce_context_window(&mut conversation_history);
-                    if post_trim.is_trimmed() {
-                        renderer.line(
-                        MessageStyle::Info,
-                        &format!(
-                            "Trimmed {} earlier messages to respect the context window (~{} tokens).",
-                            post_trim.removed_messages, trim_config.max_tokens,
-                        ),
-                    )?;
-                    }
+                    // Removed: Tool response pruning after completion
+                    // Removed: Context window enforcement after completion
 
                     if let Some(last) = conversation_history.last()
                         && last.role == uni::MessageRole::Assistant
@@ -2142,6 +2281,7 @@ pub(crate) async fn run_single_agent_loop_unified(
             linked_directories,
             async_mcp_manager.as_deref(),
             &handle,
+            Some(&pruning_ledger),
         )
         .await?;
 

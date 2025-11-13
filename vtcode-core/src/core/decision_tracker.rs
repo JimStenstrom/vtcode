@@ -37,10 +37,7 @@ pub enum Action {
         content: String,
         response_type: ResponseType,
     },
-    ContextCompression {
-        reason: String,
-        compression_ratio: f64,
-    },
+
     ErrorRecovery {
         error_type: String,
         recovery_strategy: String,
@@ -147,7 +144,6 @@ impl DecisionTracker {
         let action_summary = match &action {
             Action::ToolCall { name, .. } => format!("tool_call:{}", name),
             Action::Response { response_type, .. } => format!("response:{:?}", response_type),
-            Action::ContextCompression { .. } => "context_compression".to_string(),
             Action::ErrorRecovery { .. } => "error_recovery".to_string(),
         };
         self.current_context.previous_actions.push(action_summary);
@@ -226,6 +222,16 @@ impl DecisionTracker {
         &self.current_context
     }
 
+    /// Get the latest decision made
+    pub fn latest_decision(&self) -> Option<&Decision> {
+        self.decisions.last()
+    }
+
+    /// Get the N most recent decisions
+    pub fn recent_decisions(&self, count: usize) -> Vec<&Decision> {
+        self.decisions.iter().rev().take(count).collect()
+    }
+
     /// Convenience: record a user goal/intention for this turn
     pub fn record_goal(&mut self, content: String) -> String {
         self.record_decision(
@@ -276,15 +282,6 @@ impl DecisionTracker {
                     format!(
                         "- [turn {}] response:{:?} {} (t={})",
                         turn, response_type, preview, ts
-                    )
-                }
-                Action::ContextCompression {
-                    reason,
-                    compression_ratio,
-                } => {
-                    format!(
-                        "- [turn {}] compression {:.2} reason={} (t={})",
-                        turn, compression_ratio, reason, ts
                     )
                 }
                 Action::ErrorRecovery {

@@ -28,6 +28,7 @@ pub mod api_keys;
 pub mod constants;
 pub mod context;
 pub mod core;
+pub mod debug;
 pub mod defaults;
 pub mod hooks;
 pub mod loader;
@@ -50,9 +51,10 @@ pub use api_keys::ApiKeySources;
 pub use context::{ContextFeaturesConfig, LedgerConfig};
 pub use core::{
     AgentConfig, AgentCustomPromptsConfig, AgentOnboardingConfig, AutomationConfig, CommandsConfig,
-    FullAutoConfig, PromptCachingConfig, ProviderPromptCachingConfig, SecurityConfig, ToolPolicy,
-    ToolsConfig,
+    FullAutoConfig, ModelConfig, PromptCachingConfig, ProviderPromptCachingConfig, SecurityConfig,
+    ToolPolicy, ToolsConfig, WebFetchConfig,
 };
+pub use debug::{DebugConfig, TraceLevel};
 pub use defaults::{
     ConfigDefaultsProvider, ContextStoreDefaults, PerformanceDefaults, ScenarioDefaults,
     SyntaxHighlightingDefaults, WorkspacePathsDefaults, current_config_defaults,

@@ -3,6 +3,71 @@
 All notable changes to vtcode will be documented in this file.
 
 ## [Version 0.43.0] - 2025-11-09
+# [Version 0.43.6] - 2025-11-12
+
+
+### Features
+    - feat(web_fetch): Introduce Web Fetch tool with security configurations
+    - feat: Implement token-based truncation for tool output rendering
+    - feat: Enhance command execution with additional PATH entries and environment variable handling
+
+
+### Refactors
+    - refactor: replace cargo_bin_cmd with assert_cmd in CLI tests and simplify InlineTextStyle initialization
+    - refactor: update InlineTextStyle to include bg_color and effects in snapshot tests
+    - refactor: update command execution in tests and remove unused imports
+
+
+### Documentation
+    - docs: Add truncation audit and remove unused terminal output line-limit constants
+    - docs: update changelog for v0.43.5 [skip ci]
+
+
+### Chores
+    - chore: update npm package.json to v0.43.5 [skip ci]
+    - chore: release v0.43.5
+    - chore: update npm package.json to v0.43.4 [skip ci]
+# [Version 0.43.5] - 2025-11-11
+
+
+### Features
+    - feat: Implement permission system with command resolution, audit logging, and caching
+
+### Improvements
+    - improve: Enhanced token approximation algorithm with median-based heuristics for fallback tokenization
+    - improve: Fixed token counting fallback to use consistent 3.5 chars/token ratio across head/tail sections
+    - improve: Eliminated async token counting overhead by using fast character-based fallback estimation
+    - improve: Optimized tail content collection from O(n²) string operations to O(n) with Vec collection
+    - improve: Added String pre-allocation with capacity to reduce memory allocations during truncation
+    - improve: Improved median-based token estimation to handle edge cases (zero word count, whitespace-heavy content)
+    - improve: Optimized result assembly with in-place string building and size pre-calculation
+    - improve: Increased code fence block display limit from 200 → 500 lines with better truncation messaging
+    - improve: Increased diff preview display limit from 300 → 500 lines with improved user guidance
+    - improve: Added comprehensive module-level documentation for token-aware truncation strategy
+    - improve: Clarified token budget messaging to users about what content is preserved
+    - docs: Added TRUNCATION_IMPROVEMENTS.md explaining token-based truncation design and enhancements
+
+
+### Refactors
+    - refactor: Remove unused audit log and history navigation methods
+    - refactor: Remove references to ast_grep_search from documentation and tool policies
+    - refactor: Phase 2 Step 4 - migrate remaining input methods and word navigation
+    - refactor: Phase 2 Step 3 - migrate clear_input() and reset_history_navigation()
+    - refactor: Phase 2 Step 2 - add manager sync helper methods
+    - refactor: Phase 2 Step 1 - add manager fields to Session struct
+    - refactor: extract input history navigation logic fix in InputManager
+
+
+### Documentation
+    - docs: update changelog for v0.43.4 [skip ci]
+    - docs: update Phase 2 progress - Step 4 complete with all input methods migrated
+    - docs: add VT Code execution policy documentation and update command validation
+
+
+### Chores
+    - chore: update npm package.json to v0.43.4 [skip ci]
+    - chore: release v0.43.4
+    - chore: update npm package.json to v0.43.3 [skip ci]
 # [Version 0.43.4] - 2025-11-10
 
 
@@ -383,7 +448,7 @@ All notable changes to vtcode will be documented in this file.
 
 
 ### Features
-    - feat: update vtcode.toml configuration for new model provider and context optimization features
+    - feat: update vtcode.toml configuration for new model provider
 
 
 ### Bug Fixes
@@ -414,7 +479,7 @@ All notable changes to vtcode will be documented in this file.
 
 
 ### Features
-    - feat: update vtcode.toml configuration for new model provider and context optimization features
+    - feat: update vtcode.toml configuration for new model provider
     - feat: add Kimi K2 Thinking model support and update Moonshot provider logic
 
 
@@ -475,7 +540,7 @@ All notable changes to vtcode will be documented in this file.
 
 
 ### Features
-    - feat: update vtcode.toml configuration for new model provider and context optimization features
+    - feat: update vtcode.toml configuration for new model provider
     - feat: add Kimi K2 Thinking model support and update Moonshot provider logic
 
 
@@ -2588,7 +2653,7 @@ All notable changes to vtcode will be documented in this file.
   3. Decision ledger summary (compact)
   4. Recent errors and resolutions
   5. Relevant tools (phase-aware)
-- **Automatic Compression**: Compresses context when budget is exceeded while preserving priority items
+
 - **Configurable Curation**: Full control via `[context.curation]` configuration
 
 **Key Features:**
@@ -2623,9 +2688,9 @@ max_recent_errors = 3
 
 - **New Module**: `token_budget.rs` - Real-time token budget tracking using Hugging Face `tokenizers`
 - **Component-Level Tracking**: Monitor token usage by category (system prompt, messages, tool results, decision ledger)
-- **Configurable Thresholds**: Warning at 75% and compaction trigger at 85% (customizable via `vtcode.toml`)
+- **Configurable Thresholds**: Warning at 75% (customizable via `vtcode.toml`)
 - **Model-Specific Tokenizers**: Support for GPT, Claude, and other models for accurate counting
-- **Automatic Deduction**: Track token removal during context cleanup and compaction
+- **Automatic Deduction**: Track token removal during context cleanup
 - **Budget Reports**: Generate detailed token usage reports by component
 - **Performance Optimized**: ~10μs per message using Rust-native Hugging Face `tokenizers`
 - **New Method**: `remaining_tokens()` - Get remaining tokens in budget for context curation decisions
@@ -2636,7 +2701,6 @@ max_recent_errors = 3
 enabled = true
 model = "gpt-5-nano"
 warning_threshold = 0.75
-compaction_threshold = 0.85
 detailed_tracking = false
 ```
 
@@ -2805,7 +2869,7 @@ detailed_tracking = false
 
 1. **Complete Decision Transparency** - Every action tracked and explained
 2. **Intelligent Error Recovery** - Learn from mistakes and adapt strategies
-3. **Automatic Conversation Summarization** - Handle long sessions efficiently
+
 4. **Confidence Scoring** - Quality assessment for all agent actions
 5. **Pattern Detection** - Identify and address recurring issues
 
@@ -2824,7 +2888,7 @@ detailed_tracking = false
 - **Multi-file Operations**: Batch processing capabilities
 - **Project Templates**: Predefined scaffolds for common projects
 - **Integration APIs**: REST endpoints for external integration
-- **Research-preview Context Compression**: More sophisticated summarization algorithms
+
 
 ### Research Areas
 

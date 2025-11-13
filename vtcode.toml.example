@@ -70,8 +70,7 @@ use_for_web_summary = true
 # Use small model for git history processing
 use_for_git_history = true
 
-# Use small model for conversation context compression
-use_for_compression = true
+
 
 # Maximum size of project documentation to include in context (in bytes)
 project_doc_max_bytes = 16384
@@ -82,35 +81,7 @@ instruction_max_bytes = 16384
 # List of additional instruction files to include in context
 instruction_files = []
 
-# EXPERIMENTAL: Smart summarization for long conversations
-# This feature automatically compresses conversation history when context grows too large
-# WARNING: This is experimental and may affect conversation quality
-[agent.smart_summarization]
-# Enable smart conversation summarization (disabled by default)
-enabled = false
 
-# Minimum interval between summarizations (in seconds)
-min_summary_interval_secs = 30
-
-# Maximum concurrent summarization tasks
-max_concurrent_tasks = 4
-
-# Minimum number of turns before triggering summarization
-min_turns_threshold = 20
-
-# Token usage percentage that triggers summarization (0.0 - 1.0)
-token_threshold_percent = 0.6
-
-# Maximum content length per turn after compression (in characters)
-max_turn_content_length = 2000
-
-# Total size threshold for applying additional compression (in bytes)
-aggressive_compression_threshold = 15000
-
-# Enable context optimization and show "⚡ Optimizing context" message
-# When disabled (default), context will NOT be automatically compressed
-# Enable this to compress context at 20+ turns or 85% token usage
-show_context_optimization_message = false
 
 # Onboarding configuration - Customize the startup experience
 [agent.onboarding]
@@ -218,6 +189,61 @@ update_plan = "allow"             # Update task plans (no confirmation needed)
 web_fetch = "prompt"              # Fetch web content (requires confirmation)
 write_file = "allow"              # Write files (no confirmation needed)
 
+# Web Fetch tool security configuration
+# See docs/tools/web_fetch_security.md for detailed documentation
+[tools.web_fetch]
+# Security mode: "restricted" (blocklist) or "whitelist" (allowlist only)
+# "restricted" - Blocks known sensitive/malicious domains (default, recommended)
+# "whitelist" - Only allows explicitly whitelisted domains (strictest, enterprise use)
+mode = "restricted"
+
+# Enable dynamic blocklist loading from external file
+# Useful for organization-specific domains
+dynamic_blocklist_enabled = false
+
+# Path to dynamic blocklist file (JSON format)
+# File should contain: { "blocked_domains": [...], "blocked_patterns": [...] }
+# Example: ~/.vtcode/web_fetch_blocklist.json
+# See .vtcode/web_fetch_blocklist.json.example for template
+dynamic_blocklist_path = "~/.vtcode/web_fetch_blocklist.json"
+
+# Enable dynamic whitelist loading from external file (whitelist mode only)
+# Recommended for enterprise use with whitelist mode
+dynamic_whitelist_enabled = false
+
+# Path to dynamic whitelist file (JSON format)
+# File should contain: { "allowed_domains": [...] }
+# Example: ~/.vtcode/web_fetch_whitelist.json
+# See .vtcode/web_fetch_whitelist.json.example for template
+dynamic_whitelist_path = "~/.vtcode/web_fetch_whitelist.json"
+
+# Inline blocklist - Additional domains to block (merged with default blocklist)
+# Example: ["internal-api.company.com", "legacy-system.local"]
+blocked_domains = []
+
+# Inline whitelist - Specific domains to allow in restricted mode
+# Useful for exempting legitimate services from blocklist
+# Example: ["paypal.com/status", "company-docs.com"]
+allowed_domains = []
+
+# Additional blocked patterns (merged with defaults)
+# These patterns prevent access to URLs containing sensitive information
+# Example: ["internal_token=", "company_secret="]
+blocked_patterns = []
+
+# Log all URL validation decisions for audit trail
+# Useful for security monitoring and compliance
+enable_audit_logging = false
+
+# Audit log file location
+# Only used if enable_audit_logging = true
+audit_log_path = "~/.vtcode/web_fetch_audit.log"
+
+# Strict mode: Block HTTP and require HTTPS
+# Recommended: keep true for production
+# Set to false only for development/testing with local services
+strict_https_only = true
+
 # Command security - Define safe and dangerous command patterns
 [commands]
 # Commands that are always allowed without confirmation
@@ -228,6 +254,13 @@ allow_list = [
     "git diff",     # Show git differences
     "cargo check",  # Check Rust code
     "echo",         # Print text
+]
+
+# Additional directories to prepend to PATH when running commands
+extra_path_entries = [
+  "$HOME/.cargo/bin",
+  "$HOME/.local/bin",
+  "/opt/homebrew/bin",
 ]
 
 # Commands that are never allowed
@@ -343,7 +376,14 @@ stdout_tail_lines = 20
 # Total lines to keep in PTY scrollback buffer
 scrollback_lines = 400
 
-# Preferred shell program for PTY sessions (defaults to $SHELL or auto-detect)
+# Preferred shell program for PTY sessions
+# Priority order for shell selection:
+# 1. Explicitly specified shell (per-command parameter)
+# 2. preferred_shell configuration (this setting)
+# 3. $SHELL environment variable
+# 4. Auto-detection (searches for /bin/zsh, /bin/bash, /bin/sh)
+# 5. Fallback to appropriate system default (/bin/sh on POSIX, cmd.exe/pwsh on Windows)
+# Leave blank to use auto-detection (recommended for development)
 # preferred_shell = "/bin/zsh"
 
 # Context management configuration - Controls conversation memory
@@ -358,6 +398,18 @@ trim_to_percent = 60
 # Number of recent conversation turns to always preserve
 preserve_recent_turns = 6
 
+# Enable semantic-aware context compression using structural analysis
+semantic_compression = false
+
+# Retain tool outputs longer when related actions are in progress
+tool_aware_retention = false
+
+# Maximum AST depth to preserve when semantic compression is active
+max_structural_depth = 3
+
+# Number of recent tool responses to keep when tool-aware retention is enabled
+preserve_recent_tools = 5
+
 # Decision ledger configuration - Track important decisions
 [context.ledger]
 # Enable decision tracking and persistence
@@ -369,8 +421,7 @@ max_entries = 12
 # Include ledger summary in model prompts
 include_in_prompt = true
 
-# Preserve ledger during context compression
-preserve_in_compression = true
+
 
 # Token budget management - Track and limit token usage
 [context.token_budget]
@@ -383,8 +434,7 @@ model = "gpt-5-nano"
 # Percentage threshold to warn about token usage (0.75 = 75%)
 warning_threshold = 0.75
 
-# Percentage threshold to trigger context compaction (0.85 = 85%)
-compaction_threshold = 0.85
+
 
 # Enable detailed component-level token tracking (increases overhead)
 detailed_tracking = false
@@ -721,3 +771,21 @@ post_tool_use = [
     ]
   }
 ]
+
+# Model-specific behavior configuration
+[model]
+# Enable loop hang detection to identify when model is stuck in repetitive behavior
+# When disabled, the model can continue making repetitive tool calls
+# Default: false (detection is enabled by default)
+skip_loop_detection = false
+
+# Maximum number of identical tool calls (same tool + same arguments) before triggering loop detection
+# Default: 3
+# When a tool with identical arguments is called more than this threshold, detection triggers
+loop_detection_threshold = 3
+
+# Enable interactive prompt for loop detection instead of silently halting
+# When true, shows a user prompt asking whether to keep detection enabled or disable for session
+# When false, automatically halts on detected loop without prompting
+# Default: true
+loop_detection_interactive = true

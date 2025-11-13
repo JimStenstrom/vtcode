@@ -22,7 +22,6 @@ pub struct ExecutionError {
 pub enum ErrorType {
     ToolExecution,
     ApiCall,
-    ContextCompression,
     FileSystem,
     Network,
     Validation,
@@ -58,9 +57,7 @@ pub enum RecoveryStrategy {
         delay_ms: u64,
         attempt_number: usize,
     },
-    ContextCompression {
-        compression_ratio: f64,
-    },
+
     SimplifyRequest {
         removed_parameters: Vec<String>,
     },
@@ -78,7 +75,6 @@ pub enum RecoveryStrategy {
 pub struct ErrorRecoveryManager {
     errors: Vec<ExecutionError>,
     recovery_strategies: IndexMap<ErrorType, Vec<RecoveryStrategy>>,
-    context_compression_threshold: usize,
     operation_type_mapping: IndexMap<ErrorType, OperationType>,
 }
 
@@ -99,9 +95,6 @@ impl ErrorRecoveryManager {
                     original_tool: "".to_string(),
                     alternative_tool: "".to_string(),
                 },
-                RecoveryStrategy::ContextCompression {
-                    compression_ratio: 0.5,
-                },
             ],
         );
 
@@ -112,20 +105,10 @@ impl ErrorRecoveryManager {
                     delay_ms: 2000,
                     attempt_number: 1,
                 },
-                RecoveryStrategy::ContextCompression {
-                    compression_ratio: 0.7,
-                },
                 RecoveryStrategy::ContextReset {
                     preserved_data: IndexMap::new(),
                 },
             ],
-        );
-
-        recovery_strategies.insert(
-            ErrorType::ContextCompression,
-            vec![RecoveryStrategy::ContextReset {
-                preserved_data: IndexMap::new(),
-            }],
         );
 
         // Map error types to operation types for timeout detector integration
@@ -139,7 +122,6 @@ impl ErrorRecoveryManager {
         Self {
             errors: Vec::new(),
             recovery_strategies,
-            context_compression_threshold: 50000, // tokens
             operation_type_mapping,
         }
     }
@@ -213,37 +195,22 @@ impl ErrorRecoveryManager {
             .unwrap_or(&[])
     }
 
-    /// Determine if context compression is needed based on current context size
-    pub fn should_compress_context(&self, context_size: usize) -> bool {
-        context_size > self.context_compression_threshold
-    }
-
     /// Generate a context preservation plan
     pub fn generate_context_preservation_plan(
         &self,
         context_size: usize,
         error_count: usize,
     ) -> ContextPreservationPlan {
-        let compression_needed = context_size > self.context_compression_threshold;
         let critical_errors = error_count > 5;
 
         let strategies = if critical_errors {
             vec![
-                PreservationStrategy::ImmediateCompression { target_ratio: 0.5 },
                 PreservationStrategy::SelectiveRetention {
                     preserve_decisions: true,
                     preserve_errors: true,
                 },
                 PreservationStrategy::ContextReset {
                     preserve_session_data: true,
-                },
-            ]
-        } else if compression_needed {
-            vec![
-                PreservationStrategy::GradualCompression { target_ratio: 0.7 },
-                PreservationStrategy::SelectiveRetention {
-                    preserve_decisions: true,
-                    preserve_errors: false,
                 },
             ]
         } else {
@@ -256,8 +223,6 @@ impl ErrorRecoveryManager {
             recommended_strategies: strategies,
             urgency: if critical_errors {
                 Urgency::Critical
-            } else if compression_needed {
-                Urgency::High
             } else {
                 Urgency::Low
             },
@@ -425,12 +390,6 @@ pub struct ContextPreservationPlan {
 /// Strategy for preserving context
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum PreservationStrategy {
-    ImmediateCompression {
-        target_ratio: f64,
-    },
-    GradualCompression {
-        target_ratio: f64,
-    },
     SelectiveRetention {
         preserve_decisions: bool,
         preserve_errors: bool,

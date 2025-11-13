@@ -14,20 +14,22 @@ use crate::agent::runloop::ResumeSession;
 use crate::agent::runloop::context::{ContextTrimConfig, load_context_trim_config};
 use vtcode_core::config::loader::VTCodeConfig;
 use vtcode_core::config::types::AgentConfig as CoreAgentConfig;
-use vtcode_core::core::context_curator::{
-    ContextCurationConfig as RuntimeContextCurationConfig, ContextCurator,
-};
+
+use vtcode_core::acp::ToolPermissionCache;
 use vtcode_core::core::decision_tracker::DecisionTracker;
+use vtcode_core::core::pruning_decisions::PruningDecisionLedger;
 use vtcode_core::core::token_budget::{
     TokenBudgetConfig as RuntimeTokenBudgetConfig, TokenBudgetManager,
 };
 use vtcode_core::core::trajectory::TrajectoryLogger;
-use vtcode_core::llm::{factory::create_provider_with_config, provider as uni};
+use vtcode_core::llm::{TokenCounter, factory::create_provider_with_config, provider as uni};
 use vtcode_core::mcp::{McpClient, McpToolInfo};
 use vtcode_core::models::ModelId;
 use vtcode_core::prompts::CustomPromptRegistry;
 use vtcode_core::tools::ToolRegistry;
 use vtcode_core::tools::build_function_declarations_with_mode;
+use vtcode_core::tools::{SearchMetrics, ToolResultCache};
+use vtcode_core::ui::user_confirmation::TaskComplexity;
 
 pub(crate) struct SessionState {
     pub session_bootstrap: SessionBootstrap,
@@ -37,6 +39,7 @@ pub(crate) struct SessionState {
     pub trim_config: ContextTrimConfig,
     pub conversation_history: Vec<uni::Message>,
     pub decision_ledger: Arc<RwLock<DecisionTracker>>,
+    pub pruning_ledger: Arc<RwLock<PruningDecisionLedger>>,
     pub trajectory: TrajectoryLogger,
     pub base_system_prompt: String,
     pub full_auto_allowlist: Option<Vec<String>>,
@@ -44,7 +47,12 @@ pub(crate) struct SessionState {
     pub mcp_panel_state: mcp_events::McpPanelState,
     pub token_budget: Arc<TokenBudgetManager>,
     pub token_budget_enabled: bool,
-    pub curator: ContextCurator,
+    pub token_counter: Arc<RwLock<TokenCounter>>,
+    pub tool_result_cache: Arc<RwLock<ToolResultCache>>,
+    pub tool_permission_cache: Arc<RwLock<ToolPermissionCache>>,
+    #[allow(dead_code)]
+    pub search_metrics: Arc<RwLock<SearchMetrics>>,
+
     pub custom_prompts: CustomPromptRegistry,
     pub sandbox: SandboxCoordinator,
 }
@@ -188,29 +196,15 @@ pub(crate) async fn initialize_session(
     );
     if let Some(cfg) = context_features {
         token_budget_config.warning_threshold = cfg.token_budget.warning_threshold;
-        token_budget_config.compaction_threshold = cfg.token_budget.compaction_threshold;
+        token_budget_config.alert_threshold = cfg.token_budget.alert_threshold;
         token_budget_config.detailed_tracking = cfg.token_budget.detailed_tracking;
         token_budget_config.tokenizer_id = cfg.token_budget.tokenizer.clone();
     }
     let token_budget = Arc::new(TokenBudgetManager::new(token_budget_config));
 
     let decision_ledger = Arc::new(RwLock::new(DecisionTracker::new()));
-    let mut curator_config = RuntimeContextCurationConfig::default();
-    if let Some(cfg) = context_features {
-        curator_config.enabled = cfg.curation.enabled;
-        curator_config.max_tokens_per_turn = cfg.curation.max_tokens_per_turn;
-        curator_config.preserve_recent_messages = cfg.curation.preserve_recent_messages;
-        curator_config.max_tool_descriptions = cfg.curation.max_tool_descriptions;
-        curator_config.include_ledger = cfg.curation.include_ledger && cfg.ledger.enabled;
-        curator_config.ledger_max_entries = cfg.curation.ledger_max_entries;
-        curator_config.include_recent_errors = cfg.curation.include_recent_errors;
-        curator_config.max_recent_errors = cfg.curation.max_recent_errors;
-    }
-    let curator = ContextCurator::new(
-        curator_config,
-        Arc::clone(&token_budget),
-        Arc::clone(&decision_ledger),
-    );
+    let pruning_ledger = Arc::new(RwLock::new(PruningDecisionLedger::new()));
+
     let conversation_history: Vec<uni::Message> = resume
         .map(|session| session.history.clone())
         .unwrap_or_default();
@@ -310,6 +304,10 @@ pub(crate) async fn initialize_session(
     });
 
     let sandbox = SandboxCoordinator::new(config.workspace.clone());
+    let token_counter = Arc::new(RwLock::new(TokenCounter::new()));
+    let tool_result_cache = Arc::new(RwLock::new(ToolResultCache::new(128))); // 128-entry cache
+    let tool_permission_cache = Arc::new(RwLock::new(ToolPermissionCache::new())); // Session-scoped
+    let search_metrics = Arc::new(RwLock::new(SearchMetrics::new())); // Track search performance
 
     Ok(SessionState {
         session_bootstrap,
@@ -319,6 +317,7 @@ pub(crate) async fn initialize_session(
         trim_config,
         conversation_history,
         decision_ledger,
+        pruning_ledger,
         trajectory,
         base_system_prompt,
         full_auto_allowlist,
@@ -326,7 +325,10 @@ pub(crate) async fn initialize_session(
         mcp_panel_state,
         token_budget,
         token_budget_enabled,
-        curator,
+        token_counter,
+        tool_result_cache,
+        tool_permission_cache,
+        search_metrics,
         custom_prompts,
         sandbox,
     })
@@ -348,6 +350,52 @@ fn build_single_mcp_tool_definition(tool: &McpToolInfo) -> uni::ToolDefinition {
     uni::ToolDefinition::function(format!("mcp_{}", tool.name), description, parameters)
 }
 
-pub(crate) fn build_mcp_tool_definitions(tools: &[McpToolInfo]) -> Vec<uni::ToolDefinition> {
+pub fn build_mcp_tool_definitions(tools: &[McpToolInfo]) -> Vec<uni::ToolDefinition> {
     tools.iter().map(build_single_mcp_tool_definition).collect()
+}
+
+/// Analyze user query and log task complexity estimation
+#[allow(dead_code)]
+fn estimate_and_log_task_complexity(query: &str) -> TaskComplexity {
+    if query.is_empty() {
+        return TaskComplexity::Moderate;
+    }
+
+    // Simple heuristic for task complexity based on query length and keywords
+    let lower = query.to_lowercase();
+    let complexity = if query.len() > 200
+        || lower.contains("refactor")
+        || lower.contains("debug")
+        || lower.contains("design")
+        || lower.contains("architecture")
+        || lower.contains("multiple")
+    {
+        TaskComplexity::Complex
+    } else if query.len() > 100
+        || lower.contains("fix")
+        || lower.contains("modify")
+        || lower.contains("implement")
+    {
+        TaskComplexity::Moderate
+    } else {
+        TaskComplexity::Simple
+    };
+
+    debug!("Task complexity: {:?} (estimated)", complexity);
+
+    // Log some basic detections
+    if lower.contains("refactor") {
+        debug!("Detected: Refactoring work");
+    }
+    if lower.contains("debug") || lower.contains("fix") {
+        debug!("Detected: Debugging/troubleshooting");
+    }
+    if lower.contains("multiple") {
+        debug!("Detected: Multi-file changes");
+    }
+    if lower.contains("explain") {
+        debug!("Detected: Explanation/documentation needed");
+    }
+
+    complexity
 }

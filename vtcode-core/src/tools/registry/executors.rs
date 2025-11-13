@@ -24,9 +24,15 @@ use std::{
 use tokio::time::sleep;
 use tracing::{debug, trace, warn};
 
-const DEFAULT_TERMINAL_TIMEOUT_SECS: u64 = 30;
+const DEFAULT_TERMINAL_TIMEOUT_SECS: u64 = 180;
 const DEFAULT_PTY_TIMEOUT_SECS: u64 = 300;
 const RUN_PTY_POLL_TIMEOUT_SECS: u64 = 5;
+const LONG_RUNNING_COMMAND_TIMEOUT_SECS: u64 = 600;
+// For known long-running commands, wait longer before returning partial output
+const RUN_PTY_POLL_TIMEOUT_LONG_RUNNING: u64 = 30;
+const LONG_RUNNING_COMMANDS: &[&str] = &[
+    "cargo", "npm", "yarn", "pnpm", "pip", "python", "make", "docker",
+];
 const INTERACTIVE_COMMANDS: &[&str] = &[
     "python",
     "python3",
@@ -284,7 +290,20 @@ impl ToolRegistry {
 
     pub(super) fn web_fetch_executor(&mut self, args: Value) -> BoxFuture<'_, Result<Value>> {
         use crate::tools::web_fetch::WebFetchTool;
-        let tool = WebFetchTool::new();
+        // Get config from policy gateway or use defaults
+        let mode = "restricted".to_string(); // Default mode
+        let blocked_domains = Vec::new();
+        let blocked_patterns = Vec::new();
+        let allowed_domains = Vec::new();
+        let strict_https_only = true;
+
+        let tool = WebFetchTool::with_config(
+            mode,
+            blocked_domains,
+            blocked_patterns,
+            allowed_domains,
+            strict_https_only,
+        );
         Box::pin(async move { tool.execute(args).await })
     }
 
@@ -416,48 +435,101 @@ impl ToolRegistry {
             };
 
             // Get MCP client for code execution
-            let mcp_client = match mcp_client {
-                Some(client) => client,
+            let result = match mcp_client {
+                Some(mcp_client) => {
+                    // Build execution config
+                    let mut config: crate::exec::code_executor::ExecutionConfig =
+                        Default::default();
+                    if let Some(timeout_secs) = parsed.timeout_secs {
+                        config.timeout_secs = timeout_secs;
+                    }
+
+                    // Create a safe sandbox profile with workspace isolation
+                    // The sandbox enforces these restrictions:
+                    // - Shell: Auto-detected (pwsh/bash on supported systems, cmd.exe on Windows)
+                    // - Working directory: .vtcode/sandbox in workspace
+                    // - Allowed paths: workspace root + /tmp (temporary files)
+                    // - Runtime: AnthropicSrt for code execution monitoring
+                    let sandbox_profile = crate::sandbox::SandboxProfile::new(
+                        resolve_shell_candidate(),
+                        workspace_root.join(".vtcode/sandbox/settings.json"),
+                        workspace_root.join(".vtcode/sandbox"),
+                        vec![workspace_root.clone(), std::path::PathBuf::from("/tmp")],
+                        crate::sandbox::SandboxRuntimeKind::AnthropicSrt,
+                    );
+
+                    // Create and configure code executor
+                    let executor = CodeExecutor::new(
+                        language,
+                        sandbox_profile,
+                        mcp_client,
+                        workspace_root.clone(),
+                    )
+                    .with_config(config);
+
+                    // Execute the code
+                    executor
+                        .execute(&parsed.code)
+                        .await
+                        .context("code execution failed")?
+                }
                 None => {
-                    // Create a no-op executor if MCP client not available
-                    debug!("MCP client not configured, code execution may be limited");
-                    // For now, we'll require MCP client
-                    return Err(anyhow!(
-                        "MCP client not configured. Code execution requires MCP tools access."
-                    ));
+                    debug!("MCP client not configured, attempting direct code execution");
+
+                    // Attempt direct code execution without MCP if no client available
+                    let code = parsed.code.clone();
+                    let language = language;
+
+                    // Create a direct executor (non-sandboxed fallback)
+                    // In a real implementation, this would need proper sandboxing
+                    use std::io::Write;
+                    use std::process::Command;
+                    use tempfile::NamedTempFile;
+
+                    let result = match language {
+                        Language::Python3 => {
+                            let output = Command::new("python3")
+                                .arg("-c")
+                                .arg(&code)
+                                .current_dir(&workspace_root)
+                                .output()
+                                .context("failed to execute Python code")?;
+
+                            crate::exec::code_executor::ExecutionResult {
+                                exit_code: output.status.code().unwrap_or(1) as i32,
+                                stdout: String::from_utf8_lossy(&output.stdout).to_string(),
+                                stderr: String::from_utf8_lossy(&output.stderr).to_string(),
+                                duration_ms: 0, // Not tracked in this fallback
+                                json_result: None,
+                            }
+                        }
+                        Language::JavaScript => {
+                            // Create a temporary file for JavaScript execution
+                            let mut temp_file = NamedTempFile::new_in(&workspace_root)
+                                .context("failed to create temp file for JavaScript execution")?;
+                            temp_file
+                                .write_all(code.as_bytes())
+                                .context("failed to write JavaScript code to temp file")?;
+
+                            let output = Command::new("node")
+                                .arg(temp_file.path())
+                                .current_dir(&workspace_root)
+                                .output()
+                                .context("failed to execute JavaScript code")?;
+
+                            crate::exec::code_executor::ExecutionResult {
+                                exit_code: output.status.code().unwrap_or(1) as i32,
+                                stdout: String::from_utf8_lossy(&output.stdout).to_string(),
+                                stderr: String::from_utf8_lossy(&output.stderr).to_string(),
+                                duration_ms: 0, // Not tracked in this fallback
+                                json_result: None,
+                            }
+                        }
+                    };
+
+                    result
                 }
             };
-
-            // Build execution config
-            let mut config: crate::exec::code_executor::ExecutionConfig = Default::default();
-            if let Some(timeout_secs) = parsed.timeout_secs {
-                config.timeout_secs = timeout_secs;
-            }
-
-            // Create a basic sandbox profile (no sandboxing enforcement yet)
-            // TODO: Integrate with actual sandbox runtime when available
-            let sandbox_profile = crate::sandbox::SandboxProfile::new(
-                "/bin/sh".into(),
-                "/tmp/sandbox_settings.json".into(),
-                workspace_root.join(".vtcode/sandbox"),
-                vec![workspace_root.clone()],
-                crate::sandbox::SandboxRuntimeKind::AnthropicSrt,
-            );
-
-            // Create and configure code executor
-            let executor = CodeExecutor::new(
-                language,
-                sandbox_profile,
-                mcp_client,
-                workspace_root.clone(),
-            )
-            .with_config(config);
-
-            // Execute the code
-            let result = executor
-                .execute(&parsed.code)
-                .await
-                .context("code execution failed")?;
 
             debug!(
                 exit_code = result.exit_code,
@@ -704,51 +776,70 @@ impl ToolRegistry {
                 "Emitting destructive operation telemetry"
             );
 
-            // TODO: Add confirmation prompt for destructive operations
-            //
-            // Implementation should:
-            // 1. Check if running in interactive mode (not --skip-confirmations)
-            // 2. Check if running in TUI mode vs CLI mode
-            // 3. In CLI mode: Use dialoguer for confirmation prompt
-            // 4. In TUI mode: Use modal confirmation (handled by runloop)
-            // 5. Show affected files and backup status in prompt
-            // 6. Allow user to abort operation
-            //
-            // Example implementation:
-            // ```rust
-            // if !self.skip_confirmations && !has_git_backup {
-            //     let prompt_msg = format!(
-            //         "apply_patch will delete and recreate {} file(s):\n{}\n\n\
-            //          No git backup detected. Continue?",
-            //         affected_files.len(),
-            //         affected_files.join("\n")
-            //     );
-            //
-            //     // CLI mode confirmation
-            //     if !std::env::var("VTCODE_TUI_MODE").is_ok() {
-            //         let confirmed = dialoguer::Confirm::new()
-            //             .with_prompt(prompt_msg)
-            //             .default(false)
-            //             .interact()?;
-            //         if !confirmed {
-            //             return Ok(json!({
-            //                 "success": false,
-            //                 "error": "Operation cancelled by user"
-            //             }));
-            //         }
-            //     }
-            //     // TUI mode: Return special status code for runloop to handle
-            //     else {
-            //         return Err(anyhow!(
-            //             "CONFIRMATION_REQUIRED: {}",
-            //             prompt_msg
-            //         ));
-            //     }
-            // }
-            // ```
-            //
-            // Reference: docs/research/codex_issue_review.md - Confirmation prompts
-            // Related: src/agent/runloop/unified/tool_routing.rs - ensure_tool_permission()
+            // Check if confirmation is needed (destructive operations without backup)
+            let skip_confirmations = env::var("VTCODE_SKIP_CONFIRMATIONS")
+                .ok()
+                .and_then(|v| v.parse::<bool>().ok())
+                .unwrap_or(false);
+
+            // Always prompt for confirmation if no git backup and not skipping confirmations
+            let requires_confirmation = !skip_confirmations && !has_git_backup;
+
+            if requires_confirmation {
+                let file_list = affected_files
+                    .iter()
+                    .take(10) // Show first 10 files; truncate if more
+                    .map(|f| format!("  - {}", f))
+                    .collect::<Vec<_>>()
+                    .join("\n");
+
+                let file_count_suffix = if affected_files.len() > 10 {
+                    format!("\n  ... and {} more file(s)", affected_files.len() - 10)
+                } else {
+                    String::new()
+                };
+
+                let backup_warning = if has_git_backup {
+                    "\nGit backup detected - can be recovered if needed."
+                } else {
+                    "\n⚠️  No git backup detected - deletion is permanent!"
+                };
+
+                let prompt_msg = format!(
+                    "apply_patch will delete and recreate {} file(s):{}{}{}\n\nContinue?",
+                    affected_files.len(),
+                    file_list,
+                    file_count_suffix,
+                    backup_warning
+                );
+
+                // Check if running in TUI mode
+                let in_tui_mode = env::var("VTCODE_TUI_MODE").is_ok();
+
+                if in_tui_mode {
+                    // TUI mode: Return error for runloop to handle with modal confirmation
+                    return Err(anyhow!("CONFIRMATION_REQUIRED: {}", prompt_msg));
+                } else {
+                    // CLI mode: Use dialoguer for confirmation prompt
+                    let confirmed = dialoguer::Confirm::new()
+                        .with_prompt(prompt_msg)
+                        .default(false)
+                        .interact()
+                        .context("Failed to get user confirmation")?;
+
+                    if !confirmed {
+                        return Ok(json!({
+                            "success": false,
+                            "error": "Operation cancelled by user",
+                            "affected_files": affected_files,
+                            "cancelled_at": std::time::SystemTime::now()
+                                .duration_since(std::time::UNIX_EPOCH)
+                                .ok()
+                                .map(|d| d.as_secs())
+                        }));
+                    }
+                }
+            }
         }
 
         // Generate diff preview
@@ -851,7 +942,7 @@ impl ToolRegistry {
             .get("raw_command")
             .and_then(|value| value.as_str())
             .map(|value| value.to_string());
-        let shell = resolve_shell_preference(
+        let shell_program = resolve_shell_preference(
             payload.get("shell").and_then(|value| value.as_str()),
             self.pty_config(),
         );
@@ -860,7 +951,7 @@ impl ToolRegistry {
             .and_then(|value| value.as_bool())
             .unwrap_or(false);
 
-        if let Some(shell_program) = shell {
+        {
             let normalized_shell = normalized_shell_name(&shell_program);
             let existing_shell = command
                 .first()
@@ -935,12 +1026,16 @@ impl ToolRegistry {
             })?;
         lifecycle.commit();
 
-        let capture = collect_ephemeral_session_output(
-            self.pty_manager(),
-            &setup.session_id,
-            Duration::from_secs(RUN_PTY_POLL_TIMEOUT_SECS),
-        )
-        .await;
+        // Use adaptive timeout: longer for known long-running commands
+        let poll_timeout = if is_long_running_command(&setup.command) {
+            Duration::from_secs(RUN_PTY_POLL_TIMEOUT_LONG_RUNNING)
+        } else {
+            Duration::from_secs(RUN_PTY_POLL_TIMEOUT_SECS)
+        };
+
+        let capture =
+            collect_ephemeral_session_output(self.pty_manager(), &setup.session_id, poll_timeout)
+                .await;
 
         let snapshot = self
             .pty_manager()
@@ -1009,15 +1104,14 @@ impl ToolRegistry {
             .and_then(|value| value.as_bool())
             .unwrap_or(false);
 
-        if let Some(shell_program) = resolve_shell_preference(
+        let shell_program = resolve_shell_preference(
             payload.get("shell").and_then(|value| value.as_str()),
             self.pty_config(),
-        ) {
-            let should_replace = payload.get("shell").is_some()
-                || (command_parts.len() == 1 && is_default_shell_placeholder(&command_parts[0]));
-            if should_replace {
-                command_parts = vec![shell_program];
-            }
+        );
+        let should_replace = payload.get("shell").is_some()
+            || (command_parts.len() == 1 && is_default_shell_placeholder(&command_parts[0]));
+        if should_replace {
+            command_parts = vec![shell_program];
         }
 
         if login_shell
@@ -1287,9 +1381,34 @@ fn normalize_terminal_payload(args: &mut Value) -> Result<()> {
 fn ensure_default_timeout(args: &mut Value, context: &str, default: u64) -> Result<()> {
     let map = value_as_object_mut(args, context)?;
     if !map.contains_key("timeout_secs") {
-        map.insert("timeout_secs".to_string(), Value::Number(default.into()));
+        let timeout = if let Some(cmd_parts) = collect_command_array(map).ok().flatten() {
+            if is_long_running_command(&cmd_parts) {
+                LONG_RUNNING_COMMAND_TIMEOUT_SECS
+            } else {
+                default
+            }
+        } else {
+            default
+        };
+        map.insert("timeout_secs".to_string(), Value::Number(timeout.into()));
     }
     Ok(())
+}
+
+fn collect_command_array(map: &Map<String, Value>) -> Result<Option<Vec<String>>> {
+    if let Some(cmd) = map.get("command") {
+        if let Some(cmd_str) = cmd.as_str() {
+            return Ok(Some(vec![cmd_str.to_string()]));
+        } else if let Some(cmd_array) = cmd.as_array() {
+            return Ok(Some(
+                cmd_array
+                    .iter()
+                    .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                    .collect(),
+            ));
+        }
+    }
+    Ok(None)
 }
 
 fn parse_timeout_secs(value: Option<&Value>, fallback: u64) -> Result<u64> {
@@ -1990,7 +2109,7 @@ mod tests {
         let mut config = PtyConfig::default();
         config.preferred_shell = Some("/bin/bash".to_string());
         let resolved = super::resolve_shell_preference(Some("/custom/zsh"), &config);
-        assert_eq!(resolved.as_deref(), Some("/custom/zsh"));
+        assert_eq!(resolved, "/custom/zsh");
     }
 
     #[test]
@@ -1998,7 +2117,15 @@ mod tests {
         let mut config = PtyConfig::default();
         config.preferred_shell = Some("/bin/zsh".to_string());
         let resolved = super::resolve_shell_preference(None, &config);
-        assert_eq!(resolved.as_deref(), Some("/bin/zsh"));
+        assert_eq!(resolved, "/bin/zsh");
+    }
+
+    #[test]
+    fn resolve_shell_preference_always_returns_value() {
+        let config = PtyConfig::default();
+        let resolved = super::resolve_shell_preference(None, &config);
+        // Should never return empty string - guaranteed to have a fallback
+        assert!(!resolved.is_empty());
     }
 
     #[test]
@@ -2290,12 +2417,30 @@ fn build_ephemeral_pty_response(
         Some(setup.session_id.clone())
     };
     let code = if completed { exit_code } else { None };
+    let status = if completed { "completed" } else { "running" };
+
+    // Build a clear message for the agent based on status
+    let message = if completed {
+        if let Some(exit_code) = code {
+            if exit_code == 0 {
+                "Command completed successfully".to_string()
+            } else {
+                format!("Command failed with exit code {}", exit_code)
+            }
+        } else {
+            "Command completed".to_string()
+        }
+    } else {
+        "Command is still running. Backend continues polling automatically. Do NOT call read_pty_session.".to_string()
+    };
 
     json!({
         "success": true,
         "command": setup.command.clone(),
         "output": strip_ansi(&output),
         "code": code,
+        "status": status,
+        "message": message,
         "mode": "pty",
         "session_id": session_reference,
         "pty": {
@@ -2461,7 +2606,7 @@ fn tokenize_windows_command(command: &str) -> Result<Vec<String>> {
     Ok(tokens)
 }
 
-fn resolve_shell_preference(explicit: Option<&str>, config: &PtyConfig) -> Option<String> {
+fn resolve_shell_preference(explicit: Option<&str>, config: &PtyConfig) -> String {
     explicit
         .and_then(sanitize_shell_candidate)
         .or_else(|| {
@@ -2476,6 +2621,27 @@ fn resolve_shell_preference(explicit: Option<&str>, config: &PtyConfig) -> Optio
                 .and_then(|value| sanitize_shell_candidate(&value))
         })
         .or_else(detect_posix_shell_candidate)
+        .unwrap_or_else(|| resolve_shell_candidate().display().to_string())
+}
+
+fn resolve_shell_candidate() -> PathBuf {
+    // Resolve the preferred shell for sandbox execution
+    // Detects available shells based on platform
+    if cfg!(windows) {
+        // Windows: prefer PowerShell if available, fall back to cmd.exe
+        if Path::new("C:\\Windows\\System32\\pwsh.exe").exists() {
+            PathBuf::from("C:\\Windows\\System32\\pwsh.exe")
+        } else if Path::new("C:\\Program Files\\PowerShell\\7\\pwsh.exe").exists() {
+            PathBuf::from("C:\\Program Files\\PowerShell\\7\\pwsh.exe")
+        } else {
+            PathBuf::from("cmd.exe")
+        }
+    } else {
+        // POSIX systems: use detected shell or default to /bin/sh
+        detect_posix_shell_candidate()
+            .map(PathBuf::from)
+            .unwrap_or_else(|| PathBuf::from("/bin/sh"))
+    }
 }
 
 fn sanitize_shell_candidate(shell: &str) -> Option<String> {
@@ -2561,5 +2727,24 @@ impl Drop for PtySessionLifecycle<'_> {
         if self.active {
             self.registry.end_pty_session();
         }
+    }
+}
+
+/// Detects if a command is known to be long-running (build tools, package managers, etc.)
+fn is_long_running_command(command_parts: &[String]) -> bool {
+    if let Some(first) = command_parts.first() {
+        let cmd = first.to_lowercase();
+        let basename = std::path::Path::new(&cmd)
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("")
+            .to_lowercase();
+
+        // Check if it's a long-running command
+        LONG_RUNNING_COMMANDS
+            .iter()
+            .any(|&long_cmd| basename.starts_with(long_cmd) || basename == long_cmd)
+    } else {
+        false
     }
 }

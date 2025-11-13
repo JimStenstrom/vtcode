@@ -14,6 +14,7 @@ use vtcode_core::config::constants::defaults;
 use vtcode_core::config::loader::{ConfigManager, VTCodeConfig};
 use vtcode_core::config::models::Provider;
 use vtcode_core::config::types::{AgentConfig as CoreAgentConfig, ModelSelectionSource};
+use vtcode_core::config::validator::ConfigValidator;
 use vtcode_core::ui::theme::{self as ui_theme, DEFAULT_THEME_ID};
 use vtcode_core::{initialize_dot_folder, load_user_config, update_theme_preference};
 
@@ -108,6 +109,9 @@ impl StartupContext {
         if full_auto_requested {
             validate_full_auto_configuration(&config, &workspace)?;
         }
+
+        // Validate configuration against models database
+        validate_startup_configuration(&config, &workspace)?;
 
         let session_resume = if let Some(value) = args.resume_session.as_ref() {
             if value == "__interactive__" {
@@ -422,6 +426,48 @@ fn resolve_workspace_path(workspace_arg: Option<PathBuf>) -> Result<PathBuf> {
     Ok(resolved)
 }
 
+fn validate_startup_configuration(config: &VTCodeConfig, workspace: &Path) -> Result<()> {
+    // Find models.json in workspace or standard locations
+    let mut models_json_paths = vec![workspace.join("docs/models.json")];
+
+    if let Ok(cwd) = std::env::current_dir() {
+        models_json_paths.push(cwd.join("docs/models.json"));
+    }
+
+    let models_json_path = models_json_paths
+        .iter()
+        .find(|p| p.exists())
+        .map(|p| p.to_path_buf());
+
+    if let Some(models_path) = models_json_path {
+        match ConfigValidator::new(&models_path) {
+            Ok(validator) => {
+                match validator.validate(config) {
+                    Ok(result) => {
+                        // Display warnings (errors would have been caught earlier)
+                        if !result.warnings.is_empty() {
+                            eprintln!("{}", result.format_for_display());
+                        }
+                    }
+                    Err(e) => {
+                        // Non-critical validation error - log but don't fail startup
+                        eprintln!("Warning: Configuration validation failed: {}", e);
+                    }
+                }
+            }
+            Err(e) => {
+                // Non-critical validator creation error
+                eprintln!(
+                    "Warning: Could not load models database for validation: {}",
+                    e
+                );
+            }
+        }
+    }
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -471,7 +517,6 @@ mod tests {
         let entries = vec![
             "agent.provider=openai".to_string(),
             "custom-config/vtcode.toml".to_string(),
-            "context.curation.enabled=false".to_string(),
         ];
 
         let (path, overrides) = parse_cli_config_entries(&entries);
@@ -479,25 +524,18 @@ mod tests {
         assert_eq!(path, Some(PathBuf::from("custom-config/vtcode.toml")));
         assert_eq!(
             overrides,
-            vec![
-                ("agent.provider".to_string(), "openai".to_string()),
-                ("context.curation.enabled".to_string(), "false".to_string())
-            ]
+            vec![("agent.provider".to_string(), "openai".to_string())]
         );
     }
 
     #[test]
     fn applies_inline_overrides_to_config() -> Result<()> {
         let mut config = VTCodeConfig::default();
-        let overrides = vec![
-            ("agent.provider".to_string(), "\"openai\"".to_string()),
-            ("context.curation.enabled".to_string(), "false".to_string()),
-        ];
+        let overrides = vec![("agent.provider".to_string(), "\"openai\"".to_string())];
 
         apply_inline_config_overrides(&mut config, &overrides)?;
 
         assert_eq!(config.agent.provider, "openai");
-        assert!(!config.context.curation.enabled);
         Ok(())
     }
 }

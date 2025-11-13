@@ -1,4 +1,5 @@
 use std::collections::{HashMap, VecDeque};
+use std::ffi::OsString;
 use std::io::{Read, Write};
 use std::path::{Component, Path, PathBuf};
 use std::sync::Arc;
@@ -15,8 +16,9 @@ use tracing::{debug, warn};
 use vt100::Parser;
 
 use crate::audit::PermissionAuditLog;
-use crate::config::PtyConfig;
+use crate::config::{CommandsConfig, PtyConfig};
 use crate::sandbox::SandboxProfile;
+use crate::tools::path_env;
 use crate::tools::types::VTCodePtySession;
 
 #[derive(Clone)]
@@ -26,6 +28,7 @@ pub struct PtyManager {
     inner: Arc<PtyState>,
     sandbox_profile: Arc<Mutex<Option<SandboxProfile>>>,
     audit_log: Option<Arc<TokioMutex<PermissionAuditLog>>>,
+    extra_paths: Arc<Mutex<Vec<PathBuf>>>,
 }
 
 #[derive(Default)]
@@ -370,12 +373,18 @@ impl PtyManager {
             .canonicalize()
             .unwrap_or(workspace_root.clone());
 
+        let default_paths = path_env::compute_extra_search_paths(
+            &CommandsConfig::default().extra_path_entries,
+            &resolved_root,
+        );
+
         Self {
             workspace_root: resolved_root,
             config,
             inner: Arc::new(PtyState::default()),
             sandbox_profile: Arc::new(Mutex::new(None)),
             audit_log: None,
+            extra_paths: Arc::new(Mutex::new(default_paths)),
         }
     }
 
@@ -395,6 +404,14 @@ impl PtyManager {
 
     pub fn sandbox_profile(&self) -> Option<SandboxProfile> {
         self.current_sandbox_profile()
+    }
+
+    pub fn apply_commands_config(&self, commands_config: &CommandsConfig) {
+        let mut extra = self.extra_paths.lock();
+        *extra = path_env::compute_extra_search_paths(
+            &commands_config.extra_path_entries,
+            &self.workspace_root,
+        );
     }
 
     fn current_sandbox_profile(&self) -> Option<SandboxProfile> {
@@ -419,11 +436,14 @@ impl PtyManager {
         let start = Instant::now();
         self.ensure_within_workspace(&work_dir)?;
         let workspace_root = self.workspace_root.clone();
+        let extra_paths = self.extra_paths.lock().clone();
 
         let sandbox_profile = self.current_sandbox_profile();
         let result = tokio::task::spawn_blocking(move || -> Result<PtyCommandResult> {
             let timeout_duration = Duration::from_millis(timeout);
-            let (exec_program, exec_args, display_program, env_profile) =
+
+            // Try to resolve the program path. If not found, wrap in shell.
+            let (exec_program, exec_args, display_program, env_profile, _use_shell_wrapper) =
                 if let Some(profile) = sandbox_profile.clone() {
                     let command_string =
                         join(std::iter::once(program.clone()).chain(args.iter().cloned()));
@@ -436,11 +456,26 @@ impl PtyManager {
                         ],
                         program.clone(),
                         Some(profile),
+                        false,
                     )
+                } else if let Some(resolved_path) =
+                    path_env::resolve_program_path(&program, &extra_paths)
+                {
+                    // Program found in PATH, use resolved executable directly
+                    (resolved_path, args.clone(), program.clone(), None, false)
                 } else {
-                    (program.clone(), args.clone(), program.clone(), None)
+                    // Program not found in PATH, wrap in shell to leverage user's PATH
+                    let shell = "/bin/sh";
+                    let full_command =
+                        join(std::iter::once(program.clone()).chain(args.iter().cloned()));
+                    (
+                        shell.to_string(),
+                        vec!["-c".to_string(), full_command.clone()],
+                        program.clone(),
+                        None,
+                        true,
+                    )
                 };
-
             let mut builder = CommandBuilder::new(exec_program.clone());
             for arg in &exec_args {
                 builder.arg(arg);
@@ -452,6 +487,7 @@ impl PtyManager {
                 size,
                 &workspace_root,
                 env_profile.as_ref(),
+                &extra_paths,
             );
 
             let pty_system = native_pty_system();
@@ -622,6 +658,7 @@ impl PtyManager {
         let program = command_parts.remove(0);
         let args = command_parts;
         let sandbox_profile = self.current_sandbox_profile();
+        let extra_paths = self.extra_paths.lock().clone();
 
         let (exec_program, exec_args, display_program, env_profile) = if let Some(profile) =
             sandbox_profile.clone()
@@ -637,8 +674,19 @@ impl PtyManager {
                 program.clone(),
                 Some(profile),
             )
+        } else if let Some(resolved_path) = path_env::resolve_program_path(&program, &extra_paths) {
+            // Program found in PATH, use it directly
+            (resolved_path, args.clone(), program.clone(), None)
         } else {
-            (program.clone(), args.clone(), program.clone(), None)
+            // Program not found in PATH, wrap in shell to leverage user's PATH
+            let shell = "/bin/sh";
+            let full_command = join(std::iter::once(program.clone()).chain(args.iter().cloned()));
+            (
+                shell.to_string(),
+                vec!["-c".to_string(), full_command.clone()],
+                program.clone(),
+                None,
+            )
         };
 
         let pty_system = native_pty_system();
@@ -658,6 +706,7 @@ impl PtyManager {
             size,
             &self.workspace_root,
             env_profile.as_ref(),
+            &extra_paths,
         );
 
         let child = pair.slave.spawn_command(builder).with_context(|| {
@@ -933,10 +982,18 @@ fn set_command_environment(
     size: PtySize,
     workspace_root: &Path,
     sandbox_profile: Option<&SandboxProfile>,
+    extra_paths: &[PathBuf],
 ) {
     // Inherit environment from parent process to preserve PATH and other important variables
-    for (key, value) in std::env::vars() {
-        builder.env(&key, &value);
+    let mut env_map: HashMap<OsString, OsString> = std::env::vars_os().collect();
+    let path_key = OsString::from("PATH");
+    let current_path = env_map.get(&path_key).map(|value| value.as_os_str());
+    if let Some(merged) = path_env::merge_path_env(current_path, extra_paths) {
+        env_map.insert(path_key, merged);
+    }
+
+    for (key, value) in env_map {
+        builder.env(key, value);
     }
 
     // Override or set specific environment variables for TTY
@@ -988,6 +1045,8 @@ fn is_shell_program(program: &str) -> bool {
     )
 }
 
+/// Resolve program path - if program doesn't exist in PATH, return None to signal shell fallback.
+/// This allows the shell to find programs installed in user-specific directories.
 pub fn is_development_toolchain_command(program: &str) -> bool {
     let name = Path::new(program)
         .file_name()

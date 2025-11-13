@@ -4,9 +4,10 @@ pub mod bootstrap;
 use crate::acp::AgentClientProtocolConfig;
 use crate::context::ContextFeaturesConfig;
 use crate::core::{
-    AgentConfig, AutomationConfig, CommandsConfig, PermissionsConfig, PromptCachingConfig,
-    SecurityConfig, ToolsConfig,
+    AgentConfig, AutomationConfig, CommandsConfig, ModelConfig, PermissionsConfig,
+    PromptCachingConfig, SecurityConfig, ToolsConfig,
 };
+use crate::debug::DebugConfig;
 use crate::defaults::{self, ConfigDefaultsProvider, SyntaxHighlightingDefaults};
 use crate::hooks::HooksConfig;
 use crate::mcp::McpClientConfig;
@@ -127,6 +128,10 @@ pub struct VTCodeConfig {
     #[serde(default)]
     pub pty: PtyConfig,
 
+    /// Debug and tracing settings
+    #[serde(default)]
+    pub debug: DebugConfig,
+
     /// Context features (e.g., Decision Ledger)
     #[serde(default)]
     pub context: ContextFeaturesConfig,
@@ -166,6 +171,10 @@ pub struct VTCodeConfig {
     /// Lifecycle hooks configuration
     #[serde(default)]
     pub hooks: HooksConfig,
+
+    /// Model-specific behavior configuration
+    #[serde(default)]
+    pub model: ModelConfig,
 }
 
 impl VTCodeConfig {
@@ -580,37 +589,11 @@ model = "gpt-5-nano"
 # Percentage threshold to warn about token usage (0.75 = 75%)
 warning_threshold = 0.75
 
-# Percentage threshold to trigger context compaction (0.85 = 85%)
-compaction_threshold = 0.85
+# Percentage threshold to trigger context alerts (0.85 = 85%)
+alert_threshold = 0.85
 
 # Enable detailed component-level token tracking (increases overhead)
 detailed_tracking = false
-
-# Context curation - Intelligent context management
-[context.curation]
-# Enable automatic context curation (filters and optimizes context)
-enabled = false
-
-# Maximum tokens to allow per turn after curation
-max_tokens_per_turn = 50000
-
-# Number of recent messages to always preserve
-preserve_recent_messages = 5
-
-# Maximum number of tool descriptions to keep in context
-max_tool_descriptions = 10
-
-# Include decision ledger in curation
-include_ledger = true
-
-# Maximum ledger entries to include in curation
-ledger_max_entries = 12
-
-# Include recent error messages in context
-include_recent_errors = true
-
-# Maximum recent errors to include
-max_recent_errors = 3
 
 # AI model routing - Intelligent model selection
 [router]
