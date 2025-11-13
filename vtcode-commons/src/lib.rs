@@ -11,8 +11,10 @@ mod buffer;
 
 pub mod errors;
 pub mod paths;
+pub mod safety;
 pub mod telemetry;
 
 pub use errors::{DisplayErrorFormatter, ErrorFormatter, ErrorReporter, MemoryErrorReporter, NoopErrorReporter};
 pub use paths::{PathResolver, PathScope, StaticWorkspacePaths, WorkspacePaths};
+pub use safety::{PathValidator, WorkspaceBoundary};
 pub use telemetry::{MemoryTelemetry, NoopTelemetry, TelemetrySink};
