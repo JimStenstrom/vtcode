@@ -281,9 +281,26 @@ impl McpClient {
         Ok(())
     }
 
-    /// Validate tool arguments based on security configuration
+    /// Validate tool arguments based on security configuration.
+    ///
+    /// This function performs multiple security checks on tool arguments:
+    /// 1. **Size validation**: Ensures arguments don't exceed the configured maximum size
+    /// 2. **Path traversal protection**: Detects and prevents directory traversal attempts
+    ///
+    /// # Arguments
+    /// * `_tool_name` - The name of the tool (reserved for future use)
+    /// * `args` - The JSON arguments to validate
+    ///
+    /// # Returns
+    /// * `Ok(())` if validation passes
+    /// * `Err` if validation fails with a descriptive error message
+    ///
+    /// # Security Notes
+    /// - Maximum argument size prevents memory exhaustion attacks
+    /// - Path traversal detection prevents accessing files outside allowed directories
+    /// - Both checks can be configured via `McpClientConfig.security.validation`
     fn validate_tool_arguments(&self, _tool_name: &str, args: &Value) -> Result<()> {
-        // Check argument size
+        // Check argument size to prevent memory exhaustion
         if self.config.security.validation.max_argument_size > 0 {
             let args_size = serde_json::to_string(args).map(|s| s.len()).unwrap_or(0) as u32;
 
@@ -295,7 +312,8 @@ impl McpClient {
             }
         }
 
-        // Check for path traversal in file-related arguments
+        // Check for path traversal attacks in file-related arguments
+        // This prevents accessing files outside the allowed workspace
         if self.config.security.validation.path_traversal_protection {
             if let Some(path) = args.get("path").and_then(|v| v.as_str()) {
                 if path.contains("../")
@@ -601,23 +619,45 @@ impl McpClient {
         Ok(all_prompts)
     }
 
+    /// Resolve which provider hosts a specific tool.
+    ///
+    /// This function implements an efficient tool lookup strategy:
+    /// 1. Check the cached tool-to-provider index first (O(1) lookup)
+    /// 2. If not cached, query all providers to find the tool
+    /// 3. If still not found, force refresh the tool cache and retry
+    ///
+    /// # Arguments
+    /// * `tool_name` - The name of the tool to locate
+    ///
+    /// # Returns
+    /// * `Ok(Arc<McpProvider>)` - The provider that hosts this tool
+    /// * `Err` - If the tool is not found or MCP is disabled
+    ///
+    /// # Performance Notes
+    /// - First call for a tool may be slower (queries all providers)
+    /// - Subsequent calls use cached index for O(1) lookup
+    /// - Cache is invalidated when allowlist changes
     async fn resolve_provider_for_tool(&self, tool_name: &str) -> Result<Arc<McpProvider>> {
+        // Early exit if MCP is disabled
         if !self.config.enabled {
             return Err(anyhow!(
                 "MCP support is disabled in the current configuration"
             ));
         }
 
+        // Fast path: check if we've already resolved this tool
         if let Some(provider) = self.provider_for_tool(tool_name) {
             if let Some(found) = self.providers.read().get(&provider) {
                 return Ok(found.clone());
             }
         }
 
+        // Prepare for provider search
         let allowlist = self.allowlist.read().clone();
         let timeout = self.tool_timeout();
         let providers: Vec<Arc<McpProvider>> = self.providers.read().values().cloned().collect();
 
+        // Check if any providers are available
         if providers.is_empty() {
             if self.config.providers.is_empty() {
                 return Err(anyhow!(
@@ -630,9 +670,11 @@ impl McpClient {
             ));
         }
 
+        // Query each provider to find the tool
         for provider in providers {
             match provider.has_tool(tool_name, &allowlist, timeout).await {
                 Ok(true) => {
+                    // Cache the result for future lookups
                     self.tool_provider_index
                         .write()
                         .insert(tool_name.to_string(), provider.name.clone());
@@ -648,6 +690,7 @@ impl McpClient {
             }
         }
 
+        // Last resort: force refresh all tool caches and try again
         match self.collect_tools(true).await {
             Ok(_) => {
                 if let Some(provider) = self.provider_for_tool(tool_name) {
