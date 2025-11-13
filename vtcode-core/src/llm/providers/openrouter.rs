@@ -2,6 +2,7 @@ use crate::config::constants::{env_vars, models, urls};
 use crate::config::core::{OpenRouterPromptCacheSettings, PromptCachingConfig};
 use crate::config::models::{ModelId, Provider};
 use crate::config::types::ReasoningEffortLevel;
+use crate::impl_provider_constructors;
 use crate::llm::client::LLMClient;
 use crate::llm::error_display;
 use crate::llm::provider::{

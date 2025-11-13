@@ -74,24 +74,8 @@ async fn check_api_connectivity(config: &AgentConfig) -> Result<()> {
     let contents = vec![Content::user_text("Hello")];
     let lightweight_instruction = generate_lightweight_instruction();
 
-    // Convert Content to SystemInstruction
-    let system_instruction = if let Some(part) = lightweight_instruction.parts.first() {
-        if let Some(text) = part.as_text() {
-            SystemInstruction::new(text)
-        } else {
-            SystemInstruction::new(
-                read_system_prompt_from_md()
-                    .await
-                    .unwrap_or_else(|_| "You are a helpful coding assistant.".to_string()),
-            )
-        }
-    } else {
-        SystemInstruction::new(
-            read_system_prompt_from_md()
-                .await
-                .unwrap_or_else(|_| "You are a helpful coding assistant.".to_string()),
-        )
-    };
+    // Use lightweight instruction as system instruction
+    let system_instruction = SystemInstruction::new(lightweight_instruction);
 
     let request = GenerateContentRequest {
         contents,

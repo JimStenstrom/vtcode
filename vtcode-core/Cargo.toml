@@ -95,10 +95,14 @@ colorchoice-clap = "1.0"
 quick_cache = "0.6"
 roff = "0.2"
 syntect = "5.2"
-# UI dependencies moved to vtcode-ui crate
-# unicode-segmentation, unicode-width, crossterm, ratatui, tui-popup, tui-prompts,
-# perg, nucleo-matcher, line-clipping, pulldown-cmark, catppuccin, dissimilar,
-# vt100, portable-pty, ansi-to-tui are now in vtcode-ui
+# UI dependencies - vtcode-core still needs some for tools/pty functionality
+crossterm = "0.29.0"
+ratatui = "0.29"
+portable-pty = "0.8"
+perg = "0.8.0"
+vt100 = "0.15"
+ansi-to-tui = "7.0"
+dissimilar = "1.0"
 
 rig = { package = "rig-core", version = "0.23.1", default-features = false, features = [
     "reqwest-rustls",

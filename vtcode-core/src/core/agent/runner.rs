@@ -566,12 +566,12 @@ impl AgentRunner {
 
         // Create system prompt for single agent, merging configuration and AGENTS.md hierarchy
         let system_prompt = match ConfigManager::load_from_workspace(&workspace) {
-            Ok(manager) => {
-                compose_system_instruction_text(workspace.as_path(), Some(manager.config())).await
+            Ok(_manager) => {
+                compose_system_instruction_text(workspace.as_path()).await
             }
             Err(err) => {
                 warn!("Failed to load vtcode configuration for system prompt composition: {err:#}");
-                compose_system_instruction_text(workspace.as_path(), None).await
+                compose_system_instruction_text(workspace.as_path()).await
             }
         };
 

@@ -2,6 +2,7 @@ use crate::config::constants::{defaults, env_vars, models, urls};
 use crate::config::core::{AnthropicPromptCacheSettings, PromptCachingConfig};
 use crate::config::models::Provider;
 use crate::config::types::ReasoningEffortLevel;
+use crate::impl_provider_constructors;
 use crate::llm::client::LLMClient;
 use crate::llm::error_display;
 use crate::llm::provider::{
