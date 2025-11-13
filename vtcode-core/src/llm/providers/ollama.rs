@@ -891,3 +891,66 @@ impl LLMClient for OllamaProvider {
         &self.model
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::constants::models;
+    use crate::llm::providers::test_utils::*;
+
+    fn create_test_provider() -> OllamaProvider {
+        OllamaProvider::with_model("test_key".to_string(), models::ollama::DEFAULT_MODEL.to_string())
+    }
+
+    #[test]
+    fn new_creates_provider_with_default_model() {
+        let provider = OllamaProvider::new("test_key".to_string());
+        assert_eq!(provider.model, models::ollama::DEFAULT_MODEL);
+    }
+
+    #[test]
+    fn with_model_creates_provider_with_custom_model() {
+        let custom_model = "llama3";
+        let provider = OllamaProvider::with_model("test_key".to_string(), custom_model.to_string());
+        assert_eq!(provider.model, custom_model);
+    }
+
+    #[test]
+    fn from_config_uses_defaults_when_none() {
+        let provider = OllamaProvider::from_config(None, None, None, None);
+        assert_eq!(provider.model, models::ollama::DEFAULT_MODEL);
+    }
+
+    #[test]
+    fn serialize_messages_simple_user_message() {
+        let provider = create_test_provider();
+        let request = simple_request(models::ollama::DEFAULT_MODEL);
+        let messages = provider.serialize_messages(&request).expect("serialization should succeed");
+        assert_eq!(messages.len(), 1);
+        assert_eq!(messages[0]["role"], "user");
+    }
+
+    #[test]
+    fn serialize_messages_handles_system_prompt() {
+        let provider = create_test_provider();
+        let request = request_with_system_prompt(models::ollama::DEFAULT_MODEL);
+        let messages = provider.serialize_messages(&request).expect("serialization should succeed");
+        assert!(messages.len() > 0);
+    }
+
+    #[test]
+    fn convert_to_ollama_format_includes_required_fields() {
+        let provider = create_test_provider();
+        let request = simple_request(models::ollama::DEFAULT_MODEL);
+        let payload = provider.convert_to_ollama_format(&request).expect("conversion should succeed");
+        assert_json_has_field(&payload, "model");
+        assert_json_has_field(&payload, "messages");
+    }
+
+    #[test]
+    fn supported_models_returns_non_empty_list() {
+        let provider = create_test_provider();
+        let models = provider.supported_models();
+        assert!(!models.is_empty());
+    }
+}

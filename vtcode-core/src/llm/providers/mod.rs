@@ -15,6 +15,9 @@ mod common;
 mod reasoning;
 mod shared;
 
+#[cfg(test)]
+pub(crate) mod test_utils;
+
 pub(crate) use codex_prompt::gpt5_codex_developer_prompt;
 pub(crate) use reasoning::{ReasoningBuffer, extract_reasoning_trace, split_reasoning_from_text};
 
