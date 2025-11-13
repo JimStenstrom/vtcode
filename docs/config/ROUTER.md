@@ -2,6 +2,10 @@
 
 The Router enables dynamic model and engine selection based on task complexity, aligning with agentic best practices (routing, resource awareness, and prioritization).
 
+**For the main configuration reference**, see [VTCode Configuration](../config.md).
+
+## Configuration
+
 - Config: `vtcode.toml` → `[router]` section.
 - No hardcoded model IDs: values should match `vtcode-core/src/config/constants.rs` and the authoritative `docs/models.json`.
 

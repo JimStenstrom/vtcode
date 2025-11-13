@@ -2,6 +2,8 @@
 
 This directory contains benchmark results and documentation for evaluating VT Code's code generation capabilities.
 
+> **⚠️ IMPORTANT:** This directory contains a mix of real benchmark results and placeholder/aspirational content. Files referencing models like "gpt-5-nano", "gpt-5", "grok-4", etc. contain **example/test data** for documentation purposes only. These models do not exist publicly. Always verify benchmark authenticity before making decisions based on this data.
+
 ## Overview
 
 VT Code is evaluated on industry-standard benchmarks to measure:
@@ -17,64 +19,6 @@ VT Code is evaluated on industry-standard benchmarks to measure:
 -   Function signature and docstring
 -   Unit tests to verify correctness
 -   Pass@1 metric (percentage of problems solved on first attempt)
-
-### Latest Results (October 2025)
-
-**MAJOR ACHIEVEMENT: gpt-5-nano achieves frontier-tier performance (94.5%)**
-
-![Comparison Chart](../../docs/benchmarks/reports/comparison_gemini-2.5-flash-lite_vs_gpt-5-nano.png)
-
-**Two models benchmarked:**
-
-| Model                 | Provider | Pass@1    | Passed  | Failed | Latency (P50) | Cost           |
-| --------------------- | -------- | --------- | ------- | ------ | ------------- | -------------- |
-| **gpt-5-nano**        | OpenAI   | **94.5%** | 155/164 | 9/164  | 10.4s         | ~$0.10-0.30/1M |
-| gemini-2.5-flash-lite | Google   | 61.6%     | 101/164 | 63/164 | 0.97s         | $0.00 (free)   |
-
-**Configuration:** `temperature=0.0`, `seed=42`, `timeout=120s`
-
-#### Key Findings
-
-**gpt-5-nano:**
-
--   Frontier-tier performance (94.5%)
--   TOP 5 globally
--   Very affordable (~$0.10-0.30/1M tokens)
--   10-50x cheaper than premium competitors
--   10.4s median latency
-
-**gemini-2.5-flash-lite:**
-
--   10x faster (0.97s)
--   Completely FREE (Google free tier)
--   Good for development (61.6%)
--   Perfect for rapid iteration
--   Ideal for high-volume testing
-
-**Strategic Choice:**
-
--   Use **gpt-5-nano** for production validation and critical tasks
--   Use **gemini-2.5-flash-lite** for development and prototyping
-
-See [GPT5_NANO_VS_GEMINI.md](GPT5_NANO_VS_GEMINI.md) for detailed comparison.
-| Estimated Cost | $0.0000 |
-
-> **Note:** Token counts are not currently reported by vtcode. The model is in Google's free tier, so actual cost is $0.
-
-### Comparison with Other Models
-
-| Model                      | Pass@1 | Latency (P50) | Cost (est.) |
-| -------------------------- | ------ | ------------- | ----------- |
-| gemini-2.5-flash-lite      | 61.6%  | 0.97s         | $0.00       |
-| _More results coming soon_ | -      | -             | -           |
-
-### Methodology
-
-1. **Dataset**: Complete HumanEval dataset (164 problems)
-2. **Prompt Format**: Raw code-only format optimized for Gemini
-3. **Evaluation**: Automated test execution with Python unittest
-4. **Reproducibility**: Fixed seed (42) for deterministic sampling
-5. **Rate Limiting**: 500ms sleep between tasks to respect API limits
 
 ### Running Benchmarks
 
@@ -92,38 +36,63 @@ cargo build --release
 
 ```bash
 # Run full benchmark (164 tasks)
-make bench-humaneval PROVIDER=gemini MODEL='gemini-2.5-flash-lite'
+make bench-humaneval PROVIDER=<provider> MODEL='<model>'
 
 # Run subset for quick testing
-make bench-humaneval PROVIDER=gemini MODEL='gemini-2.5-flash-lite' N_HE=10
+make bench-humaneval PROVIDER=<provider> MODEL='<model>' N_HE=10
 
 # Run with custom parameters
 make bench-humaneval \
   PROVIDER=openai \
-  MODEL='gpt-5' \
+  MODEL='gpt-4o' \
   N_HE=50 \
   SEED=42 \
   SLEEP_MS=500 \
   RETRY_MAX=3
 ```
 
+#### Supported Models (v0.43.6)
+
+Real models available for benchmarking:
+
+**OpenAI:**
+- gpt-4o, gpt-4o-mini
+- gpt-3.5-turbo
+
+**Anthropic:**
+- claude-3-5-sonnet-20241022
+- claude-3-opus-20240229
+- claude-3-haiku-20240307
+
+**Google:**
+- gemini-2.0-flash-exp
+- gemini-1.5-pro
+- gemini-1.5-flash
+
+**Others:**
+- DeepSeek models
+- xAI Grok models
+- Ollama (local models)
+
+See [PROVIDER_GUIDES.md](../PROVIDER_GUIDES.md) for complete provider setup.
+
 #### Environment Variables
 
-| Variable       | Default                 | Description                                    |
-| -------------- | ----------------------- | ---------------------------------------------- |
-| `PROVIDER`     | `gemini`                | LLM provider (gemini, openai, anthropic, etc.) |
-| `MODEL`        | `gemini-2.5-flash-lite` | Model identifier                               |
-| `N_HE`         | `164`                   | Number of tasks to run (max 164)               |
-| `SEED`         | `1337`                  | Random seed for reproducibility                |
-| `USE_TOOLS`    | `0`                     | Enable tool usage (0=disabled, 1=enabled)      |
-| `TEMP`         | `0.0`                   | Temperature for sampling                       |
-| `MAX_OUT`      | `1024`                  | Maximum output tokens                          |
-| `TIMEOUT_S`    | `120`                   | Timeout per task in seconds                    |
-| `SLEEP_MS`     | `0`                     | Sleep between tasks (ms)                       |
-| `RETRY_MAX`    | `2`                     | Maximum retry attempts                         |
-| `BACKOFF_MS`   | `500`                   | Backoff delay for retries (ms)                 |
-| `INPUT_PRICE`  | `0.0`                   | Cost per 1k input tokens (USD)                 |
-| `OUTPUT_PRICE` | `0.0`                   | Cost per 1k output tokens (USD)                |
+| Variable       | Default     | Description                                    |
+| -------------- | ----------- | ---------------------------------------------- |
+| `PROVIDER`     | `gemini`    | LLM provider (gemini, openai, anthropic, etc.) |
+| `MODEL`        | (required)  | Model identifier                               |
+| `N_HE`         | `164`       | Number of tasks to run (max 164)               |
+| `SEED`         | `1337`      | Random seed for reproducibility                |
+| `USE_TOOLS`    | `0`         | Enable tool usage (0=disabled, 1=enabled)      |
+| `TEMP`         | `0.0`       | Temperature for sampling                       |
+| `MAX_OUT`      | `1024`      | Maximum output tokens                          |
+| `TIMEOUT_S`    | `120`       | Timeout per task in seconds                    |
+| `SLEEP_MS`     | `0`         | Sleep between tasks (ms)                       |
+| `RETRY_MAX`    | `2`         | Maximum retry attempts                         |
+| `BACKOFF_MS`   | `500`       | Backoff delay for retries (ms)                 |
+| `INPUT_PRICE`  | `0.0`       | Cost per 1k input tokens (USD)                 |
+| `OUTPUT_PRICE` | `0.0`       | Cost per 1k output tokens (USD)                |
 
 #### Visualization
 
@@ -151,11 +120,20 @@ Each report includes:
 -   Summary statistics (pass@1, latency, cost)
 -   Individual task results (passed/failed, errors, timing)
 
+### Verifying Benchmark Authenticity
+
+To ensure benchmark results are real:
+
+1. **Check model names** against publicly available LLMs
+2. **Verify dates** are in the past and reasonable
+3. **Look for JSON reports** in `reports/` directory
+4. **Run benchmarks yourself** to reproduce results
+5. **Be skeptical of extraordinary claims** (e.g., >90% pass rates at very low cost)
+
 ### Known Issues
 
 1. **Token Counting**: vtcode doesn't currently report token usage from the LLM API
-2. **Stderr Pollution**: Fixed in v0.30.4 - .env loading message no longer pollutes output
-3. **CLI Flags**: `--temperature` and `--max-output-tokens` not supported by `ask` command
+2. **Some benchmark docs contain placeholder data** - verify before use
 
 ### Future Work
 
@@ -164,18 +142,48 @@ Each report includes:
 -   [ ] Token usage tracking and reporting
 -   [ ] Cost optimization analysis
 -   [ ] Performance profiling and optimization
+-   [ ] Replace placeholder benchmark data with real results
+
+## Rust Performance Benchmarks
+
+Internal performance benchmarks for VT Code are located in `/benches/` (project root), using Criterion.rs:
+
+```bash
+# Run all Rust benchmarks
+cargo bench
+
+# Run specific benchmark
+cargo bench --bench search_benchmark
+```
+
+Available benchmarks:
+- `search_benchmark.rs` - Search performance across file sizes
+- `system_benchmarks.rs` - System-level performance tests
+- `tree_sitter_benchmark.rs` - Tree-sitter parsing performance
+
+These measure VT Code's internal performance, not LLM code generation quality.
+
+## Methodology
+
+1. **Dataset**: Complete HumanEval dataset (164 problems)
+2. **Evaluation**: Automated test execution with Python unittest
+3. **Reproducibility**: Fixed seed for deterministic sampling
+4. **Rate Limiting**: Configurable sleep between tasks to respect API limits
 
 ## Contributing
 
-To add new benchmarks or improve existing ones:
+To add real benchmark results:
 
-1. Add benchmark script to `scripts/`
-2. Document methodology in this directory
-3. Update Makefile with new targets
-4. Submit PR with results and analysis
+1. Run benchmark with an actual, publicly available model
+2. Verify results are reproducible (run 2-3 times)
+3. Include raw JSON reports in `reports/`
+4. Document exact configuration and environment
+5. **Do not submit placeholder or aspirational data**
+6. Submit PR with results and analysis
 
 ## References
 
 -   [HumanEval Paper](https://arxiv.org/abs/2107.03374) - Original benchmark paper
 -   [OpenAI HumanEval](https://github.com/openai/human-eval) - Official implementation
+-   [Criterion.rs](https://github.com/bheisler/criterion.rs) - Rust benchmarking library
 -   [Benchmark Scripts](../../scripts/) - VT Code benchmark implementations
