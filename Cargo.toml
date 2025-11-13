@@ -37,6 +37,7 @@ members = [
     "vtcode-markdown-store",
     "vtcode-mcp",
     "vtcode-indexer",
+    "vtcode-prompts",
     "vtcode-tools",
     "vtcode-bash-runner",
     "vtcode-exec-events",
@@ -52,6 +53,7 @@ vtcode-tool-traits = { path = "vtcode-tool-traits" }
 vtcode-markdown-store = { path = "vtcode-markdown-store" }
 vtcode-mcp = { path = "vtcode-mcp" }
 vtcode-indexer = { path = "vtcode-indexer" }
+vtcode-prompts = { path = "vtcode-prompts" }
 vtcode-bash-runner = { path = "vtcode-bash-runner" }
 vtcode-exec-events = { path = "vtcode-exec-events" }
 mcp-types = { path = "third-party/mcp-types" }
