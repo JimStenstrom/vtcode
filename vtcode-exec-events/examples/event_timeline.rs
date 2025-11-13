@@ -33,43 +33,60 @@ fn main() -> Result<(), Box<dyn Error>> {
 }
 
 fn sample_timeline() -> Vec<ThreadEvent> {
+    /// Helper to create a command execution ThreadItem with the given parameters.
+    fn make_command_item(
+        id: &str,
+        command: &str,
+        output: &str,
+        exit_code: Option<i32>,
+        status: CommandExecutionStatus,
+    ) -> ThreadItem {
+        ThreadItem {
+            id: id.into(),
+            details: ThreadItemDetails::CommandExecution(CommandExecutionItem {
+                command: command.into(),
+                aggregated_output: output.into(),
+                exit_code,
+                status,
+            }),
+        }
+    }
+
+    let command_id = "command.git-init";
+    let command_str = "git init";
+    let final_output = "Initialized empty Git repository";
+
     vec![
         ThreadEvent::ThreadStarted(ThreadStartedEvent {
             thread_id: "workspace.setup".into(),
         }),
         ThreadEvent::TurnStarted(TurnStartedEvent::default()),
         ThreadEvent::ItemStarted(ItemStartedEvent {
-            item: ThreadItem {
-                id: "command.git-init".into(),
-                details: ThreadItemDetails::CommandExecution(CommandExecutionItem {
-                    command: "git init".into(),
-                    aggregated_output: String::new(),
-                    exit_code: None,
-                    status: CommandExecutionStatus::InProgress,
-                }),
-            },
+            item: make_command_item(
+                command_id,
+                command_str,
+                "",
+                None,
+                CommandExecutionStatus::InProgress,
+            ),
         }),
         ThreadEvent::ItemUpdated(ItemUpdatedEvent {
-            item: ThreadItem {
-                id: "command.git-init".into(),
-                details: ThreadItemDetails::CommandExecution(CommandExecutionItem {
-                    command: "git init".into(),
-                    aggregated_output: "Initialized empty Git repository".into(),
-                    exit_code: None,
-                    status: CommandExecutionStatus::InProgress,
-                }),
-            },
+            item: make_command_item(
+                command_id,
+                command_str,
+                final_output,
+                None,
+                CommandExecutionStatus::InProgress,
+            ),
         }),
         ThreadEvent::ItemCompleted(ItemCompletedEvent {
-            item: ThreadItem {
-                id: "command.git-init".into(),
-                details: ThreadItemDetails::CommandExecution(CommandExecutionItem {
-                    command: "git init".into(),
-                    aggregated_output: "Initialized empty Git repository".into(),
-                    exit_code: Some(0),
-                    status: CommandExecutionStatus::Completed,
-                }),
-            },
+            item: make_command_item(
+                command_id,
+                command_str,
+                final_output,
+                Some(0),
+                CommandExecutionStatus::Completed,
+            ),
         }),
         ThreadEvent::TurnCompleted(TurnCompletedEvent {
             usage: Usage {
