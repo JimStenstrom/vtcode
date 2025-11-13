@@ -143,7 +143,6 @@ pub mod metrics;
 pub mod models;
 pub mod project_doc;
 pub mod prompts;
-pub mod safety;
 pub mod sandbox;
 pub mod tool_policy;
 pub mod tools;
