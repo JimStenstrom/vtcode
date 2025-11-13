@@ -84,6 +84,21 @@ export class ConfigLimits {
         return this.getConfig().get<number>("timeouts.mcpExecutionMs", 30000);
     }
 
+    static get ptyCommandTimeoutMs(): number {
+        return this.getConfig().get<number>("timeouts.ptyCommandMs", 30000);
+    }
+
+    /**
+     * Trajectory View Limits
+     */
+    static get trajectoryMaxLogLines(): number {
+        return this.getConfig().get<number>("limits.trajectoryMaxLogLines", 2000);
+    }
+
+    static get trajectoryMaxTurns(): number {
+        return this.getConfig().get<number>("limits.trajectoryMaxTurns", 50);
+    }
+
     /**
      * Warning Settings
      */

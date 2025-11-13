@@ -3,6 +3,7 @@ import { spawn } from "node:child_process";
 import { createInterface } from "readline";
 import * as vscode from "vscode";
 import type { VtcodeConfigSummary } from "./vtcodeConfig";
+import { ConfigLimits } from "./configLimits";
 
 // Lazy-load node-pty to avoid bundling native modules
 let ptyModule: any = null;
@@ -1070,7 +1071,7 @@ export class VtcodeBackend implements vscode.Disposable {
         return new Promise((resolve, reject) => {
             let output = "";
             let commandStarted = false;
-            const timeout = 30000; // 30 second timeout
+            const timeout = ConfigLimits.ptyCommandTimeoutMs;
 
             const pty = getPtyModule();
             const ptyProcess = pty.spawn(shell, [], {

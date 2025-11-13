@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
 import { BaseParticipant, type ParticipantContext } from "../types/participant";
+import { ConfigLimits } from "../configLimits";
 
 /**
  * Code participant provides code-specific context and analysis
@@ -65,9 +66,13 @@ export class CodeParticipant extends BaseParticipant {
         } else if (activeFile.content) {
             // Add a snippet of the file if no selection
             const lines = activeFile.content.split('\n');
-            const snippetLines = lines.slice(0, 50); // First 50 lines
+            const maxLines = ConfigLimits.codeParticipantMaxLines;
+            const snippetLines = lines.slice(0, maxLines);
             if (snippetLines.length > 0) {
                 codeContext += `\nFile snippet:\n\`\`\`${language}\n${snippetLines.join('\n')}\n\`\`\`\n`;
+                if (lines.length > maxLines) {
+                    codeContext += `\n(Showing first ${maxLines} of ${lines.length} lines)\n`;
+                }
             }
         }
 

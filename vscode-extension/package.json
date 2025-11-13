@@ -581,6 +581,21 @@
           "default": 30000,
           "description": "Timeout in milliseconds for MCP tool execution."
         },
+        "vtcode.timeouts.ptyCommandMs": {
+          "type": "number",
+          "default": 30000,
+          "description": "Timeout in milliseconds for PTY (terminal) command execution."
+        },
+        "vtcode.limits.trajectoryMaxLogLines": {
+          "type": "number",
+          "default": 2000,
+          "description": "Maximum number of log lines to show in trajectory view."
+        },
+        "vtcode.limits.trajectoryMaxTurns": {
+          "type": "number",
+          "default": 50,
+          "description": "Maximum number of turns to show in trajectory view."
+        },
         "vtcode.warnings.showLimitExceededWarnings": {
           "type": "boolean",
           "default": true,

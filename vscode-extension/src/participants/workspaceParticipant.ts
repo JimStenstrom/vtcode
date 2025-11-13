@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
 import { BaseParticipant, type ParticipantContext } from "../types/participant";
+import { ConfigLimits } from "../configLimits";
 
 /**
  * Workspace participant provides workspace-wide context
@@ -33,8 +34,10 @@ export class WorkspaceParticipant extends BaseParticipant {
         const workspacePath = workspace.uri.fsPath;
         
         // Get workspace statistics
-        const files = await vscode.workspace.findFiles('**/*', '**/node_modules/**', 100);
+        const maxFiles = ConfigLimits.workspaceMaxFiles;
+        const files = await vscode.workspace.findFiles('**/*', '**/node_modules/**', maxFiles);
         const fileCount = files.length;
+        const fileLimitReached = fileCount >= maxFiles;
         
         // Get open editors
         const openEditors = vscode.window.visibleTextEditors;
@@ -54,7 +57,7 @@ export class WorkspaceParticipant extends BaseParticipant {
         let workspaceContext = `\n\n## Workspace Context\n`;
         workspaceContext += `Workspace: ${workspaceName}\n`;
         workspaceContext += `Path: ${workspacePath}\n`;
-        workspaceContext += `Files in workspace: ${fileCount}\n`;
+        workspaceContext += `Files in workspace: ${fileCount}${fileLimitReached ? ` (limit reached, showing first ${maxFiles})` : ''}\n`;
         
         if (openFiles) {
             workspaceContext += `\nCurrently open files:\n${openFiles}\n`;

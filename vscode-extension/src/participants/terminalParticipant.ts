@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
 import { BaseParticipant, type ParticipantContext } from "../types/participant";
+import { ConfigLimits } from "../configLimits";
 
 /**
  * Terminal participant provides terminal context and recent command history
@@ -36,16 +37,18 @@ export class TerminalParticipant extends BaseParticipant {
         // Add recent output if available
         if (terminal.output) {
             const outputLines = terminal.output.split('\n');
-            const recentOutput = outputLines.slice(-20).join('\n'); // Last 20 lines
+            const maxOutputLines = ConfigLimits.terminalOutputLines;
+            const recentOutput = outputLines.slice(-maxOutputLines).join('\n');
             if (recentOutput.trim()) {
-                terminalContext += `\nRecent terminal output:\n\`\`\`\n${recentOutput}\n\`\`\`\n`;
+                terminalContext += `\nRecent terminal output (last ${maxOutputLines} lines):\n\`\`\`\n${recentOutput}\n\`\`\`\n`;
             }
         }
 
         // Add command history if available
         if (context.commandHistory && context.commandHistory.length > 0) {
-            const recentCommands = context.commandHistory.slice(-5); // Last 5 commands
-            terminalContext += `\nRecent commands:\n`;
+            const maxCommands = ConfigLimits.terminalHistoryCommands;
+            const recentCommands = context.commandHistory.slice(-maxCommands);
+            terminalContext += `\nRecent commands (last ${maxCommands}):\n`;
             recentCommands.forEach((cmd, index) => {
                 terminalContext += `${index + 1}. ${cmd}\n`;
             });
