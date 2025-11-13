@@ -85,17 +85,12 @@ impl TraversalFilter for ConfigTraversalFilter {
         }
 
         // Skip hidden files when configured.
-        if config.ignore_hidden
-            && path
-                .file_name()
-                .and_then(|n| n.to_str())
-                .is_some_and(|s| s.starts_with('.'))
-        {
+        if config.ignore_hidden && is_path_hidden(path) {
             return false;
         }
 
         // Always skip known sensitive files regardless of config.
-        if let Some(file_name) = path.file_name().and_then(|n| n.to_str()) {
+        if let Some(file_name) = get_file_name_str(path) {
             let is_sensitive = matches!(
                 file_name,
                 ".env"
@@ -161,17 +156,13 @@ impl SimpleIndexerConfig {
 
     /// Adds an allowed directory that should be indexed even if hidden or inside an excluded parent.
     pub fn add_allowed_dir(mut self, path: impl Into<PathBuf>) -> Self {
-        let path = path.into();
-        if !self.allowed_dirs.iter().any(|existing| existing == &path) {
-            self.allowed_dirs.push(path);
-        }
+        Self::push_unique(&mut self.allowed_dirs, path.into());
         self
     }
 
     /// Adds an additional excluded directory to skip during traversal.
     pub fn add_excluded_dir(mut self, path: impl Into<PathBuf>) -> Self {
-        let path = path.into();
-        self.push_unique_excluded(path);
+        Self::push_unique(&mut self.excluded_dirs, path.into());
         self
     }
 
@@ -191,10 +182,15 @@ impl SimpleIndexerConfig {
         &self.index_dir
     }
 
-    fn push_unique_excluded(&mut self, path: PathBuf) {
-        if !self.excluded_dirs.iter().any(|existing| existing == &path) {
-            self.excluded_dirs.push(path);
+    /// Helper to push a path to a vector only if it doesn't already exist.
+    fn push_unique(vec: &mut Vec<PathBuf>, path: PathBuf) {
+        if !vec.iter().any(|existing| existing == &path) {
+            vec.push(path);
         }
+    }
+
+    fn push_unique_excluded(&mut self, path: PathBuf) {
+        Self::push_unique(&mut self.excluded_dirs, path);
     }
 }
 
@@ -352,11 +348,7 @@ impl SimpleIndexer {
             // Only index files, not directories
             if entry.file_type().is_some_and(|ft| ft.is_file()) {
                 // Additional check: skip if in excluded dirs
-                let should_skip = self
-                    .config
-                    .excluded_dirs
-                    .iter()
-                    .any(|excluded| path.starts_with(excluded));
+                let should_skip = path_starts_with_any(path, &self.config.excluded_dirs);
 
                 if !should_skip && self.filter.should_index_file(path, &self.config) {
                     self.index_file(path)?;
@@ -369,36 +361,12 @@ impl SimpleIndexer {
 
     /// Search files using regex pattern.
     pub fn search(&self, pattern: &str, path_filter: Option<&str>) -> Result<Vec<SearchResult>> {
-        let regex = Regex::new(pattern)?;
-
-        let mut results = Vec::new();
-
-        // Search through indexed files.
-        for file_path in self.index_cache.keys() {
-            if path_filter.is_some_and(|filter| !file_path.contains(filter)) {
-                continue;
-            }
-
-            if let Ok(content) = fs::read_to_string(file_path) {
-                for (line_num, line) in content.lines().enumerate() {
-                    if regex.is_match(line) {
-                        let matches: Vec<String> = regex
-                            .find_iter(line)
-                            .map(|m| m.as_str().to_string())
-                            .collect();
-
-                        results.push(SearchResult {
-                            file_path: file_path.clone(),
-                            line_number: line_num + 1,
-                            line_content: line.to_string(),
-                            matches,
-                        });
-                    }
-                }
-            }
-        }
-
-        Ok(results)
+        self.search_with_matcher(pattern, path_filter, |regex, line| {
+            regex
+                .find_iter(line)
+                .map(|m| m.as_str().to_string())
+                .collect()
+        })
     }
 
     /// Find files by name pattern.
@@ -455,9 +423,10 @@ impl SimpleIndexer {
 
         for entry in fs::read_dir(path)? {
             let entry = entry?;
+            let entry_path = entry.path();
             let file_name = entry.file_name().to_string_lossy().to_string();
 
-            if !show_hidden && file_name.starts_with('.') {
+            if !show_hidden && is_path_hidden(&entry_path) {
                 continue;
             }
 
@@ -469,22 +438,39 @@ impl SimpleIndexer {
 
     /// Grep-like search (like grep command).
     pub fn grep(&self, pattern: &str, file_pattern: Option<&str>) -> Result<Vec<SearchResult>> {
+        self.search_with_matcher(pattern, file_pattern, |_regex, line| {
+            vec![line.to_string()]
+        })
+    }
+
+    /// Common search implementation used by both search() and grep().
+    fn search_with_matcher<F>(
+        &self,
+        pattern: &str,
+        path_filter: Option<&str>,
+        extract_matches: F,
+    ) -> Result<Vec<SearchResult>>
+    where
+        F: Fn(&Regex, &str) -> Vec<String>,
+    {
         let regex = Regex::new(pattern)?;
         let mut results = Vec::new();
 
         for file_path in self.index_cache.keys() {
-            if file_pattern.is_some_and(|fp| !file_path.contains(fp)) {
+            if path_filter.is_some_and(|filter| !file_path.contains(filter)) {
                 continue;
             }
 
             if let Ok(content) = fs::read_to_string(file_path) {
                 for (line_num, line) in content.lines().enumerate() {
                     if regex.is_match(line) {
+                        let matches = extract_matches(&regex, line);
+
                         results.push(SearchResult {
                             file_path: file_path.clone(),
                             line_number: line_num + 1,
                             line_content: line.to_string(),
-                            matches: vec![line.to_string()],
+                            matches,
                         });
                     }
                 }
@@ -537,10 +523,7 @@ impl SimpleIndexer {
 
     #[allow(dead_code)]
     fn is_allowed_dir(&self, path: &Path) -> bool {
-        self.config
-            .allowed_dirs
-            .iter()
-            .any(|allowed| path.starts_with(allowed))
+        path_starts_with_any(path, &self.config.allowed_dirs)
     }
 
     #[allow(dead_code)]
@@ -583,29 +566,33 @@ impl Clone for SimpleIndexer {
     }
 }
 
+/// Helper to check if a path starts with any path in a collection.
+fn path_starts_with_any(path: &Path, paths: &[PathBuf]) -> bool {
+    paths.iter().any(|p| path.starts_with(p))
+}
+
+/// Helper to check if a path component (file or directory name) is hidden.
+fn is_path_hidden(path: &Path) -> bool {
+    path.file_name()
+        .and_then(|name| name.to_str())
+        .is_some_and(|name_str| name_str.starts_with('.'))
+}
+
+/// Helper to extract file name as a string.
+fn get_file_name_str(path: &Path) -> Option<&str> {
+    path.file_name().and_then(|n| n.to_str())
+}
+
 fn should_skip_dir(path: &Path, config: &SimpleIndexerConfig) -> bool {
-    if config
-        .allowed_dirs
-        .iter()
-        .any(|allowed| path.starts_with(allowed))
-    {
+    if path_starts_with_any(path, &config.allowed_dirs) {
         return false;
     }
 
-    if config
-        .excluded_dirs
-        .iter()
-        .any(|excluded| path.starts_with(excluded))
-    {
+    if path_starts_with_any(path, &config.excluded_dirs) {
         return true;
     }
 
-    if config.ignore_hidden
-        && path
-            .file_name()
-            .and_then(|name| name.to_str())
-            .is_some_and(|name_str| name_str.starts_with('.'))
-    {
+    if config.ignore_hidden && is_path_hidden(path) {
         return true;
     }
 
