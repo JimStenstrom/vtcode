@@ -2250,3 +2250,88 @@ mod tests {
         assert_eq!(usage.cache_creation_tokens, Some(15));
     }
 }
+
+    // ==================== Additional Tests ====================
+
+    #[test]
+    fn constructor_new_uses_default_model() {
+        let provider = OpenRouterProvider::new("test_key".to_string());
+        assert_eq!(provider.model, models::openrouter::DEFAULT_MODEL);
+    }
+
+    #[test]
+    fn constructor_with_model_uses_custom_model() {
+        let custom_model = "openai/gpt-4";
+        let provider = OpenRouterProvider::with_model("test_key".to_string(), custom_model.to_string());
+        assert_eq!(provider.model, custom_model);
+    }
+
+    #[test]
+    fn serialize_simple_message() {
+        use crate::llm::providers::test_utils::simple_request;
+        let provider = OpenRouterProvider::new("test_key".to_string());
+        let request = simple_request(models::openrouter::DEFAULT_MODEL);
+        let messages = provider.serialize_messages(&request).expect("serialization should succeed");
+        assert_eq!(messages.len(), 1);
+        assert_eq!(messages[0]["role"], "user");
+    }
+
+    #[test]
+    fn serialize_multiple_messages() {
+        use crate::llm::providers::test_utils::multi_message_request;
+        let provider = OpenRouterProvider::new("test_key".to_string());
+        let request = multi_message_request(models::openrouter::DEFAULT_MODEL);
+        let messages = provider.serialize_messages(&request).expect("serialization should succeed");
+        assert_eq!(messages.len(), 3);
+    }
+
+    #[test]
+    fn convert_includes_model() {
+        use crate::llm::providers::test_utils::simple_request;
+        let provider = OpenRouterProvider::new("test_key".to_string());
+        let request = simple_request(models::openrouter::DEFAULT_MODEL);
+        let payload = provider.convert_to_openrouter_format(&request).expect("conversion should succeed");
+        assert_eq!(payload["model"], models::openrouter::DEFAULT_MODEL);
+    }
+
+    #[test]
+    fn convert_includes_max_tokens() {
+        use crate::llm::providers::test_utils::simple_request;
+        let provider = OpenRouterProvider::new("test_key".to_string());
+        let mut request = simple_request(models::openrouter::DEFAULT_MODEL);
+        request.max_tokens = Some(500);
+        let payload = provider.convert_to_openrouter_format(&request).expect("conversion should succeed");
+        assert_eq!(payload["max_tokens"], 500);
+    }
+
+    #[test]
+    fn convert_includes_temperature() {
+        use crate::llm::providers::test_utils::simple_request;
+        let provider = OpenRouterProvider::new("test_key".to_string());
+        let mut request = simple_request(models::openrouter::DEFAULT_MODEL);
+        request.temperature = Some(0.9);
+        let payload = provider.convert_to_openrouter_format(&request).expect("conversion should succeed");
+        assert_eq!(payload["temperature"].as_f64().unwrap(), 0.9);
+    }
+
+    #[test]
+    fn supported_models_returns_non_empty_list() {
+        let provider = OpenRouterProvider::new("test_key".to_string());
+        let models = provider.supported_models();
+        assert!(!models.is_empty());
+    }
+
+    #[test]
+    fn model_id_returns_correct_model() {
+        use crate::llm::client::LLMClient;
+        let provider = OpenRouterProvider::with_model("test_key".to_string(), "openai/gpt-4".to_string());
+        assert_eq!(provider.model_id(), "openai/gpt-4");
+    }
+
+    #[test]
+    fn backend_kind_is_openrouter() {
+        use crate::llm::client::LLMClient;
+        let provider = OpenRouterProvider::new("test_key".to_string());
+        assert_eq!(provider.backend_kind(), llm_types::BackendKind::OpenRouter);
+    }
+}

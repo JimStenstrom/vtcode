@@ -732,4 +732,81 @@ mod tests {
         assert_eq!(message, "High concurrency usage of this API");
         assert!(matches!(code, "1302" | "1303" | "1304" | "1308" | "1309"));
     }
+
+    // ==================== Additional Tests ====================
+
+    #[test]
+    fn constructor_new_uses_default_model() {
+        let provider = ZAIProvider::new("test_key".to_string());
+        assert_eq!(provider.model, models::zai::DEFAULT_MODEL);
+    }
+
+    #[test]
+    fn constructor_with_model_uses_custom_model() {
+        let custom_model = "zai-custom";
+        let provider = ZAIProvider::with_model("test_key".to_string(), custom_model.to_string());
+        assert_eq!(provider.model, custom_model);
+    }
+
+    #[test]
+    fn serialize_simple_message() {
+        use crate::llm::providers::test_utils::simple_request;
+        let provider = ZAIProvider::new("test_key".to_string());
+        let request = simple_request(models::zai::DEFAULT_MODEL);
+        let messages = provider.serialize_messages(&request).expect("serialization should succeed");
+        assert_eq!(messages.len(), 1);
+        assert_eq!(messages[0]["role"], "user");
+    }
+
+    #[test]
+    fn serialize_multiple_messages() {
+        use crate::llm::providers::test_utils::multi_message_request;
+        let provider = ZAIProvider::new("test_key".to_string());
+        let request = multi_message_request(models::zai::DEFAULT_MODEL);
+        let messages = provider.serialize_messages(&request).expect("serialization should succeed");
+        assert_eq!(messages.len(), 3);
+    }
+
+    #[test]
+    fn convert_includes_required_fields() {
+        use crate::llm::providers::test_utils::simple_request;
+        let provider = ZAIProvider::new("test_key".to_string());
+        let request = simple_request(models::zai::DEFAULT_MODEL);
+        let payload = provider.convert_to_zai_format(&request).expect("conversion should succeed");
+        use crate::llm::providers::test_utils::assert_json_has_field;
+        assert_json_has_field(&payload, "model");
+        assert_json_has_field(&payload, "messages");
+    }
+
+    #[test]
+    fn convert_includes_system_prompt() {
+        use crate::llm::providers::test_utils::request_with_system_prompt;
+        let provider = ZAIProvider::new("test_key".to_string());
+        let request = request_with_system_prompt(models::zai::DEFAULT_MODEL);
+        let payload = provider.convert_to_zai_format(&request).expect("conversion should succeed");
+        // System prompt should be included as a message
+        let messages = payload["messages"].as_array().unwrap();
+        assert!(messages.len() >= 1);
+    }
+
+    #[test]
+    fn supported_models_returns_non_empty_list() {
+        let provider = ZAIProvider::new("test_key".to_string());
+        let models = provider.supported_models();
+        assert!(!models.is_empty());
+    }
+
+    #[test]
+    fn model_id_returns_correct_model() {
+        use crate::llm::client::LLMClient;
+        let provider = ZAIProvider::with_model("test_key".to_string(), "custom-zai".to_string());
+        assert_eq!(provider.model_id(), "custom-zai");
+    }
+
+    #[test]
+    fn backend_kind_is_zai() {
+        use crate::llm::client::LLMClient;
+        let provider = ZAIProvider::new("test_key".to_string());
+        assert_eq!(provider.backend_kind(), llm_types::BackendKind::ZAI);
+    }
 }

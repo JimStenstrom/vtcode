@@ -580,3 +580,310 @@ impl LLMClient for DeepSeekProvider {
         &self.model
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::constants::models;
+    use crate::config::core::PromptCachingConfig;
+    use crate::config::types::ReasoningEffortLevel;
+    use crate::llm::providers::test_utils::*;
+
+    fn create_test_provider() -> DeepSeekProvider {
+        DeepSeekProvider::with_model("test_key".to_string(), models::deepseek::DEFAULT_MODEL.to_string())
+    }
+
+    // ==================== Constructor Tests ====================
+
+    #[test]
+    fn new_creates_provider_with_default_model() {
+        let provider = DeepSeekProvider::new("test_key".to_string());
+        assert_eq!(provider.model, models::deepseek::DEFAULT_MODEL);
+        assert_eq!(provider.api_key, "test_key");
+    }
+
+    #[test]
+    fn with_model_creates_provider_with_custom_model() {
+        let custom_model = "deepseek-chat";
+        let provider = DeepSeekProvider::with_model("test_key".to_string(), custom_model.to_string());
+        assert_eq!(provider.model, custom_model);
+    }
+
+    #[test]
+    fn from_config_uses_defaults_when_none() {
+        let provider = DeepSeekProvider::from_config(None, None, None, None);
+        assert_eq!(provider.model, models::deepseek::DEFAULT_MODEL);
+        assert_eq!(provider.api_key, "");
+    }
+
+    #[test]
+    fn from_config_uses_provided_values() {
+        let provider = DeepSeekProvider::from_config(
+            Some("custom_key".to_string()),
+            Some("custom_model".to_string()),
+            None,
+            None,
+        );
+        assert_eq!(provider.api_key, "custom_key");
+        assert_eq!(provider.model, "custom_model");
+    }
+
+    // ==================== Message Serialization Tests ====================
+
+    #[test]
+    fn serialize_messages_simple_user_message() {
+        let provider = create_test_provider();
+        let request = simple_request(models::deepseek::DEFAULT_MODEL);
+        
+        let messages = provider.serialize_messages(&request).expect("serialization should succeed");
+        
+        assert_eq!(messages.len(), 1);
+        assert_eq!(messages[0]["role"], "user");
+        assert_eq!(messages[0]["content"], "Hello, world!");
+    }
+
+    #[test]
+    fn serialize_messages_multiple_messages() {
+        let provider = create_test_provider();
+        let request = multi_message_request(models::deepseek::DEFAULT_MODEL);
+        
+        let messages = provider.serialize_messages(&request).expect("serialization should succeed");
+        
+        assert_eq!(messages.len(), 3);
+        assert_eq!(messages[0]["role"], "user");
+        assert_eq!(messages[1]["role"], "assistant");
+        assert_eq!(messages[2]["role"], "user");
+    }
+
+    #[test]
+    fn serialize_messages_with_tool_calls() {
+        let provider = create_test_provider();
+        let tool_call = sample_tool_call();
+        let mut request = simple_request(models::deepseek::DEFAULT_MODEL);
+        request.messages = vec![Message::assistant_with_tool_calls(vec![tool_call])];
+        
+        let messages = provider.serialize_messages(&request).expect("serialization should succeed");
+        
+        assert_eq!(messages.len(), 1);
+        assert!(messages[0].get("tool_calls").is_some());
+        let tool_calls = messages[0]["tool_calls"].as_array().unwrap();
+        assert_eq!(tool_calls.len(), 1);
+        assert_eq!(tool_calls[0]["id"], "call_123");
+        assert_eq!(tool_calls[0]["type"], "function");
+    }
+
+    #[test]
+    fn serialize_messages_with_tool_result() {
+        let provider = create_test_provider();
+        let request = request_with_tool_result(models::deepseek::DEFAULT_MODEL);
+        
+        let messages = provider.serialize_messages(&request).expect("serialization should succeed");
+        
+        assert_eq!(messages.len(), 3);
+        // Check tool result message
+        let tool_result_msg = &messages[2];
+        assert_eq!(tool_result_msg["role"], "tool");
+        assert!(tool_result_msg.get("tool_call_id").is_some());
+    }
+
+    #[test]
+    fn serialize_messages_with_special_characters() {
+        let provider = create_test_provider();
+        let request = request_with_special_chars(models::deepseek::DEFAULT_MODEL);
+        
+        let messages = provider.serialize_messages(&request).expect("serialization should succeed");
+        
+        assert_eq!(messages.len(), 1);
+        let content = messages[0]["content"].as_str().unwrap();
+        assert_contains(content, "quotes");
+        assert_contains(content, "backslash");
+        assert_contains(content, "🎉");
+    }
+
+    // ==================== Tool Serialization Tests ====================
+
+    #[test]
+    fn serialize_tools_single_tool() {
+        let tools = vec![weather_tool()];
+        let serialized = DeepSeekProvider::serialize_tools(&tools);
+        
+        assert!(serialized.is_some());
+        let tools_array = serialized.unwrap();
+        assert_eq!(tools_array.len(), 1);
+        assert_eq!(tools_array[0]["name"], "get_weather");
+    }
+
+    #[test]
+    fn serialize_tools_multiple_tools() {
+        let tools = vec![weather_tool(), calculator_tool()];
+        let serialized = DeepSeekProvider::serialize_tools(&tools);
+        
+        assert!(serialized.is_some());
+        let tools_array = serialized.unwrap();
+        assert_eq!(tools_array.len(), 2);
+    }
+
+    #[test]
+    fn serialize_tools_empty_array_returns_none() {
+        let tools: Vec<ToolDefinition> = vec![];
+        let serialized = DeepSeekProvider::serialize_tools(&tools);
+        
+        assert!(serialized.is_none());
+    }
+
+    #[test]
+    fn serialize_tools_with_complex_parameters() {
+        let tools = vec![complex_tool()];
+        let serialized = DeepSeekProvider::serialize_tools(&tools);
+        
+        assert!(serialized.is_some());
+        let tools_array = serialized.unwrap();
+        assert_eq!(tools_array[0]["name"], "search_database");
+        assert!(tools_array[0]["parameters"].is_object());
+    }
+
+    // ==================== Request Building Tests ====================
+
+    #[test]
+    fn convert_to_deepseek_format_includes_required_fields() {
+        let provider = create_test_provider();
+        let request = simple_request(models::deepseek::DEFAULT_MODEL);
+        
+        let payload = provider.convert_to_deepseek_format(&request).expect("conversion should succeed");
+        
+        assert_json_has_field(&payload, "model");
+        assert_json_has_field(&payload, "messages");
+        assert_eq!(payload["model"], models::deepseek::DEFAULT_MODEL);
+    }
+
+    #[test]
+    fn convert_to_deepseek_format_includes_system_prompt() {
+        let provider = create_test_provider();
+        let request = request_with_system_prompt(models::deepseek::DEFAULT_MODEL);
+        
+        let payload = provider.convert_to_deepseek_format(&request).expect("conversion should succeed");
+        
+        assert_json_has_field(&payload, "system");
+        assert!(payload["system"].as_str().unwrap().contains("weather"));
+    }
+
+    #[test]
+    fn convert_to_deepseek_format_includes_tools() {
+        let provider = create_test_provider();
+        let request = request_with_tools(models::deepseek::DEFAULT_MODEL);
+        
+        let payload = provider.convert_to_deepseek_format(&request).expect("conversion should succeed");
+        
+        assert_json_has_field(&payload, "tools");
+        assert_json_array_length(&payload, "tools", 2);
+    }
+
+    #[test]
+    fn convert_to_deepseek_format_includes_tool_choice() {
+        let provider = create_test_provider();
+        let request = request_with_tool_choice(models::deepseek::DEFAULT_MODEL);
+        
+        let payload = provider.convert_to_deepseek_format(&request).expect("conversion should succeed");
+        
+        assert_json_has_field(&payload, "tool_choice");
+    }
+
+    #[test]
+    fn convert_to_deepseek_format_includes_max_tokens() {
+        let provider = create_test_provider();
+        let request = simple_request(models::deepseek::DEFAULT_MODEL);
+        
+        let payload = provider.convert_to_deepseek_format(&request).expect("conversion should succeed");
+        
+        assert_json_has_field(&payload, "max_tokens");
+        assert_eq!(payload["max_tokens"], 100);
+    }
+
+    #[test]
+    fn convert_to_deepseek_format_includes_temperature() {
+        let provider = create_test_provider();
+        let request = simple_request(models::deepseek::DEFAULT_MODEL);
+        
+        let payload = provider.convert_to_deepseek_format(&request).expect("conversion should succeed");
+        
+        assert_json_has_field(&payload, "temperature");
+        assert_eq!(payload["temperature"].as_f64().unwrap(), 0.7);
+    }
+
+    #[test]
+    fn convert_to_deepseek_format_includes_stream_when_true() {
+        let provider = create_test_provider();
+        let mut request = simple_request(models::deepseek::DEFAULT_MODEL);
+        request.stream = true;
+        
+        let payload = provider.convert_to_deepseek_format(&request).expect("conversion should succeed");
+        
+        assert_json_has_field(&payload, "stream");
+        assert_eq!(payload["stream"], true);
+    }
+
+    #[test]
+    fn convert_to_deepseek_format_omits_stream_when_false() {
+        let provider = create_test_provider();
+        let mut request = simple_request(models::deepseek::DEFAULT_MODEL);
+        request.stream = false;
+        
+        let payload = provider.convert_to_deepseek_format(&request).expect("conversion should succeed");
+        
+        assert!(payload.get("stream").is_none());
+    }
+
+    #[test]
+    fn convert_to_deepseek_format_includes_reasoning_effort() {
+        let provider = create_test_provider();
+        let mut request = simple_request(models::deepseek::DEFAULT_MODEL);
+        request.reasoning_effort = Some(ReasoningEffortLevel::High);
+        
+        let payload = provider.convert_to_deepseek_format(&request).expect("conversion should succeed");
+        
+        assert_json_has_field(&payload, "reasoning_effort");
+        assert_eq!(payload["reasoning_effort"], "high");
+    }
+
+    // ==================== Edge Case Tests ====================
+
+    #[test]
+    fn handles_empty_message_content() {
+        let provider = create_test_provider();
+        let request = request_with_empty_message(models::deepseek::DEFAULT_MODEL);
+        
+        let messages = provider.serialize_messages(&request).expect("should handle empty message");
+        
+        assert_eq!(messages.len(), 1);
+        assert_eq!(messages[0]["content"], "");
+    }
+
+    #[test]
+    fn handles_long_message() {
+        let provider = create_test_provider();
+        let request = request_with_long_message(models::deepseek::DEFAULT_MODEL);
+        
+        let result = provider.serialize_messages(&request);
+        
+        assert!(result.is_ok(), "should handle long messages");
+    }
+
+    #[test]
+    fn supported_models_returns_non_empty_list() {
+        let provider = create_test_provider();
+        let models = provider.supported_models();
+        
+        assert!(!models.is_empty());
+        assert!(models.contains(&models::deepseek::DEFAULT_MODEL.to_string()));
+    }
+
+    #[test]
+    fn validate_request_accepts_valid_request() {
+        let provider = create_test_provider();
+        let request = simple_request(models::deepseek::DEFAULT_MODEL);
+        
+        let result = provider.validate_request(&request);
+        
+        assert!(result.is_ok());
+    }
+}
