@@ -209,6 +209,38 @@ impl ValidationResult {
         !self.errors.is_empty()
     }
 
+    /// Add an error to the validation result
+    pub fn add_error(&mut self, error: String) {
+        self.errors.push(error);
+    }
+
+    /// Add a warning to the validation result
+    pub fn add_warning(&mut self, warning: String) {
+        self.warnings.push(warning);
+    }
+
+    /// Convert to Result<()> for easier error propagation
+    pub fn to_result(self) -> Result<()> {
+        if self.has_errors() {
+            let error_msg = self
+                .errors
+                .iter()
+                .enumerate()
+                .map(|(i, e)| format!("  {}. {}", i + 1, e))
+                .collect::<Vec<_>>()
+                .join("\n");
+
+            bail!("Configuration validation failed:\n{}", error_msg);
+        }
+
+        // Print warnings if any
+        for warning in &self.warnings {
+            eprintln!("⚠️  Configuration warning: {}", warning);
+        }
+
+        Ok(())
+    }
+
     /// Format results for display
     pub fn format_for_display(&self) -> String {
         let mut output = String::new();

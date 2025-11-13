@@ -423,3 +423,74 @@ mod tests {
         assert_eq!(find_sse_boundary(buffer), Some((9, 2)));
     }
 }
+
+/// Macro to generate standard constructor methods for LLM providers.
+///
+/// This macro generates the common constructor pattern used across all providers:
+/// - `new(api_key: String) -> Self` - Creates provider with default model
+/// - `with_model(api_key: String, model: String) -> Self` - Creates provider with custom model
+/// - `from_config(...) -> Self` - Creates provider from config with optional parameters
+///
+/// All three methods delegate to a `with_model_internal` method that must be implemented
+/// by the provider for provider-specific initialization logic.
+///
+/// # Example
+///
+/// ```ignore
+/// use crate::llm::providers::shared::impl_provider_constructors;
+///
+/// pub struct MyProvider {
+///     api_key: String,
+///     model: String,
+///     // other fields...
+/// }
+///
+/// impl MyProvider {
+///     impl_provider_constructors!(
+///         default_model: crate::models::myprovider::DEFAULT_MODEL,
+///         resolve_fn: crate::models::resolve_model
+///     );
+///
+///     fn with_model_internal(
+///         api_key: String,
+///         model: String,
+///         prompt_cache: Option<PromptCachingConfig>,
+///         base_url: Option<String>,
+///     ) -> Self {
+///         // Provider-specific initialization logic
+///         Self { api_key, model }
+///     }
+/// }
+/// ```
+#[macro_export]
+macro_rules! impl_provider_constructors {
+    (default_model: $default_model:expr, resolve_fn: $resolve_fn:path) => {
+        /// Create a new provider instance with the default model.
+        pub fn new(api_key: String) -> Self {
+            Self::with_model_internal(
+                api_key,
+                $default_model.to_string(),
+                None,
+                None,
+            )
+        }
+
+        /// Create a new provider instance with a specific model.
+        pub fn with_model(api_key: String, model: String) -> Self {
+            Self::with_model_internal(api_key, model, None, None)
+        }
+
+        /// Create a provider from configuration with optional parameters.
+        pub fn from_config(
+            api_key: Option<String>,
+            model: Option<String>,
+            base_url: Option<String>,
+            prompt_cache: Option<$crate::config::PromptCachingConfig>,
+        ) -> Self {
+            let api_key_value = api_key.unwrap_or_default();
+            let model_value = $resolve_fn(model, $default_model);
+
+            Self::with_model_internal(api_key_value, model_value, prompt_cache, base_url)
+        }
+    };
+}
