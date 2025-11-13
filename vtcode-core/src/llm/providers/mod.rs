@@ -6,7 +6,6 @@ pub mod minimax;
 pub mod moonshot;
 pub mod ollama;
 pub mod openai;
-pub mod openrouter;
 pub mod xai;
 pub mod zai;
 
@@ -26,9 +25,11 @@ pub use minimax::MinimaxProvider;
 pub use moonshot::MoonshotProvider;
 pub use ollama::OllamaProvider;
 pub use openai::OpenAIProvider;
-pub use openrouter::OpenRouterProvider;
 pub use xai::XAIProvider;
 pub use zai::ZAIProvider;
 
 // Re-export GeminiProvider from the modularized crate
 pub use vtcode_llm_gemini::GeminiProvider;
+
+// Re-export OpenRouter provider from the modularized crate
+pub use vtcode_llm_openrouter::OpenRouterProvider;

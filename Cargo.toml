@@ -38,6 +38,7 @@ members = [
     "vtcode-llm-gemini",
     "vtcode-llm-openai",
     "vtcode-llm-microsoft",
+    "vtcode-llm-openrouter",
     "vtcode-markdown-store",
     "vtcode-mcp",
     "vtcode-indexer",

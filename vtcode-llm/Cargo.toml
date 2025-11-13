@@ -31,7 +31,7 @@ microsoft = ["dep:vtcode-llm-microsoft"]
 moonshot = []
 ollama = []
 openai = ["dep:vtcode-llm-openai"]
-openrouter = []
+openrouter = ["dep:vtcode-llm-openrouter"]
 xai = []
 zai = []
 functions = []
@@ -47,6 +47,7 @@ vtcode-llm-anthropic = { path = "../vtcode-llm-anthropic", version = "0.43.6", o
 vtcode-llm-gemini = { path = "../vtcode-llm-gemini", version = "0.43.6", optional = true }
 vtcode-llm-microsoft = { path = "../vtcode-llm-microsoft", version = "0.43.6", optional = true }
 vtcode-llm-openai = { path = "../vtcode-llm-openai", version = "0.43.6", optional = true }
+vtcode-llm-openrouter = { path = "../vtcode-llm-openrouter", version = "0.43.6", optional = true }
 
 [dev-dependencies]
 futures = "0.3"

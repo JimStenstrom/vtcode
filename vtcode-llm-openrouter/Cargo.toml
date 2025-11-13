@@ -1,0 +1,43 @@
+[package]
+name = "vtcode-llm-openrouter"
+version = "0.43.6"
+edition = "2024"
+authors = ["vinhnx <vinhnx@users.noreply.github.com>"]
+description = "OpenRouter LLM provider for VTCode"
+license = "MIT"
+publish = false
+categories = ["api-bindings", "science::ml"]
+keywords = ["vtcode", "llm", "ai", "openrouter"]
+
+[features]
+default = []
+telemetry = []
+
+[dependencies]
+# Core vtcode dependencies
+vtcode-commons = { path = "../vtcode-commons", version = "0.43.6" }
+vtcode-config = { path = "../vtcode-config", version = "0.43.6" }
+vtcode-core = { path = "../vtcode-core", version = "0.43.6", default-features = false }
+
+# Async runtime and traits
+async-trait = "0.1.89"
+async-stream = "0.3"
+tokio = { version = "1.48", features = ["rt-multi-thread", "macros"] }
+futures = "0.3"
+
+# HTTP client
+reqwest = { version = "0.12", features = ["json", "rustls-tls", "stream"] }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Error handling
+anyhow = "1.0"
+thiserror = "2.0"
+
+# Utility
+tracing = "0.1"
+
+[dev-dependencies]
+tokio = { version = "1.48", features = ["full"] }
