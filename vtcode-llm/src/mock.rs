@@ -19,6 +19,22 @@ pub struct StaticResponseClient {
     queue: VecDeque<Result<LLMResponse, LLMError>>,
 }
 
+/// Macro to generate enqueue methods with both mutable and builder-style variants.
+macro_rules! enqueue_method {
+    ($enqueue_name:ident, $with_name:ident, $param_name:ident, $param_type:ty, $result_wrapper:expr) => {
+        #[doc = concat!("Queue a ", stringify!($param_name), ". Items are returned in FIFO order.")]
+        pub fn $enqueue_name(&mut self, $param_name: $param_type) {
+            self.queue.push_back($result_wrapper($param_name));
+        }
+
+        #[doc = concat!("Queue a ", stringify!($param_name), " and return the client for chaining.")]
+        pub fn $with_name(mut self, $param_name: $param_type) -> Self {
+            self.$enqueue_name($param_name);
+            self
+        }
+    };
+}
+
 impl StaticResponseClient {
     /// Create a mock client for the provided model/backend combination.
     pub fn new(model: impl Into<String>, backend: BackendKind) -> Self {
@@ -29,27 +45,8 @@ impl StaticResponseClient {
         }
     }
 
-    /// Queue a successful response. Responses are returned in FIFO order.
-    pub fn enqueue_response(&mut self, response: LLMResponse) {
-        self.queue.push_back(Ok(response));
-    }
-
-    /// Queue a successful response and return the client for chaining.
-    pub fn with_response(mut self, response: LLMResponse) -> Self {
-        self.enqueue_response(response);
-        self
-    }
-
-    /// Queue an error result. Errors are returned in FIFO order alongside responses.
-    pub fn enqueue_error(&mut self, error: LLMError) {
-        self.queue.push_back(Err(error));
-    }
-
-    /// Queue an error result and return the client for chaining.
-    pub fn with_error(mut self, error: LLMError) -> Self {
-        self.enqueue_error(error);
-        self
-    }
+    enqueue_method!(enqueue_response, with_response, response, LLMResponse, Ok);
+    enqueue_method!(enqueue_error, with_error, error, LLMError, Err);
 
     /// Consume the client and return it as a boxed trait object.
     pub fn into_client(self) -> vtcode_core::llm::client::AnyClient {
