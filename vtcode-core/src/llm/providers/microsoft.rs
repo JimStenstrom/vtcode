@@ -12,6 +12,10 @@ use reqwest::Client as HttpClient;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::time::Duration;
+#[cfg(debug_assertions)]
+use std::time::Instant;
+#[cfg(debug_assertions)]
+use tracing::debug;
 
 use super::common::{override_base_url, resolve_model};
 
@@ -104,6 +108,15 @@ impl MicrosoftProvider {
     async fn start_conversation(&self) -> Result<ConversationResponse, LLMError> {
         let url = format!("{}/conversations", self.base_url);
 
+        #[cfg(debug_assertions)]
+        let start_time = Instant::now();
+
+        #[cfg(debug_assertions)]
+        debug!(
+            target = "vtcode::llm::microsoft",
+            "Starting Direct Line conversation"
+        );
+
         let response = self
             .http_client
             .post(&url)
@@ -123,12 +136,22 @@ impl MicrosoftProvider {
             return Err(LLMError::Provider(formatted));
         }
 
-        response.json::<ConversationResponse>().await.map_err(|e| {
+        let conversation = response.json::<ConversationResponse>().await.map_err(|e| {
             LLMError::Provider(error_display::format_llm_error(
                 "Microsoft",
                 &format!("Failed to parse conversation response: {}", e),
             ))
-        })
+        })?;
+
+        #[cfg(debug_assertions)]
+        debug!(
+            target = "vtcode::llm::microsoft",
+            conversation_id = %conversation.conversation_id,
+            elapsed_ms = start_time.elapsed().as_millis(),
+            "Conversation started successfully"
+        );
+
+        Ok(conversation)
     }
 
     async fn send_activity(
@@ -139,6 +162,18 @@ impl MicrosoftProvider {
         let url = format!(
             "{}/conversations/{}/activities",
             self.base_url, conversation_id
+        );
+
+        #[cfg(debug_assertions)]
+        let text_len = activity.text.as_ref().map_or(0, |t| t.len());
+
+        #[cfg(debug_assertions)]
+        debug!(
+            target = "vtcode::llm::microsoft",
+            conversation_id = %conversation_id,
+            activity_type = %activity.activity_type,
+            text_len = text_len,
+            "Sending activity to bot"
         );
 
         let response = self
@@ -163,6 +198,13 @@ impl MicrosoftProvider {
             );
             return Err(LLMError::Provider(formatted));
         }
+
+        #[cfg(debug_assertions)]
+        debug!(
+            target = "vtcode::llm::microsoft",
+            conversation_id = %conversation_id,
+            "Activity sent successfully"
+        );
 
         Ok(())
     }
@@ -202,12 +244,23 @@ impl MicrosoftProvider {
             return Err(LLMError::Provider(formatted));
         }
 
-        response.json::<ActivitiesResponse>().await.map_err(|e| {
+        let activities_response = response.json::<ActivitiesResponse>().await.map_err(|e| {
             LLMError::Provider(error_display::format_llm_error(
                 "Microsoft",
                 &format!("Failed to parse activities response: {}", e),
             ))
-        })
+        })?;
+
+        #[cfg(debug_assertions)]
+        debug!(
+            target = "vtcode::llm::microsoft",
+            conversation_id = %conversation_id,
+            activity_count = activities_response.activities.len(),
+            has_watermark = activities_response.watermark.is_some(),
+            "Retrieved activities from conversation"
+        );
+
+        Ok(activities_response)
     }
 
     fn convert_messages_to_text(&self, messages: &[Message]) -> String {
@@ -254,6 +307,22 @@ impl LLMProvider for MicrosoftProvider {
     }
 
     async fn generate(&self, request: LLMRequest) -> Result<LLMResponse, LLMError> {
+        #[cfg(debug_assertions)]
+        let request_timer = Instant::now();
+
+        #[cfg(debug_assertions)]
+        {
+            let message_count = request.messages.len();
+            let has_system = request.system_prompt.is_some();
+            debug!(
+                target = "vtcode::llm::microsoft",
+                model = %request.model,
+                message_count = message_count,
+                has_system_prompt = has_system,
+                "Starting Microsoft Direct Line request"
+            );
+        }
+
         // Start a conversation
         let conversation = self.start_conversation().await?;
 
@@ -283,9 +352,19 @@ impl LLMProvider for MicrosoftProvider {
         // Poll for bot response with timeout
         let max_attempts = 30; // 30 seconds max wait
         let mut watermark: Option<String> = None;
+        let mut poll_count = 0;
+
+        #[cfg(debug_assertions)]
+        debug!(
+            target = "vtcode::llm::microsoft",
+            conversation_id = %conversation.conversation_id,
+            max_attempts = max_attempts,
+            "Starting polling for bot response"
+        );
 
         for _ in 0..max_attempts {
             tokio::time::sleep(Duration::from_secs(1)).await;
+            poll_count += 1;
 
             let activities = self
                 .get_activities(&conversation.conversation_id, watermark.as_deref())
@@ -306,6 +385,20 @@ impl LLMProvider for MicrosoftProvider {
 
                     if is_from_bot {
                         if let Some(text) = activity.text {
+                            #[cfg(debug_assertions)]
+                            {
+                                let content_len = text.len();
+                                debug!(
+                                    target = "vtcode::llm::microsoft",
+                                    model = %request.model,
+                                    conversation_id = %conversation.conversation_id,
+                                    elapsed_ms = request_timer.elapsed().as_millis(),
+                                    poll_attempts = poll_count,
+                                    content_len = content_len,
+                                    "Completed Microsoft Direct Line request"
+                                );
+                            }
+
                             return Ok(LLMResponse {
                                 content: text,
                                 finish_reason: FinishReason::Stop,
@@ -318,6 +411,15 @@ impl LLMProvider for MicrosoftProvider {
                 }
             }
         }
+
+        #[cfg(debug_assertions)]
+        debug!(
+            target = "vtcode::llm::microsoft",
+            conversation_id = %conversation.conversation_id,
+            elapsed_ms = request_timer.elapsed().as_millis(),
+            poll_attempts = poll_count,
+            "Timeout waiting for bot response"
+        );
 
         Err(LLMError::Provider(error_display::format_llm_error(
             "Microsoft",
