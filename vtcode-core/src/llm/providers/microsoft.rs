@@ -65,6 +65,15 @@ struct BotActivity {
     from: Option<ActivityParticipant>,
     text: Option<String>,
     value: Option<Value>,
+    #[serde(default)]
+    attachments: Vec<Attachment>,
+}
+
+#[derive(Debug, Deserialize)]
+struct Attachment {
+    #[serde(rename = "contentType")]
+    content_type: String,
+    content: Option<Value>,
 }
 
 impl MicrosoftProvider {
@@ -275,6 +284,48 @@ impl MicrosoftProvider {
 
         combined.trim().to_string()
     }
+
+    /// Extract content from activity, including Adaptive Cards
+    fn extract_activity_content(&self, activity: &BotActivity) -> Option<String> {
+        // First, check for simple text response
+        if let Some(text) = &activity.text {
+            if !text.trim().is_empty() {
+                return Some(text.clone());
+            }
+        }
+
+        // Check for Adaptive Card attachments
+        for attachment in &activity.attachments {
+            if attachment.content_type == "application/vnd.microsoft.card.adaptive" {
+                if let Some(card_content) = &attachment.content {
+                    // Extract text from Adaptive Card body
+                    if let Some(body) = card_content.get("body").and_then(|b| b.as_array()) {
+                        let mut card_text = String::new();
+                        for element in body {
+                            if let Some(text) = element.get("text").and_then(|t| t.as_str()) {
+                                if !card_text.is_empty() {
+                                    card_text.push('\n');
+                                }
+                                card_text.push_str(text);
+                            }
+                        }
+                        if !card_text.is_empty() {
+                            return Some(card_text);
+                        }
+                    }
+                }
+            }
+        }
+
+        // Check for value field (can contain structured data)
+        if let Some(value) = &activity.value {
+            if let Some(text) = value.get("text").and_then(|t| t.as_str()) {
+                return Some(text.to_string());
+            }
+        }
+
+        None
+    }
 }
 
 #[async_trait]
@@ -374,10 +425,14 @@ impl LLMProvider for MicrosoftProvider {
                         .unwrap_or(true);
 
                     if is_from_bot {
-                        if let Some(text) = activity.text {
+                        if let Some(content) = self.extract_activity_content(&activity) {
                             #[cfg(debug_assertions)]
                             {
-                                let content_len = text.len();
+                                let content_len = content.len();
+                                let has_attachments = !activity.attachments.is_empty();
+                                let has_adaptive_card = activity.attachments.iter().any(|a|
+                                    a.content_type == "application/vnd.microsoft.card.adaptive"
+                                );
                                 debug!(
                                     target = "vtcode::llm::microsoft",
                                     model = %request.model,
@@ -385,12 +440,14 @@ impl LLMProvider for MicrosoftProvider {
                                     elapsed_ms = request_timer.elapsed().as_millis(),
                                     poll_attempts = poll_count,
                                     content_len = content_len,
+                                    has_attachments = has_attachments,
+                                    has_adaptive_card = has_adaptive_card,
                                     "Completed Microsoft Direct Line request"
                                 );
                             }
 
                             return Ok(LLMResponse {
-                                content: text,
+                                content,
                                 finish_reason: FinishReason::Stop,
                                 usage: None,
                                 cached_prompt: None,

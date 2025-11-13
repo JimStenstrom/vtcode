@@ -14,8 +14,9 @@ use serde_json::json;
 use vtcode_core::config::constants::models;
 use vtcode_core::llm::provider::{FinishReason, LLMRequest, LLMResponse, Message, Usage};
 use vtcode_core::llm::providers::{
-    AnthropicProvider, DeepSeekProvider, GeminiProvider, LmStudioProvider, MoonshotProvider,
-    OllamaProvider, OpenAIProvider, OpenRouterProvider, XAIProvider, ZAIProvider,
+    AnthropicProvider, DeepSeekProvider, GeminiProvider, LmStudioProvider, MicrosoftProvider,
+    MoonshotProvider, OllamaProvider, OpenAIProvider, OpenRouterProvider, XAIProvider,
+    ZAIProvider,
 };
 
 // ============================================================================
@@ -63,6 +64,10 @@ fn bench_provider_construction(c: &mut Criterion) {
 
     group.bench_function("lmstudio_new", |b| {
         b.iter(|| LmStudioProvider::new(black_box(String::new())))
+    });
+
+    group.bench_function("microsoft_new", |b| {
+        b.iter(|| MicrosoftProvider::new(black_box("test_secret".to_string())))
     });
 
     group.finish();
@@ -158,6 +163,11 @@ fn bench_supported_models(c: &mut Criterion) {
         b.iter(|| black_box(gemini.supported_models()))
     });
 
+    let microsoft = MicrosoftProvider::new("test_secret".to_string());
+    group.bench_function("microsoft_supported_models", |b| {
+        b.iter(|| black_box(microsoft.supported_models()))
+    });
+
     group.finish();
 }
 
@@ -198,11 +208,20 @@ fn bench_request_validation(c: &mut Criterion) {
 
     let request_gemini = LLMRequest {
         model: "gemini-2.5-flash".to_string(),
-        ..request
+        ..request.clone()
     };
     let gemini = GeminiProvider::new("test_key".to_string());
     group.bench_function("gemini_validate_request", |b| {
         b.iter(|| black_box(gemini.validate_request(&request_gemini)))
+    });
+
+    let request_microsoft = LLMRequest {
+        model: "copilot-m365".to_string(),
+        ..request
+    };
+    let microsoft = MicrosoftProvider::new("test_secret".to_string());
+    group.bench_function("microsoft_validate_request", |b| {
+        b.iter(|| black_box(microsoft.validate_request(&request_microsoft)))
     });
 
     group.finish();
