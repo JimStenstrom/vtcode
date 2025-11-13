@@ -41,6 +41,7 @@ pub mod schema;
 pub mod telemetry;
 pub mod timeouts;
 pub mod types;
+pub mod utils;
 
 pub use acp::{
     AgentClientProtocolConfig, AgentClientProtocolTransport, AgentClientProtocolZedConfig,
