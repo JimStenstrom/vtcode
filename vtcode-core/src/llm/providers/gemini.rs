@@ -26,7 +26,7 @@ use serde_json::{Map, Value, json};
 use std::collections::HashMap;
 use tokio::sync::mpsc;
 
-use super::common::{extract_prompt_cache_settings, override_base_url, resolve_model};
+use super::common::resolve_model;
 
 pub struct GeminiProvider {
     api_key: String,

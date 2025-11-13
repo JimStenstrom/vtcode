@@ -5,7 +5,7 @@ use crate::config::types::AgentConfig;
 use crate::gemini::models::SystemInstruction;
 use crate::gemini::{Content, GenerateContentRequest};
 use crate::llm::make_client;
-use crate::prompts::{generate_lightweight_instruction, read_system_prompt_from_md};
+use crate::prompts::generate_lightweight_instruction;
 use anyhow::Result;
 
 /// Handle the ask command - single prompt without tools

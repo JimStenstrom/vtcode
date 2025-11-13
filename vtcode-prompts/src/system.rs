@@ -5,7 +5,6 @@
 //! It focuses on providing the raw prompt text that can be used by any LLM provider.
 
 use std::path::Path;
-use tracing::warn;
 
 const DEFAULT_SYSTEM_PROMPT: &str = r#"You are VT Code, a coding agent.
 You specialize in understanding codebases, making precise modifications, and solving technical problems.
@@ -229,7 +228,7 @@ pub async fn generate_system_instruction(_config: &SystemPromptConfig) -> String
 /// Note: This simplified version does not include configuration or instructions.
 /// For full functionality with config and instructions integration, use the
 /// version in vtcode-core which has access to those modules.
-pub async fn compose_system_instruction_text(project_root: &Path) -> String {
+pub async fn compose_system_instruction_text(_project_root: &Path) -> String {
     let instruction = match read_system_prompt_from_md().await {
         Ok(content) => content,
         Err(_) => default_system_prompt().to_string(),
@@ -248,9 +247,9 @@ pub async fn compose_system_instruction_text(project_root: &Path) -> String {
 /// For full functionality, use the version in vtcode-core.
 pub async fn generate_system_instruction_with_config(
     _config: &SystemPromptConfig,
-    project_root: &Path,
+    _project_root: &Path,
 ) -> String {
-    compose_system_instruction_text(project_root).await
+    compose_system_instruction_text(_project_root).await
 }
 
 /// Generate system instruction with AGENTS.md guidelines incorporated
@@ -259,9 +258,9 @@ pub async fn generate_system_instruction_with_config(
 /// For full functionality, use the version in vtcode-core.
 pub async fn generate_system_instruction_with_guidelines(
     _config: &SystemPromptConfig,
-    project_root: &Path,
+    _project_root: &Path,
 ) -> String {
-    compose_system_instruction_text(project_root).await
+    compose_system_instruction_text(_project_root).await
 }
 
 /// Generate a lightweight system instruction for simple operations

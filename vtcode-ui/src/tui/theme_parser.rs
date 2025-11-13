@@ -2,7 +2,6 @@
 
 use crate::utils::CachedStyleParser;
 use anstyle::Style as AnsiStyle;
-use anyhow::Result;
 
 /// Parses color configuration strings in different syntaxes.
 ///

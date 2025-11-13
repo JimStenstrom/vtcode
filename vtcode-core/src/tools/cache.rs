@@ -13,15 +13,13 @@ use std::time::{Duration, Instant};
 struct CacheEntry {
     data: Value,
     timestamp: Instant,
-    size_bytes: usize,
 }
 
 impl CacheEntry {
-    fn new(data: Value, size_bytes: usize) -> Self {
+    fn new(data: Value, _size_bytes: usize) -> Self {
         Self {
             data,
             timestamp: Instant::now(),
-            size_bytes,
         }
     }
 

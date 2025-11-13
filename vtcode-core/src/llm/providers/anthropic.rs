@@ -17,7 +17,7 @@ use serde_json::{Value, json};
 use std::env;
 
 use super::{
-    common::{extract_prompt_cache_settings, override_base_url, resolve_model},
+    common::resolve_model,
     extract_reasoning_trace,
 };
 

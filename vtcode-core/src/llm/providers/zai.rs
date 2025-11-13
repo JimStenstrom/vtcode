@@ -12,7 +12,7 @@ use reqwest::Client as HttpClient;
 use serde_json::{Value, json};
 use std::collections::HashSet;
 
-use super::common::{override_base_url, resolve_model};
+use super::common::resolve_model;
 
 const PROVIDER_NAME: &str = "Z.AI";
 const PROVIDER_KEY: &str = "zai";

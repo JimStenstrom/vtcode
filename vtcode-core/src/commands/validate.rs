@@ -2,7 +2,6 @@
 
 use crate::config::constants::tools;
 use crate::config::types::AgentConfig;
-use crate::prompts::read_system_prompt_from_md;
 use crate::tools::ToolRegistry;
 use crate::utils::colors::style;
 use anyhow::Result;

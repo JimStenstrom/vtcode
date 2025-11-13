@@ -1,5 +1,5 @@
 use crate::utils::{default_true, validate_all_non_empty, validate_greater_than, validate_non_empty};
-use anyhow::{Context, Result, ensure};
+use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 
 /// Budget awareness for routing decisions

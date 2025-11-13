@@ -23,7 +23,7 @@ use tracing::debug;
 
 use super::{
     ReasoningBuffer,
-    common::{extract_prompt_cache_settings, override_base_url, resolve_model},
+    common::resolve_model,
     extract_reasoning_trace, gpt5_codex_developer_prompt,
     shared::{
         StreamAssemblyError, StreamDelta, StreamFragment, StreamTelemetry, ToolCallBuilder,
