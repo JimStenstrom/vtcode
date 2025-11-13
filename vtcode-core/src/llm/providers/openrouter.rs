@@ -2226,7 +2226,6 @@ mod tests {
         assert_eq!(usage.cache_read_tokens, Some(90));
         assert_eq!(usage.cache_creation_tokens, Some(15));
     }
-}
 
     // ==================== Additional Tests ====================
 
