@@ -3,7 +3,7 @@ use std::sync::OnceLock;
 
 use crate::config::constants::tools;
 use crate::config::types::CapabilityLevel;
-use crate::gemini::FunctionDeclaration;
+use vtcode_llm_gemini::FunctionDeclaration;
 use serde_json::{Map, Value, json};
 
 use super::builtins::builtin_tool_registrations;

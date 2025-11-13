@@ -84,7 +84,7 @@ pub mod providers {
     #[cfg(feature = "deepseek")]
     pub use vtcode_core::llm::providers::deepseek::*;
     #[cfg(feature = "google")]
-    pub use vtcode_core::llm::providers::gemini::*;
+    pub use vtcode_llm_gemini::*;
     #[cfg(feature = "moonshot")]
     pub use vtcode_core::llm::providers::moonshot::*;
     #[cfg(feature = "ollama")]

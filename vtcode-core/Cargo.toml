@@ -113,6 +113,7 @@ vtcode-markdown-store = { path = "../vtcode-markdown-store", version = "0.43.6" 
 vtcode-indexer = { path = "../vtcode-indexer", version = "0.43.6" }
 vtcode-mcp = { path = "../vtcode-mcp", version = "0.43.6" }
 vtcode-ui = { path = "../vtcode-ui", version = "0.43.6" }
+vtcode-llm-gemini = { path = "../vtcode-llm-gemini", version = "0.43.6" }
 
 # Token counting for attention budget management
 tokenizers = { version = "0.22", features = ["http"] }

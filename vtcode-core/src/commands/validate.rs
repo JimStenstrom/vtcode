@@ -66,8 +66,7 @@ pub async fn handle_validate_command(
 
 /// Check API connectivity
 async fn check_api_connectivity(config: &AgentConfig) -> Result<()> {
-    use crate::gemini::models::SystemInstruction;
-    use crate::gemini::{Client, Content, GenerateContentRequest};
+    use vtcode_llm_gemini::{Client, Content, GenerateContentRequest, SystemInstruction};
     use crate::prompts::generate_lightweight_instruction;
 
     let mut client = Client::new(config.api_key.clone(), config.model.clone());

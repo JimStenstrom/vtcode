@@ -1,6 +1,6 @@
 use crate::llm_modular::client::LLMClient;
 use crate::llm_modular::types::{BackendKind, LLMResponse, LLMError, Usage};
-use crate::gemini::{Client, GenerateContentRequest, Content};
+use vtcode_llm_gemini::{Client, GenerateContentRequest, Content};
 use async_trait::async_trait;
 
 /// Gemini LLM provider

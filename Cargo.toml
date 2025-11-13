@@ -35,6 +35,7 @@ members = [
     "vtcode-llm",
     "vtcode-llm-anthropic",
     "vtcode-llm-types",
+    "vtcode-llm-gemini",
     "vtcode-markdown-store",
     "vtcode-mcp",
     "vtcode-indexer",

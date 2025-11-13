@@ -2,8 +2,7 @@
 
 use crate::config::models::ModelId;
 use crate::config::types::AgentConfig;
-use crate::gemini::models::SystemInstruction;
-use crate::gemini::{Content, GenerateContentRequest};
+use vtcode_llm_gemini::{Content, GenerateContentRequest, Part, SystemInstruction};
 use crate::llm::make_client;
 use crate::prompts::{generate_lightweight_instruction, read_system_prompt_from_md};
 use anyhow::Result;
@@ -61,7 +60,7 @@ pub async fn handle_ask_command(config: AgentConfig, prompt: Vec<String>) -> Res
                 .parts
                 .iter()
                 .map(|part| match part {
-                    crate::gemini::Part::Text { text } => text.clone(),
+                    Part::Text { text } => text.clone(),
                     _ => String::new(),
                 })
                 .collect::<Vec<_>>()
