@@ -32,6 +32,7 @@ members = [
     "vtcode-commons",
     "vtcode-config",
     "vtcode-llm",
+    "vtcode-llm-openrouter",
     "vtcode-markdown-store",
     "vtcode-indexer",
     "vtcode-tools",

@@ -64,7 +64,7 @@ pub use vtcode_core::llm::providers::OllamaProvider;
 #[cfg(feature = "openai")]
 pub use vtcode_core::llm::providers::OpenAIProvider;
 #[cfg(feature = "openrouter")]
-pub use vtcode_core::llm::providers::OpenRouterProvider;
+pub use vtcode_llm_openrouter::OpenRouterProvider;
 #[cfg(feature = "xai")]
 pub use vtcode_core::llm::providers::XAIProvider;
 #[cfg(feature = "zai")]
@@ -92,7 +92,7 @@ pub mod providers {
     #[cfg(feature = "openai")]
     pub use vtcode_core::llm::providers::openai::*;
     #[cfg(feature = "openrouter")]
-    pub use vtcode_core::llm::providers::openrouter::*;
+    pub use vtcode_llm_openrouter::*;
     #[cfg(feature = "xai")]
     pub use vtcode_core::llm::providers::xai::*;
     #[cfg(feature = "zai")]

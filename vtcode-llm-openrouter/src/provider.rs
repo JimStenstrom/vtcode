@@ -1,15 +1,15 @@
-use crate::config::constants::{env_vars, models, urls};
-use crate::config::core::{OpenRouterPromptCacheSettings, PromptCachingConfig};
-use crate::config::models::{ModelId, Provider};
-use crate::config::types::ReasoningEffortLevel;
-use crate::llm::client::LLMClient;
-use crate::llm::error_display;
-use crate::llm::provider::{
+use vtcode_config::constants::{env_vars, models, urls};
+use vtcode_config::core::{OpenRouterPromptCacheSettings, PromptCachingConfig};
+use vtcode_config::models::{ModelId, Provider};
+use vtcode_config::types::ReasoningEffortLevel;
+use vtcode_core::llm::client::LLMClient;
+use vtcode_core::llm::error_display;
+use vtcode_core::llm::provider::{
     FinishReason, LLMError, LLMProvider, LLMRequest, LLMResponse, LLMStream, LLMStreamEvent,
     Message, MessageContent, MessageRole, ToolCall, ToolChoice, ToolDefinition, Usage,
 };
-use crate::llm::rig_adapter::reasoning_parameters_for;
-use crate::llm::types as llm_types;
+use vtcode_core::llm::rig_adapter::reasoning_parameters_for;
+use vtcode_core::llm::types as llm_types;
 use async_stream::try_stream;
 use async_trait::async_trait;
 use futures::StreamExt;
@@ -20,16 +20,15 @@ use std::str::FromStr;
 #[cfg(debug_assertions)]
 use tracing::debug;
 
-use super::{
-    ReasoningBuffer,
-    common::{extract_prompt_cache_settings, override_base_url, resolve_model},
-    extract_reasoning_trace, gpt5_codex_developer_prompt,
-    shared::{
-        StreamAssemblyError, StreamDelta, StreamFragment, StreamTelemetry, ToolCallBuilder,
-        append_text_with_reasoning, apply_tool_call_delta_from_content, extract_data_payload,
-        finalize_tool_calls, find_sse_boundary, update_tool_calls,
-    },
-    split_reasoning_from_text,
+use crate::reasoning::{
+    ReasoningBuffer, extract_reasoning_trace, split_reasoning_from_text,
+};
+use crate::common::{extract_prompt_cache_settings, override_base_url, resolve_model};
+use crate::codex_prompt::gpt5_codex_developer_prompt;
+use crate::shared::{
+    StreamAssemblyError, StreamDelta, StreamFragment, StreamTelemetry, ToolCallBuilder,
+    append_text_with_reasoning, apply_tool_call_delta_from_content, extract_data_payload,
+    finalize_tool_calls, find_sse_boundary, update_tool_calls,
 };
 
 #[derive(Default)]
