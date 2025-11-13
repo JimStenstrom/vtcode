@@ -507,11 +507,16 @@ Based on the duplication analysis, here's the recommended phase-by-phase approac
 
 ### Code Quality
 
-- [ ] Provider code duplication <10% (currently 22-26%)
-- [ ] All providers use shared abstractions
-- [ ] Zero circular dependencies (maintain)
-- [ ] 100% backward compatibility
-- [ ] All providers have unit tests
+- [ ] **Line Reduction Targets** (Specific, Measurable):
+  - [ ] Constructor code: Eliminate 550 lines by applying `impl_provider_constructors!` macro
+  - [ ] Message serialization: Reduce by 400-500 lines through shared `MessageConverter` abstraction
+  - [ ] Tool serialization: Reduce by 250-350 lines through shared `ToolSerializer` abstraction
+  - [ ] Error handling: Reduce by 150-200 lines through shared `ErrorMapper` abstraction
+  - [ ] **Total target: 1,350-1,600 lines saved** (measured via `git diff --stat`)
+- [ ] All providers use shared abstractions (verify with code review)
+- [ ] Zero circular dependencies (maintain - verify with `cargo tree`)
+- [ ] 100% backward compatibility (verify with integration tests)
+- [ ] All providers have unit tests (minimum 3 tests per provider)
 
 ### Documentation
 
