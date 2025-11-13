@@ -5,6 +5,43 @@ use anyhow::{Error, Result};
 
 use crate::{ErrorReporter, TelemetrySink, WorkspacePaths};
 
+/// Generic in-memory buffer that stores items for later retrieval.
+///
+/// This helper is used by both [`MemoryTelemetry`] and [`MemoryErrorReporter`]
+/// to eliminate code duplication. It provides thread-safe storage with a
+/// drain-on-take semantic.
+#[derive(Debug, Clone)]
+struct MemoryBuffer<T> {
+    items: Arc<Mutex<Vec<T>>>,
+}
+
+impl<T> Default for MemoryBuffer<T> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<T> MemoryBuffer<T> {
+    /// Creates a new empty buffer.
+    fn new() -> Self {
+        Self {
+            items: Arc::new(Mutex::new(Vec::new())),
+        }
+    }
+
+    /// Adds an item to the buffer.
+    fn push(&self, item: T) {
+        let mut items = self.items.lock().expect("memory buffer lock poisoned");
+        items.push(item);
+    }
+
+    /// Returns all items, draining the buffer.
+    fn take(&self) -> Vec<T> {
+        let mut items = self.items.lock().expect("memory buffer lock poisoned");
+        std::mem::take(&mut *items)
+    }
+}
+
 /// Reference implementation of [`WorkspacePaths`] backed by static [`PathBuf`]s.
 ///
 /// This is useful for adopters who want to drive the extracted crates from an
@@ -71,21 +108,20 @@ impl WorkspacePaths for StaticWorkspacePaths {
 /// [`MemoryTelemetry::take`].
 #[derive(Debug, Default, Clone)]
 pub struct MemoryTelemetry<Event> {
-    events: Arc<Mutex<Vec<Event>>>,
+    buffer: MemoryBuffer<Event>,
 }
 
 impl<Event> MemoryTelemetry<Event> {
     /// Creates a new memory-backed telemetry sink.
     pub fn new() -> Self {
         Self {
-            events: Arc::new(Mutex::new(Vec::new())),
+            buffer: MemoryBuffer::new(),
         }
     }
 
     /// Returns the recorded events, draining the internal buffer.
     pub fn take(&self) -> Vec<Event> {
-        let mut events = self.events.lock().expect("telemetry poisoned");
-        std::mem::take(&mut *events)
+        self.buffer.take()
     }
 }
 
@@ -94,8 +130,7 @@ where
     Event: Clone + Send + Sync,
 {
     fn record(&self, event: &Event) -> Result<()> {
-        let mut events = self.events.lock().expect("telemetry poisoned");
-        events.push(event.clone());
+        self.buffer.push(event.clone());
         Ok(())
     }
 }
@@ -107,28 +142,26 @@ where
 /// Callers can retrieve captured messages via [`MemoryErrorReporter::take`].
 #[derive(Debug, Default, Clone)]
 pub struct MemoryErrorReporter {
-    messages: Arc<Mutex<Vec<String>>>,
+    buffer: MemoryBuffer<String>,
 }
 
 impl MemoryErrorReporter {
     /// Creates a new memory-backed error reporter.
     pub fn new() -> Self {
         Self {
-            messages: Arc::new(Mutex::new(Vec::new())),
+            buffer: MemoryBuffer::new(),
         }
     }
 
     /// Returns the captured error messages, draining the buffer.
     pub fn take(&self) -> Vec<String> {
-        let mut messages = self.messages.lock().expect("reporter poisoned");
-        std::mem::take(&mut *messages)
+        self.buffer.take()
     }
 }
 
 impl ErrorReporter for MemoryErrorReporter {
     fn capture(&self, error: &Error) -> Result<()> {
-        let mut messages = self.messages.lock().expect("reporter poisoned");
-        messages.push(format!("{error:?}"));
+        self.buffer.push(format!("{error:?}"));
         Ok(())
     }
 }
