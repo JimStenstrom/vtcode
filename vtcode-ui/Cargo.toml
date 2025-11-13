@@ -1,0 +1,80 @@
+[package]
+name = "vtcode-ui"
+version = "0.43.6"
+edition = "2024"
+authors = ["vinhnx <vinhnx@users.noreply.github.com>"]
+description = "Terminal UI components for VTCode"
+license = "MIT"
+readme = "../README.md"
+homepage = "https://github.com/vinhnx/vtcode"
+repository = "https://github.com/vinhnx/vtcode"
+documentation = "https://docs.rs/vtcode-ui"
+keywords = ["tui", "terminal", "ui", "ratatui"]
+categories = ["development-tools", "command-line-interface"]
+
+[dependencies]
+# Core dependencies
+anyhow = "1.0"
+thiserror = "2.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tokio = { version = "1.48", features = ["sync"] }
+futures = "0.3"
+
+# Terminal & TUI
+crossterm = "0.29.0"
+ratatui = { version = "0.29", default-features = false, features = [
+    "crossterm",
+    "unstable-rendered-line-info",
+    "unstable-widget-ref",
+] }
+tui-popup = "0.6"
+tui-prompts = "0.5"
+terminal_size = "0.4.3"
+vt100 = "0.15.2"
+portable-pty = "0.9.0"
+ansi-to-tui = "7.0.0"
+vte = "0.15"
+
+# ANSI styling
+anstyle = "1.0"
+anstyle-parse = "0.2"
+anstyle-git = "1.1"
+anstyle-ls = "1.0"
+anstyle-crossterm = "4.0"
+anstyle-query = "1.0"
+anstream = "0.6"
+anstyle-syntect = "1.0"
+colorchoice-clap = "1.0"
+
+# Syntax highlighting and markdown
+syntect = "5.2"
+pulldown-cmark = { version = "0.13", default-features = false, features = ["simd"] }
+
+# Search and fuzzy matching
+perg = "0.8.0"
+nucleo-matcher = "0.3"
+
+# Theming
+catppuccin = { version = "2.5", default-features = false }
+
+# Utilities
+unicode-segmentation = "1.11"
+unicode-width = "0.2.0"
+line-clipping = "0.3"
+dissimilar = "1.0"
+regex = "1.12"
+itertools = "0.14.0"
+indexmap = { version = "2.12", features = ["serde"] }
+textwrap = "0.16"
+
+# VTCode dependencies
+vtcode-commons = { path = "../vtcode-commons", version = "0.43.6" }
+
+[dev-dependencies]
+assert_fs = "1.1"
+tempfile = "3.0"
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
