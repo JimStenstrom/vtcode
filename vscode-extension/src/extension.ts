@@ -3,6 +3,7 @@ import * as vscode from "vscode";
 import { ChatViewProvider } from "./chatView";
 import { registerVtcodeLanguageFeatures } from "./languageFeatures";
 import { VtcodeBackend } from "./vtcodeBackend";
+import { ConfigLimits } from "./configLimits";
 import { CommandRegistry } from "./commandRegistry";
 import { ParticipantRegistry } from "./participantRegistry";
 import {
@@ -148,7 +149,8 @@ let chatViewProviderInstance: ChatViewProvider | undefined;
 let activationContext: vscode.ExtensionContext | undefined;
 let lastProviderModelWarningKey: string | undefined;
 
-const CLI_DETECTION_TIMEOUT_MS = 4000;
+// Moved to ConfigLimits: CLI_DETECTION_TIMEOUT_MS, MAX_IDE_CONTEXT_CHARS,
+// MAX_FULL_DOCUMENT_CONTEXT_LINES, ACTIVE_EDITOR_CONTEXT_WINDOW, MAX_VISIBLE_EDITOR_CONTEXTS
 const VT_CODE_CHAT_PARTICIPANT_ID = "vtcode.agent";
 const VT_CODE_UPDATE_PLAN_TOOL = "vtcode-updatePlan";
 const VT_CODE_MCP_PROVIDER_ID = "vtcode.workspaceMcp";
@@ -163,10 +165,6 @@ let ideContextBridge: IdeContextFileBridge | undefined;
 
 const IDE_CONTEXT_ENV_VARIABLE = "VT_VSCODE_CONTEXT_FILE";
 const IDE_CONTEXT_HEADER = "## VS Code Context";
-const MAX_IDE_CONTEXT_CHARS = 6000;
-const MAX_FULL_DOCUMENT_CONTEXT_LINES = 400;
-const ACTIVE_EDITOR_CONTEXT_WINDOW = 80;
-const MAX_VISIBLE_EDITOR_CONTEXTS = 3;
 
 export function activate(context: vscode.ExtensionContext) {
     activationContext = context;
@@ -1531,7 +1529,7 @@ async function detectCliAvailability(commandPath: string): Promise<boolean> {
             const timer = setTimeout(() => {
                 child.kill();
                 complete(false);
-            }, CLI_DETECTION_TIMEOUT_MS);
+            }, ConfigLimits.cliDetectionTimeoutMs);
 
             child.on("error", () => {
                 clearTimeout(timer);
@@ -2633,7 +2631,7 @@ async function buildVisibleEditorContextSections(
     const activeUri = activeEditor?.document.uri.toString();
 
     for (const editor of vscode.window.visibleTextEditors) {
-        if (sections.length >= MAX_VISIBLE_EDITOR_CONTEXTS) {
+        if (sections.length >= ConfigLimits.maxVisibleEditorContexts) {
             break;
         }
 
@@ -2834,16 +2832,18 @@ function computeActiveEditorRange(
         return undefined;
     }
 
-    if (document.lineCount <= MAX_FULL_DOCUMENT_CONTEXT_LINES) {
+    const maxFullDocLines = ConfigLimits.maxFullDocumentLines;
+    if (document.lineCount <= maxFullDocLines) {
         const lastLineIndex = Math.max(0, document.lineCount - 1);
         const endPosition = document.lineAt(lastLineIndex).range.end;
         return new vscode.Range(new vscode.Position(0, 0), endPosition);
     }
 
     const activeLine = editor.selection.active.line;
+    const contextWindow = ConfigLimits.activeEditorContextWindow;
     const halfWindow = Math.max(
         1,
-        Math.floor(ACTIVE_EDITOR_CONTEXT_WINDOW / 2)
+        Math.floor(contextWindow / 2)
     );
     const startLine = Math.max(0, activeLine - halfWindow);
     const endLine = Math.min(document.lineCount - 1, activeLine + halfWindow);
@@ -2870,12 +2870,13 @@ function extractDocumentContext(
 
     if (!targetRange) {
         const totalLines = document.lineCount;
+        const maxFullDocLines = ConfigLimits.maxFullDocumentLines;
         const endLineIndex =
-            Math.min(totalLines, MAX_FULL_DOCUMENT_CONTEXT_LINES) - 1;
+            Math.min(totalLines, maxFullDocLines) - 1;
         const endPosition = document.lineAt(Math.max(0, endLineIndex)).range
             .end;
         targetRange = new vscode.Range(new vscode.Position(0, 0), endPosition);
-        if (totalLines > MAX_FULL_DOCUMENT_CONTEXT_LINES) {
+        if (totalLines > maxFullDocLines) {
             truncated = true;
         }
     }
@@ -2886,7 +2887,7 @@ function extractDocumentContext(
         return undefined;
     }
 
-    const limited = truncateForPrompt(normalized, MAX_IDE_CONTEXT_CHARS);
+    const limited = truncateForPrompt(normalized, ConfigLimits.maxIdeContextChars);
     return {
         text: limited.text,
         range: targetRange,

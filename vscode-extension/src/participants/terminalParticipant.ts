@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
 import { BaseParticipant, type ParticipantContext } from "../types/participant";
+import { ConfigLimits } from "../configLimits";
 
 /**
  * Terminal participant provides terminal context and recent command history
@@ -16,36 +17,43 @@ export class TerminalParticipant extends BaseParticipant {
     }
 
     async resolveReferenceContext(message: string, context: ParticipantContext): Promise<string> {
-        return this.buildContextualMessage(
-            message,
-            context,
-            (ctx) => ctx.terminal,
-            (terminal) => {
-                // Build terminal context
-                let terminalContext = `\n\n## Terminal Context\n`;
-                terminalContext += `Working directory: ${terminal.cwd}\n`;
-                terminalContext += `Shell: ${terminal.shell || 'default'}\n`;
+        if (!this.extractMention(message, this.id)) {
+            return message;
+        }
 
-                // Add recent output if available
-                if (terminal.output) {
-                    const outputLines = terminal.output.split('\n');
-                    const recentOutput = outputLines.slice(-20).join('\n'); // Last 20 lines
-                    if (recentOutput.trim()) {
-                        terminalContext += `\nRecent terminal output:\n\`\`\`\n${recentOutput}\n\`\`\`\n`;
-                    }
-                }
+        const terminal = context.terminal;
+        if (!terminal) {
+            return message;
+        }
 
-                // Add command history if available
-                if (context.commandHistory && context.commandHistory.length > 0) {
-                    const recentCommands = context.commandHistory.slice(-5); // Last 5 commands
-                    terminalContext += `\nRecent commands:\n`;
-                    recentCommands.forEach((cmd, index) => {
-                        terminalContext += `${index + 1}. ${cmd}\n`;
-                    });
-                }
+        // Clean the message first
+        const cleanedMessage = this.cleanMessage(message, this.id);
 
-                return terminalContext;
+        // Build terminal context
+        let terminalContext = `\n\n## Terminal Context\n`;
+        terminalContext += `Working directory: ${terminal.cwd}\n`;
+        terminalContext += `Shell: ${terminal.shell || 'default'}\n`;
+
+        // Add recent output if available
+        if (terminal.output) {
+            const outputLines = terminal.output.split('\n');
+            const maxOutputLines = ConfigLimits.terminalOutputLines;
+            const recentOutput = outputLines.slice(-maxOutputLines).join('\n');
+            if (recentOutput.trim()) {
+                terminalContext += `\nRecent terminal output (last ${maxOutputLines} lines):\n\`\`\`\n${recentOutput}\n\`\`\`\n`;
             }
-        );
+        }
+
+        // Add command history if available
+        if (context.commandHistory && context.commandHistory.length > 0) {
+            const maxCommands = ConfigLimits.terminalHistoryCommands;
+            const recentCommands = context.commandHistory.slice(-maxCommands);
+            terminalContext += `\nRecent commands (last ${maxCommands}):\n`;
+            recentCommands.forEach((cmd, index) => {
+                terminalContext += `${index + 1}. ${cmd}\n`;
+            });
+        }
+
+        return `${cleanedMessage}${terminalContext}`;
     }
 }

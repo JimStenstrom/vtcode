@@ -1,4 +1,5 @@
 import * as vscode from "vscode";
+import { ConfigLimits } from "./configLimits";
 import type { VtcodeTerminalOutputEvent } from "./agentTerminal";
 
 interface RouteRecord {
@@ -28,8 +29,7 @@ interface TrajectoryTurn {
     readonly timestamp?: number;
 }
 
-const MAX_LOG_LINES = 2000;
-const MAX_TURNS = 50;
+// Moved to ConfigLimits: MAX_LOG_LINES and MAX_TURNS
 const decoder = new TextDecoder("utf-8");
 
 class TrajectoryTreeDataProvider
@@ -429,7 +429,8 @@ function parseTrajectoryLog(text: string): TrajectoryTurn[] {
         .split(/\r?\n/)
         .map((line) => line.trim())
         .filter((line) => line.length > 0);
-    const recentLines = lines.slice(-MAX_LOG_LINES);
+    const maxLines = ConfigLimits.trajectoryMaxLogLines;
+    const recentLines = lines.slice(-maxLines);
 
     const turnOrder: TrajectoryTurn[] = [];
     const turnMap = new Map<number, TrajectoryTurn>();
@@ -466,9 +467,10 @@ function parseTrajectoryLog(text: string): TrajectoryTurn[] {
         turn.tools.sort((a, b) => (a.ts ?? 0) - (b.ts ?? 0));
     }
 
+    const maxTurns = ConfigLimits.trajectoryMaxTurns;
     return turnOrder
         .sort((a, b) => b.turn - a.turn)
-        .slice(0, MAX_TURNS);
+        .slice(0, maxTurns);
 }
 
 function parseTrajectoryLine(line: string): TrajectoryRecord | undefined {
