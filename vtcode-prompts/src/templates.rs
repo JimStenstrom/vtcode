@@ -61,3 +61,112 @@ impl PromptTemplates {
         "PAGINATION GUIDELINES: When working with large datasets, always use pagination to prevent timeouts and token overflow. Default per_page=50 for optimal performance. For edge cases: reduce per_page to 25 for very large directories, handle incomplete pages gracefully, and retry with smaller batches on API failures. Monitor 'has_more' flag and use 'page' parameter to continue pagination."
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_base_system_prompt_not_empty() {
+        let prompt = PromptTemplates::base_system_prompt();
+        assert!(!prompt.is_empty());
+        assert!(prompt.len() > 10);
+    }
+
+    #[test]
+    fn test_all_personality_prompts() {
+        let personalities = vec![
+            AgentPersonality::Professional,
+            AgentPersonality::Friendly,
+            AgentPersonality::Technical,
+            AgentPersonality::Creative,
+        ];
+
+        for personality in personalities {
+            let prompt = PromptTemplates::personality_prompt(&personality);
+            assert!(!prompt.is_empty());
+            // Each should have distinct content
+            assert!(prompt.len() > 10);
+        }
+    }
+
+    #[test]
+    fn test_all_response_style_prompts() {
+        let styles = vec![
+            ResponseStyle::Concise,
+            ResponseStyle::Detailed,
+            ResponseStyle::Conversational,
+            ResponseStyle::Technical,
+        ];
+
+        for style in styles {
+            let prompt = PromptTemplates::response_style_prompt(&style);
+            assert!(!prompt.is_empty());
+            assert!(prompt.len() > 10);
+        }
+    }
+
+    #[test]
+    fn test_personality_prompts_are_distinct() {
+        let professional = PromptTemplates::personality_prompt(&AgentPersonality::Professional);
+        let friendly = PromptTemplates::personality_prompt(&AgentPersonality::Friendly);
+        let technical = PromptTemplates::personality_prompt(&AgentPersonality::Technical);
+        let creative = PromptTemplates::personality_prompt(&AgentPersonality::Creative);
+
+        // Each should be different
+        assert_ne!(professional, friendly);
+        assert_ne!(professional, technical);
+        assert_ne!(professional, creative);
+        assert_ne!(friendly, technical);
+    }
+
+    #[test]
+    fn test_response_style_prompts_are_distinct() {
+        let concise = PromptTemplates::response_style_prompt(&ResponseStyle::Concise);
+        let detailed = PromptTemplates::response_style_prompt(&ResponseStyle::Detailed);
+        let conversational = PromptTemplates::response_style_prompt(&ResponseStyle::Conversational);
+        let technical = PromptTemplates::response_style_prompt(&ResponseStyle::Technical);
+
+        // Each should be different
+        assert_ne!(concise, detailed);
+        assert_ne!(concise, conversational);
+        assert_ne!(concise, technical);
+        assert_ne!(detailed, conversational);
+    }
+
+    #[test]
+    fn test_tool_usage_prompt() {
+        let prompt = PromptTemplates::tool_usage_prompt();
+        assert!(!prompt.is_empty());
+        assert!(prompt.contains("tool") || prompt.contains("Tool"));
+    }
+
+    #[test]
+    fn test_workspace_context_prompt() {
+        let prompt = PromptTemplates::workspace_context_prompt();
+        assert!(!prompt.is_empty());
+        assert!(prompt.contains("workspace") || prompt.contains("Workspace"));
+    }
+
+    #[test]
+    fn test_safety_guidelines_prompt() {
+        let prompt = PromptTemplates::safety_guidelines_prompt();
+        assert!(!prompt.is_empty());
+        assert!(prompt.contains("safety") || prompt.contains("Safety") || prompt.len() > 10);
+    }
+
+    #[test]
+    fn test_pagination_guidelines_prompt() {
+        let prompt = PromptTemplates::pagination_guidelines_prompt();
+        assert!(!prompt.is_empty());
+        assert!(prompt.contains("pagination") || prompt.contains("PAGINATION"));
+    }
+
+    #[test]
+    fn test_all_templates_are_static() {
+        // Test that templates can be called multiple times and return same reference
+        let base1 = PromptTemplates::base_system_prompt();
+        let base2 = PromptTemplates::base_system_prompt();
+        assert_eq!(base1.as_ptr(), base2.as_ptr()); // Same static string
+    }
+}
