@@ -181,14 +181,12 @@ impl<K: Hash + Eq + Clone, V: Clone> TtlCache<K, V> {
 ///
 /// This cache uses the quick_cache library for high-performance caching
 /// with automatic LRU eviction.
-#[cfg(feature = "quick-cache")]
 pub struct SizedCache<K, V> {
     cache: quick_cache::sync::Cache<K, CacheEntry<V>>,
     max_size_bytes: usize,
     stats: std::sync::Arc<std::sync::Mutex<CacheStats>>,
 }
 
-#[cfg(feature = "quick-cache")]
 impl<K: Hash + Eq + Clone, V: Clone> SizedCache<K, V> {
     /// Create a new sized cache
     pub fn new(capacity: usize, max_size_bytes: usize) -> Self {
