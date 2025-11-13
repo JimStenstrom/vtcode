@@ -1,0 +1,34 @@
+[package]
+name = "vtcode-prompts"
+version = "0.43.6"
+edition = "2024"
+authors = ["vinhnx <vinhnx@users.noreply.github.com>"]
+description = "Prompt generation and management for VTCode"
+license = "MIT"
+readme = "../README.md"
+homepage = "https://github.com/vinhnx/vtcode"
+repository = "https://github.com/vinhnx/vtcode"
+documentation = "https://docs.rs/vtcode-prompts"
+keywords = ["ai", "prompts", "llm", "rust"]
+categories = ["development-tools"]
+
+[dependencies]
+# Core dependencies
+anyhow = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+serde_yaml = "0.9"
+tokio = { version = "1.48", features = ["fs"] }
+tracing = "0.1"
+
+# Workspace dependencies
+vtcode-commons = { path = "../vtcode-commons", version = "0.43.6" }
+vtcode-config = { path = "../vtcode-config", version = "0.43.6" }
+
+# Utilities
+shell-words = "1.1"
+dirs = "6.0"
+
+[dev-dependencies]
+tempfile = "3.0"
+tokio = { version = "1.48", features = ["macros", "rt-multi-thread"] }

@@ -122,6 +122,7 @@ ansi-to-tui = "7.0.0"
 vtcode-commons = { path = "../vtcode-commons", version = "0.43.6" }
 vtcode-exec-events = { path = "../vtcode-exec-events", version = "0.43.6" }
 vtcode-config = { path = "../vtcode-config", version = "0.43.6" }
+vtcode-prompts = { path = "../vtcode-prompts", version = "0.43.6" }
 vtcode-markdown-store = { path = "../vtcode-markdown-store", version = "0.43.6" }
 vtcode-indexer = { path = "../vtcode-indexer", version = "0.43.6" }
 
