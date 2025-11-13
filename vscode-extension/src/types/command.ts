@@ -1,4 +1,6 @@
 import * as vscode from "vscode";
+import { NotificationService } from "../utils/notificationService";
+import { getWorkspaceRoot as getWorkspaceRootUtil } from "../utils/workspaceUtils";
 
 /**
  * Context provided to commands during execution
@@ -55,19 +57,15 @@ export abstract class BaseCommand implements ICommand {
     public readonly description?: string;
     public readonly icon?: string;
     
-    protected getWorkspaceRoot(context: CommandContext): string | undefined {
-        if (context.activeTextEditor) {
-            const folder = vscode.workspace.getWorkspaceFolder(
-                context.activeTextEditor.document.uri
-            );
-            return folder?.uri.fsPath;
-        }
-        
-        const [firstWorkspace] = vscode.workspace.workspaceFolders ?? [];
-        return firstWorkspace?.uri.fsPath;
+    /**
+     * Get workspace root directory
+     * Uses centralized workspace utilities
+     */
+    protected getWorkspaceRoot(_context: CommandContext): string | undefined {
+        return getWorkspaceRootUtil();
     }
-    
-    protected ensureWorkspaceTrusted(context: CommandContext): boolean {
+
+    protected ensureWorkspaceTrusted(_context: CommandContext): boolean {
         if (!vscode.workspace.isTrusted) {
             void vscode.window.showWarningMessage(
                 "VTCode requires a trusted workspace to execute this command."
@@ -77,11 +75,19 @@ export abstract class BaseCommand implements ICommand {
         return true;
     }
     
-    protected ensureCliAvailable(context: CommandContext): boolean {
+    protected ensureCliAvailable(_context: CommandContext): boolean {
         // This will be implemented with proper CLI detection
         return true;
     }
-    
+
+    /**
+     * Handle command errors with consistent user messaging
+     * Eliminates duplicate handleCommandError methods across command files
+     */
+    protected handleError(context: string, error: unknown): void {
+        NotificationService.commandError(context, error);
+    }
+
     abstract execute(context: CommandContext): Promise<void>;
     
     canExecute(context: CommandContext): boolean {

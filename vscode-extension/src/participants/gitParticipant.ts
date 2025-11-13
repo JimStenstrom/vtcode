@@ -16,43 +16,38 @@ export class GitParticipant extends BaseParticipant {
     }
 
     async resolveReferenceContext(message: string, context: ParticipantContext): Promise<string> {
-        if (!this.extractMention(message, this.id)) {
-            return message;
-        }
+        return this.buildContextualMessage(
+            message,
+            context,
+            (ctx) => ctx.git,
+            (git) => {
+                // Build git context
+                let gitContext = `\n\n## Git Context\n`;
+                gitContext += `Branch: ${git.branch}\n`;
 
-        const git = context.git;
-        if (!git) {
-            return message;
-        }
+                if (git.repoPath) {
+                    gitContext += `Repository: ${git.repoPath}\n`;
+                }
 
-        // Clean the message first
-        const cleanedMessage = this.cleanMessage(message, this.id);
+                // Add change information
+                if (git.changes && git.changes.length > 0) {
+                    gitContext += `\nChanges in working directory:\n`;
+                    git.changes.forEach((change, index) => {
+                        gitContext += `${index + 1}. ${change}\n`;
+                    });
+                } else {
+                    gitContext += `\nWorking directory is clean (no changes)\n`;
+                }
 
-        // Build git context
-        let gitContext = `\n\n## Git Context\n`;
-        gitContext += `Branch: ${git.branch}\n`;
-        
-        if (git.repoPath) {
-            gitContext += `Repository: ${git.repoPath}\n`;
-        }
+                // Add git status summary
+                const statusSummary = this.getGitStatusSummary(git.changes);
+                if (statusSummary) {
+                    gitContext += `\nStatus: ${statusSummary}\n`;
+                }
 
-        // Add change information
-        if (git.changes && git.changes.length > 0) {
-            gitContext += `\nChanges in working directory:\n`;
-            git.changes.forEach((change, index) => {
-                gitContext += `${index + 1}. ${change}\n`;
-            });
-        } else {
-            gitContext += `\nWorking directory is clean (no changes)\n`;
-        }
-
-        // Add git status summary
-        const statusSummary = this.getGitStatusSummary(git.changes);
-        if (statusSummary) {
-            gitContext += `\nStatus: ${statusSummary}\n`;
-        }
-
-        return `${cleanedMessage}${gitContext}`;
+                return gitContext;
+            }
+        );
     }
 
     private getGitStatusSummary(changes: string[]): string | undefined {

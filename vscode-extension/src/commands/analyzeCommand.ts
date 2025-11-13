@@ -25,14 +25,7 @@ export class AnalyzeCommand extends BaseCommand {
                 "VTCode finished analyzing the workspace. Review the VTCode output channel for results."
             );
         } catch (error) {
-            this.handleCommandError("analyze the workspace", error);
+            this.handleError("analyze the workspace", error);
         }
-    }
-
-    private handleCommandError(context: string, error: unknown): void {
-        const message = error instanceof Error ? error.message : String(error);
-        void vscode.window.showErrorMessage(
-            `Failed to ${context} with VTCode: ${message}`
-        );
     }
 }

@@ -38,14 +38,7 @@ export class AskCommand extends BaseCommand {
                 "VTCode finished processing your request. Check the VTCode output channel for details."
             );
         } catch (error) {
-            this.handleCommandError("ask", error);
+            this.handleError("ask", error);
         }
-    }
-
-    private handleCommandError(context: string, error: unknown): void {
-        const message = error instanceof Error ? error.message : String(error);
-        void vscode.window.showErrorMessage(
-            `Failed to ${context} with VTCode: ${message}`
-        );
     }
 }
