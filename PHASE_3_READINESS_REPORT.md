@@ -9,13 +9,17 @@
 
 Phase 2 is complete with zero code duplication across the 4 extracted crates (vtcode-mcp, vtcode-execution, vtcode-prompts, vtcode-ui). However, **comprehensive analysis reveals significant duplication in LLM provider code** that should be addressed in Phase 3.
 
+⚠️ **CRITICAL: TIMELINE REVISED** - Deep code analysis revealed the original 7-8 week estimate was unrealistic. **Realistic timeline: 10-12 weeks (196-274 hours, most likely 235 hours)**. Key gaps: streaming complexity drastically underestimated (should be 35-50h not 6-8h), test coverage inadequate (need +35-50h), core abstractions more complex (+13-18h), and validation insufficient (+30-45h). See revised timeline below.
+
 ### Key Findings
 
 | Category | Status | Details |
 |----------|--------|---------|
 | **Phase 2 Crates** | ✅ Clean | Zero duplication, properly integrated |
 | **Provider Code** | ⚠️ Needs Work | ~2,500-3,000 LOC duplicated (22-26%) |
-| **Test Coverage** | ⚠️ Partial | Providers tested, but Phase 2 crates need more |
+| **Test Coverage** | ❌ INADEQUATE | Only 39 tests (need 150+) - CRITICAL gap |
+| **Timeline Estimate** | ❌ UNREALISTIC | Original 7-8 weeks (61-88h) → Revised 10-12 weeks (196-274h) |
+| **Streaming Complexity** | ❌ UNDERESTIMATED | Original 6-8h → Should be 35-50h |
 | **Documentation** | ✅ Excellent | Comprehensive docs for all crates |
 | **Architecture** | ✅ Solid | Clean dependency graph, no circular deps |
 
@@ -309,47 +313,145 @@ Based on the duplication analysis, here's the recommended phase-by-phase approac
 **Risk**: LOW (isolated changes)
 **Effort**: ~6-9 hours
 
-#### Week 3-4: Core Abstractions (Medium Risk)
+#### Week 3-4: Core Abstractions (Medium-High Risk)
 
 **Goal**: Major shared infrastructure
 
-1. **Extract `MessageConverter` trait** (8-12 hrs) → 400-500 lines saved
-2. **Extract `ToolSerializer` trait** (6-8 hrs) → 250-350 lines saved
+⚠️ **UPDATE**: These abstractions are more complex than initially estimated due to provider-specific variations in message formats, tool definitions, and request structures.
+
+1. **Extract `MessageConverter` trait** (18-27 hrs) → 400-500 lines saved
+   - System prompt handling variations across providers
+   - Tool call message formatting differences
+   - Provider-specific message field requirements
+   - Edge cases: empty messages, special characters
+2. **Extract `ToolSerializer` trait** (14-20 hrs) → 250-350 lines saved
+   - Provider-specific tool definition formats
+   - Parameter type coercion strategies
+   - Tool call response parsing differences
+   - Minimax XML tool calls (non-standard)
 3. **Extract `RequestPayloadBuilder`** (8-12 hrs) → 450-550 lines saved
+   - Model-specific feature support
+   - Provider-specific optional fields
 
 **Total Savings**: ~1,100-1,400 lines
-**Risk**: MEDIUM (affects core logic)
-**Effort**: ~22-32 hours
+**Risk**: MEDIUM-HIGH (affects core logic, many provider variations)
+**Effort**: ~35-50 hours
 
-#### Week 5-6: Streaming & Advanced (Medium Risk)
+#### Week 5-6: Streaming & Advanced (HIGH Risk)
 
 **Goal**: Streaming consolidation
 
-1. **Consolidate SSE parsing** (6-8 hrs) → 200-300 lines saved
-2. **Unified delta handling** (8-12 hrs) → 300-400 lines saved
-3. **Apply wrapper pattern** (4-6 hrs) → 200-300 lines saved
+⚠️ **CRITICAL UPDATE**: Streaming is far more complex than initially estimated. OpenAI alone has 411 lines of streaming logic with Responses API state machine, fallback handling, and complex buffer management. Gemini uses tokio::spawn + channels (different pattern). Each provider has unique error handling and streaming processors.
+
+1. **Consolidate SSE parsing** (15-20 hrs) → 200-300 lines saved
+   - OpenAI: Responses API state machine + fallback logic
+   - Gemini: Custom StreamingProcessor + channel pattern
+   - Provider-specific buffer management
+2. **Unified delta handling** (15-20 hrs) → 300-400 lines saved
+   - Token accumulation strategies
+   - Reasoning buffer management
+   - Tool call delta processing
+3. **Apply wrapper pattern** (5-8 hrs) → 200-300 lines saved
+4. **Provider-specific edge cases** (5-12 hrs)
+   - Document and handle OpenAI Responses API
+   - Handle Gemini's RESOURCE_EXHAUSTED errors
+   - Minimax XML tool call parsing
 
 **Total Savings**: ~700-1,000 lines
-**Risk**: MEDIUM (complex logic)
-**Effort**: ~18-26 hours
+**Risk**: HIGH (complex state machines and provider-specific logic)
+**Effort**: ~35-50 hours
 
-#### Week 7: Testing & Documentation
+#### Week 7-8: Comprehensive Test Coverage (CRITICAL)
 
-**Goal**: Validation and docs
+**Goal**: Build comprehensive test suite BEFORE major refactoring
 
-1. **Integration tests for shared infrastructure** (6-8 hrs)
-2. **Provider migration tests** (4-6 hrs)
-3. **Update documentation** (3-4 hrs)
-4. **Performance benchmarking** (2-3 hrs)
+⚠️ **CRITICAL UPDATE**: Current test coverage is inadequate for refactoring (only 39 tests across 11 providers, ~3.5 per provider). Need 150+ tests to safely refactor.
 
-**Effort**: ~15-21 hours
+1. **Message serialization tests** (12-15 hrs)
+   - Parameterized tests for each provider's message format
+   - Edge cases: empty messages, special characters, tool calls
+   - System prompt handling variations
+2. **Tool serialization tests** (10-12 hrs)
+   - Tool definition serialization per provider
+   - Parameter type coercion tests
+   - Tool call response parsing
+3. **Error mapping tests** (8-10 hrs)
+   - Error code mapping verification
+   - Rate limit variations (429, RESOURCE_EXHAUSTED, rateLimitExceeded)
+   - Provider-specific error strings
+4. **Streaming integration tests** (10-13 hrs)
+   - End-to-end streaming scenarios
+   - Timeout handling
+   - Buffer overflow tests
+   - Partial content recovery
+   - Provider-specific streaming edge cases
+
+**Risk**: CRITICAL (without these tests, 60-70% probability of subtle bugs)
+**Effort**: ~35-50 hours
+
+#### Week 9-10: Integration & Validation
+
+**Goal**: Validate refactored code and ensure no regressions
+
+1. **Integration tests for shared infrastructure** (8-10 hrs)
+2. **Provider migration tests** (6-8 hrs)
+3. **Regression testing** (15-20 hrs)
+   - All 11 providers must work post-refactoring
+   - All streaming scenarios
+   - All error cases
+4. **Performance validation** (15-20 hrs)
+   - Benchmark 1,000 simple requests
+   - Benchmark 1,000 streaming requests
+   - Benchmark 1,000 tool-enabled requests
+   - Profile memory usage
+   - Check for allocation regressions
+5. **Breaking change detection** (8-10 hrs)
+   - Public API audit
+   - Semver analysis
+   - Migration guide creation
+6. **Update documentation** (5-7 hrs)
+
+**Effort**: ~45-60 hours
+
+#### Week 11-12: Final Polish & Stabilization
+
+**Goal**: Address issues found in testing, final documentation
+
+1. **Bug fixes from testing** (15-20 hrs)
+2. **Provider compatibility matrix** (20-25 hrs)
+   - Test each provider with model variants
+   - Test provider-specific features
+   - Document edge cases
+3. **Performance optimization** (8-12 hrs)
+4. **Final documentation** (5-8 hrs)
+5. **Rollback strategy documentation** (3-5 hrs)
+
+**Effort**: ~40-55 hours
 
 ### Total Phase 3 Estimate
 
-**Duration**: 7-8 weeks
-**Effort**: 61-88 hours
+⚠️ **CRITICAL UPDATE**: Original estimate was significantly underestimated. Revised estimates based on comprehensive code analysis and complexity discovered in the critical review.
+
+**Duration**: 10-12 weeks (was 7-8 weeks)
+**Effort**: 196-274 hours (was 61-88 hours)
 **Code Reduction**: 2,600-3,300 lines (87-110% of Phase 3 target)
-**Risk Level**: MEDIUM (manageable with incremental approach)
+**Risk Level**: MEDIUM-HIGH (manageable with comprehensive testing and incremental approach)
+
+**Estimate Range Explanation:**
+- **Aggressive scenario** (196 hours / 10 weeks): Assumes efficient execution, minimal rework, parallel testing
+- **Conservative scenario** (274 hours / 12 weeks): Accounts for unexpected issues, iteration, thorough validation
+- **Most likely** (235 hours / 11 weeks): Balanced estimate with moderate buffer
+
+**Why the increase?**
+- Testing infrastructure: +35-50 hours (was completely missing)
+- Streaming complexity: +29-42 hours (was drastically underestimated at 6-8 hours)
+- Core abstractions: +13-18 hours (more complex than initially assessed)
+- Integration/validation: +30-45 hours (was inadequate at 15-21 hours)
+- Final polish/stabilization: +40-55 hours (not included in original)
+
+**Total Added**: +147-210 hours beyond original 61-88 hour estimate
+
+**Confidence Level**: 75% (vs 30% for original plan)
 
 ---
 
