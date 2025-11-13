@@ -68,24 +68,14 @@ struct BotActivity {
 }
 
 impl MicrosoftProvider {
-    pub fn new(secret: String) -> Self {
-        Self::from_config(Some(secret), None, None, None)
-    }
+    impl_provider_constructors!(default_model: models::microsoft::DEFAULT_MODEL, resolve_fn: resolve_model);
 
-    pub fn with_model(secret: String, model: String) -> Self {
-        Self::from_config(Some(secret), Some(model), None, None)
-    }
-
-    pub fn from_config(
-        secret: Option<String>,
-        model: Option<String>,
-        base_url: Option<String>,
+    fn with_model_internal(
+        api_key: String,
+        model: String,
         _prompt_cache: Option<PromptCachingConfig>,
+        base_url: Option<String>,
     ) -> Self {
-        let resolved_secret = secret.unwrap_or_else(|| {
-            std::env::var("MICROSOFT_DIRECTLINE_SECRET").unwrap_or_default()
-        });
-        let resolved_model = resolve_model(model, models::microsoft::DEFAULT_MODEL);
         let resolved_base_url = override_base_url(
             urls::MICROSOFT_DIRECTLINE_API_BASE,
             base_url,
@@ -98,9 +88,9 @@ impl MicrosoftProvider {
             .unwrap_or_default();
 
         Self {
-            secret: resolved_secret,
+            secret: api_key,
             base_url: resolved_base_url,
-            model: resolved_model,
+            model,
             http_client,
         }
     }
