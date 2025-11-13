@@ -131,6 +131,18 @@ pub mod models {
         pub const GLM_4_32B_0414_128K: &str = "glm-4-32b-0414-128k";
     }
 
+    // Microsoft Direct Line v3 models (Bot Framework / M365 Copilot)
+    pub mod microsoft {
+        pub const DEFAULT_MODEL: &str = "copilot-m365";
+        pub const SUPPORTED_MODELS: &[&str] = &[
+            "copilot-m365",
+            "bot-framework",
+        ];
+
+        pub const COPILOT_M365: &str = "copilot-m365";
+        pub const BOT_FRAMEWORK: &str = "bot-framework";
+    }
+
     // Moonshot.ai models (direct API)
     pub mod moonshot {
         pub const DEFAULT_MODEL: &str = "kimi-k2-turbo-preview";
@@ -675,6 +687,7 @@ pub mod urls {
     pub const LMSTUDIO_API_BASE: &str = "http://localhost:1234/v1";
     pub const OLLAMA_API_BASE: &str = "http://localhost:11434";
     pub const OLLAMA_CLOUD_API_BASE: &str = "https://ollama.com";
+    pub const MICROSOFT_DIRECTLINE_API_BASE: &str = "https://directline.botframework.com/v3/directline";
 }
 
 /// Environment variable names for overriding provider base URLs
@@ -690,6 +703,7 @@ pub mod env_vars {
     pub const LMSTUDIO_BASE_URL: &str = "LMSTUDIO_BASE_URL";
     pub const OLLAMA_BASE_URL: &str = "OLLAMA_BASE_URL";
     pub const MINIMAX_BASE_URL: &str = "MINIMAX_BASE_URL";
+    pub const MICROSOFT_DIRECTLINE_BASE_URL: &str = "MICROSOFT_DIRECTLINE_BASE_URL";
 }
 
 /// HTTP header constants for provider integrations

@@ -1839,6 +1839,41 @@
             }
         }
     },
+    "microsoft": {
+        "id": "microsoft",
+        "env": ["MICROSOFT_DIRECTLINE_SECRET"],
+        "api": "https://directline.botframework.com/v3/directline",
+        "name": "Microsoft Direct Line",
+        "doc": "https://docs.microsoft.com/en-us/azure/bot-service/rest-api/bot-framework-rest-direct-line-3-0-concepts",
+        "models": {
+            "copilot-m365": {
+                "id": "copilot-m365",
+                "name": "Microsoft 365 Copilot",
+                "description": "Microsoft 365 Enterprise Copilot via Direct Line v3",
+                "reasoning": false,
+                "tool_call": false,
+                "modalities": {
+                    "input": ["text"],
+                    "output": ["text"]
+                },
+                "context": 4096,
+                "note": "Requires Direct Line secret from Azure Bot Service. Supports conversational interactions with M365 Copilot through Bot Framework."
+            },
+            "bot-framework": {
+                "id": "bot-framework",
+                "name": "Bot Framework Bot",
+                "description": "Generic Bot Framework bot via Direct Line v3",
+                "reasoning": false,
+                "tool_call": false,
+                "modalities": {
+                    "input": ["text"],
+                    "output": ["text"]
+                },
+                "context": 4096,
+                "note": "Connect to any bot registered with Azure Bot Service using Direct Line protocol."
+            }
+        }
+    },
     "lmstudio": {
         "id": "lmstudio",
         "env": ["LMSTUDIO_API_KEY (optional)", "LMSTUDIO_BASE_URL (optional)"],

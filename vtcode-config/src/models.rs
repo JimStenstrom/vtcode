@@ -46,6 +46,8 @@ pub enum Provider {
     XAI,
     /// Z.AI GLM models
     ZAI,
+    /// Microsoft Direct Line v3 (Bot Framework / M365 Copilot)
+    Microsoft,
 }
 
 impl Provider {
@@ -62,6 +64,7 @@ impl Provider {
             Provider::Moonshot => "MOONSHOT_API_KEY",
             Provider::XAI => "XAI_API_KEY",
             Provider::ZAI => "ZAI_API_KEY",
+            Provider::Microsoft => "MICROSOFT_DIRECTLINE_SECRET",
         }
     }
 
@@ -78,6 +81,7 @@ impl Provider {
             Provider::Moonshot,
             Provider::XAI,
             Provider::ZAI,
+            Provider::Microsoft,
         ]
     }
 
@@ -94,6 +98,7 @@ impl Provider {
             Provider::Moonshot => "Moonshot",
             Provider::XAI => "xAI",
             Provider::ZAI => "Z.AI",
+            Provider::Microsoft => "Microsoft Direct Line",
         }
     }
 
@@ -117,6 +122,7 @@ impl Provider {
             Provider::Moonshot => model == models::moonshot::KIMI_K2_THINKING,
             Provider::XAI => model == models::xai::GROK_4 || model == models::xai::GROK_4_CODE,
             Provider::ZAI => model == models::zai::GLM_4_6,
+            Provider::Microsoft => false,
         }
     }
 }
@@ -134,6 +140,7 @@ impl fmt::Display for Provider {
             Provider::Moonshot => write!(f, "moonshot"),
             Provider::XAI => write!(f, "xai"),
             Provider::ZAI => write!(f, "zai"),
+            Provider::Microsoft => write!(f, "microsoft"),
         }
     }
 }
@@ -153,6 +160,7 @@ impl FromStr for Provider {
             "moonshot" => Ok(Provider::Moonshot),
             "xai" => Ok(Provider::XAI),
             "zai" => Ok(Provider::ZAI),
+            "microsoft" => Ok(Provider::Microsoft),
             _ => Err(ModelParseError::InvalidProvider(s.to_string())),
         }
     }

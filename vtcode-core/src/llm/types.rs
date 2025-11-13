@@ -12,6 +12,7 @@ pub enum BackendKind {
     XAI,
     ZAI,
     Moonshot,
+    Microsoft,
 }
 
 /// Unified LLM response structure

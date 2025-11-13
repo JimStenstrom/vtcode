@@ -1,6 +1,7 @@
 use super::providers::{
-    AnthropicProvider, DeepSeekProvider, GeminiProvider, LmStudioProvider, MinimaxProvider,
-    MoonshotProvider, OllamaProvider, OpenAIProvider, OpenRouterProvider, XAIProvider, ZAIProvider,
+    AnthropicProvider, DeepSeekProvider, GeminiProvider, LmStudioProvider, MicrosoftProvider,
+    MinimaxProvider, MoonshotProvider, OllamaProvider, OpenAIProvider, OpenRouterProvider,
+    XAIProvider, ZAIProvider,
 };
 use crate::config::core::PromptCachingConfig;
 use crate::config::models::{ModelId, Provider};
@@ -53,6 +54,7 @@ impl LLMFactory {
             "lmstudio" => LmStudioProvider,
             "xai" => XAIProvider,
             "zai" => ZAIProvider,
+            "microsoft" => MicrosoftProvider,
         );
 
         factory
@@ -122,6 +124,8 @@ impl LLMFactory {
             Some("lmstudio".to_string())
         } else if m.starts_with("moonshot-") || m.starts_with("kimi-") {
             Some("moonshot".to_string())
+        } else if m.starts_with("copilot-") || m.starts_with("bot-framework") {
+            Some("microsoft".to_string())
         } else if m.contains('/') || m.contains('@') {
             Some("openrouter".to_string())
         } else {
@@ -406,6 +410,24 @@ impl BuiltinProvider for ZAIProvider {
         } = config;
 
         Box::new(ZAIProvider::from_config(
+            api_key,
+            model,
+            base_url,
+            prompt_cache,
+        ))
+    }
+}
+
+impl BuiltinProvider for MicrosoftProvider {
+    fn build_from_config(config: ProviderConfig) -> Box<dyn LLMProvider> {
+        let ProviderConfig {
+            api_key,
+            base_url,
+            model,
+            prompt_cache,
+        } = config;
+
+        Box::new(MicrosoftProvider::from_config(
             api_key,
             model,
             base_url,
