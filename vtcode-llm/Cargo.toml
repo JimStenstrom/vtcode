@@ -28,7 +28,7 @@ deepseek = []
 google = ["dep:vtcode-llm-gemini"]
 moonshot = []
 ollama = []
-openai = []
+openai = ["dep:vtcode-llm-openai"]
 openrouter = []
 xai = []
 zai = []
@@ -43,6 +43,7 @@ vtcode-commons = { path = "../vtcode-commons", version = "0.43.6" }
 vtcode-core = { path = "../vtcode-core", version = "0.43.6" }
 vtcode-llm-anthropic = { path = "../vtcode-llm-anthropic", version = "0.43.6", optional = true }
 vtcode-llm-gemini = { path = "../vtcode-llm-gemini", version = "0.43.6", optional = true }
+vtcode-llm-openai = { path = "../vtcode-llm-openai", version = "0.43.6", optional = true }
 
 [dev-dependencies]
 futures = "0.3"
