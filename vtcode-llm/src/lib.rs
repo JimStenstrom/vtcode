@@ -52,7 +52,7 @@ pub use provider::{
 };
 
 #[cfg(feature = "anthropic")]
-pub use vtcode_core::llm::providers::AnthropicProvider;
+pub use vtcode_llm_anthropic::AnthropicProvider;
 #[cfg(feature = "deepseek")]
 pub use vtcode_core::llm::providers::DeepSeekProvider;
 #[cfg(feature = "google")]
@@ -80,7 +80,7 @@ pub mod providers {
     //! Provider-specific exports gated behind feature flags so consumers can
     //! depend on a minimal surface when only a subset of providers is needed.
     #[cfg(feature = "anthropic")]
-    pub use vtcode_core::llm::providers::anthropic::*;
+    pub use vtcode_llm_anthropic::*;
     #[cfg(feature = "deepseek")]
     pub use vtcode_core::llm::providers::deepseek::*;
     #[cfg(feature = "google")]
