@@ -1,6 +1,6 @@
 use anyhow::{Context, Result};
 use serde_json::Value;
-use vtcode_core::tools::{PlanCompletionState, StepStatus, TaskPlan};
+use vtcode_core::ui::tools::{PlanCompletionState, StepStatus, TaskPlan};
 use vtcode_core::utils::ansi::{AnsiRenderer, MessageStyle};
 
 use super::panels::{PanelContentLine, clamp_panel_text, render_panel, wrap_text};
@@ -56,9 +56,9 @@ fn render_plan_panel(renderer: &mut AnsiRenderer, plan: &TaskPlan) -> Result<()>
     ));
 
     let explanation_line = plan
-        .explanation
-        .as_ref()
-        .and_then(|text| text.lines().next())
+        .description
+        .lines()
+        .next()
         .map(|line| line.trim())
         .filter(|line| !line.is_empty())
         .map(|line| clamp_panel_text(line, content_width));
@@ -79,8 +79,10 @@ fn render_plan_panel(renderer: &mut AnsiRenderer, plan: &TaskPlan) -> Result<()>
             StepStatus::Pending => ("[ ]", MessageStyle::Info),
             StepStatus::InProgress => ("[>]", MessageStyle::Tool),
             StepStatus::Completed => ("[x]", MessageStyle::Response),
+            StepStatus::Failed => ("[!]", MessageStyle::Error),
+            StepStatus::Skipped => ("[-]", MessageStyle::Info),
         };
-        let step_text = step.step.trim();
+        let step_text = step.description.trim();
         let step_number = index + 1;
 
         // Calculate prefix length (e.g., "1. [x] ")

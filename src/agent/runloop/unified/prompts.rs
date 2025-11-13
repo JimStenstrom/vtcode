@@ -10,10 +10,11 @@ pub(crate) async fn read_system_prompt(workspace: &Path, session_addendum: Optio
         prompt.push_str(&overview.as_prompt_block());
     }
 
-    if let Some(guidelines) = vtcode_core::prompts::system::read_agent_guidelines(workspace).await {
-        prompt.push_str("\n\n## AGENTS.MD GUIDELINES\n");
-        prompt.push_str(&guidelines);
-    }
+    // AGENTS.MD guidelines functionality removed - read_agent_guidelines no longer exists
+    // if let Some(guidelines) = vtcode_core::prompts::system::read_agent_guidelines(workspace).await {
+    //     prompt.push_str("\n\n## AGENTS.MD GUIDELINES\n");
+    //     prompt.push_str(&guidelines);
+    // }
 
     if let Some(addendum) = session_addendum {
         let trimmed = addendum.trim();
