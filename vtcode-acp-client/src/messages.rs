@@ -143,10 +143,20 @@ pub struct NotificationPayload {
 }
 
 impl AcpMessage {
+    /// Generate a new unique message ID
+    fn new_message_id() -> String {
+        Uuid::new_v4().to_string()
+    }
+
+    /// Generate current timestamp in ISO 8601 format
+    fn current_timestamp() -> String {
+        chrono::Utc::now().to_rfc3339()
+    }
+
     /// Create a new ACP request message
     pub fn request(sender: String, recipient: String, action: String, args: Value) -> Self {
         Self {
-            id: Uuid::new_v4().to_string(),
+            id: Self::new_message_id(),
             message_type: MessageType::Request,
             sender,
             recipient,
@@ -156,7 +166,7 @@ impl AcpMessage {
                 timeout_secs: None,
                 sync: true,
             }),
-            timestamp: chrono::Utc::now().to_rfc3339(),
+            timestamp: Self::current_timestamp(),
             correlation_id: None,
         }
     }
@@ -169,7 +179,7 @@ impl AcpMessage {
         correlation_id: String,
     ) -> Self {
         Self {
-            id: Uuid::new_v4().to_string(),
+            id: Self::new_message_id(),
             message_type: MessageType::Response,
             sender,
             recipient,
@@ -179,7 +189,7 @@ impl AcpMessage {
                 error: None,
                 execution_time_ms: 0,
             }),
-            timestamp: chrono::Utc::now().to_rfc3339(),
+            timestamp: Self::current_timestamp(),
             correlation_id: Some(correlation_id),
         }
     }
@@ -193,7 +203,7 @@ impl AcpMessage {
         correlation_id: String,
     ) -> Self {
         Self {
-            id: Uuid::new_v4().to_string(),
+            id: Self::new_message_id(),
             message_type: MessageType::Error,
             sender,
             recipient,
@@ -202,7 +212,7 @@ impl AcpMessage {
                 message,
                 details: None,
             }),
-            timestamp: chrono::Utc::now().to_rfc3339(),
+            timestamp: Self::current_timestamp(),
             correlation_id: Some(correlation_id),
         }
     }

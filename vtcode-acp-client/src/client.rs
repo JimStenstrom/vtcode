@@ -69,6 +69,19 @@ impl AcpClient {
         &self.registry
     }
 
+    /// Build an endpoint URL from a base URL and path
+    fn build_endpoint_url(base_url: &str, endpoint: &str) -> String {
+        format!("{}/{}", base_url.trim_end_matches('/'), endpoint.trim_start_matches('/'))
+    }
+
+    /// Find agent in registry and map error to AgentNotFound
+    async fn find_agent(&self, agent_id: &str) -> AcpResult<crate::discovery::AgentInfo> {
+        self.registry
+            .find(agent_id)
+            .await
+            .map_err(|_| AcpError::AgentNotFound(agent_id.to_string()))
+    }
+
     /// Send a request to a remote agent synchronously
     pub async fn call_sync(
         &self,
@@ -82,11 +95,7 @@ impl AcpClient {
             "Sending synchronous request to remote agent"
         );
 
-        let agent_info = self
-            .registry
-            .find(remote_agent_id)
-            .await
-            .map_err(|_| AcpError::AgentNotFound(remote_agent_id.to_string()))?;
+        let agent_info = self.find_agent(remote_agent_id).await?;
 
         let message = AcpMessage::request(
             self.local_agent_id.clone(),
@@ -118,11 +127,7 @@ impl AcpClient {
             "Sending asynchronous request to remote agent"
         );
 
-        let agent_info = self
-            .registry
-            .find(remote_agent_id)
-            .await
-            .map_err(|_| AcpError::AgentNotFound(remote_agent_id.to_string()))?;
+        let agent_info = self.find_agent(remote_agent_id).await?;
 
         let mut message = AcpMessage::request(
             self.local_agent_id.clone(),
@@ -150,7 +155,7 @@ impl AcpClient {
 
     /// Send raw ACP message and get response
     async fn send_request(&self, base_url: &str, message: &AcpMessage) -> AcpResult<Value> {
-        let url = format!("{}/messages", base_url.trim_end_matches('/'));
+        let url = Self::build_endpoint_url(base_url, "messages");
 
         trace!(url = %url, message_id = %message.id, "Sending ACP message");
 
@@ -200,7 +205,7 @@ impl AcpClient {
 
     /// Discover agent metadata from base URL (offline discovery)
     pub async fn discover_agent(&self, base_url: &str) -> AcpResult<crate::discovery::AgentInfo> {
-        let url = format!("{}/metadata", base_url.trim_end_matches('/'));
+        let url = Self::build_endpoint_url(base_url, "metadata");
 
         trace!(url = %url, "Discovering agent metadata");
 
@@ -227,13 +232,9 @@ impl AcpClient {
 
     /// Check if a remote agent is reachable
     pub async fn ping(&self, remote_agent_id: &str) -> AcpResult<bool> {
-        let agent_info = self
-            .registry
-            .find(remote_agent_id)
-            .await
-            .map_err(|_| AcpError::AgentNotFound(remote_agent_id.to_string()))?;
+        let agent_info = self.find_agent(remote_agent_id).await?;
 
-        let url = format!("{}/health", agent_info.base_url.trim_end_matches('/'));
+        let url = Self::build_endpoint_url(&agent_info.base_url, "health");
 
         match self.http_client.get(&url).send().await {
             Ok(response) => {
