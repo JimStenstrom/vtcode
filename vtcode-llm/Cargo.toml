@@ -14,6 +14,7 @@ default = [
     "anthropic",
     "deepseek",
     "google",
+    "microsoft",
     "moonshot",
     "ollama",
     "openai",
@@ -26,6 +27,7 @@ default = [
 anthropic = []
 deepseek = []
 google = []
+microsoft = []
 moonshot = []
 ollama = []
 openai = []
