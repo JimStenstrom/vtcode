@@ -514,9 +514,12 @@
     "bundle": "node ./esbuild.mjs",
     "compile": "echo \"Skipping compilation - using precompiled files\"",
     "watch": "node ./esbuild.mjs --watch",
-    "typecheck": "echo \"Skipping typecheck - using precompiled files\"",
-    "lint": "echo \"Skipping lint - using precompiled files\"",
-    "test": "echo \"Skipping tests - using precompiled files\"",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src --ext ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "test:ui": "vitest --ui",
     "package": "vsce package",
     "release": "./release.sh",
     "release:patch": "./release.sh patch",
@@ -534,12 +537,15 @@
     "@types/vscode": "^1.87.0",
     "@vscode/test-electron": "^2.4.0",
     "@vscode/vsce": "^3.0.0",
+    "@vitest/coverage-v8": "^2.1.8",
+    "@vitest/ui": "^2.1.8",
     "esbuild": "^0.25.11",
     "glob": "^11.0.3",
     "mocha": "^11.7.4",
     "typescript": "^5.3.3",
     "@typescript-eslint/eslint-plugin": "^8.46.2",
     "@typescript-eslint/parser": "^8.46.2",
-    "eslint": "^9.38.0"
+    "eslint": "^9.38.0",
+    "vitest": "^2.1.8"
   }
 }
