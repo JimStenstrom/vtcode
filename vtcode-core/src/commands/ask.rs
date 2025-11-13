@@ -4,7 +4,7 @@ use crate::config::models::ModelId;
 use crate::config::types::AgentConfig;
 use vtcode_llm_gemini::{Content, GenerateContentRequest, Part, SystemInstruction};
 use crate::llm::make_client;
-use crate::prompts::{generate_lightweight_instruction, read_system_prompt_from_md};
+use crate::prompts::generate_lightweight_instruction;
 use anyhow::Result;
 
 /// Handle the ask command - single prompt without tools
@@ -23,24 +23,8 @@ pub async fn handle_ask_command(config: AgentConfig, prompt: Vec<String>) -> Res
     let contents = vec![Content::user_text(prompt_text)];
     let lightweight_instruction = generate_lightweight_instruction();
 
-    // Convert Content to SystemInstruction
-    let system_instruction = if let Some(part) = lightweight_instruction.parts.first() {
-        if let Some(text) = part.as_text() {
-            SystemInstruction::new(text)
-        } else {
-            SystemInstruction::new(
-                read_system_prompt_from_md()
-                    .await
-                    .unwrap_or_else(|_| "You are a helpful coding assistant.".to_string()),
-            )
-        }
-    } else {
-        SystemInstruction::new(
-            read_system_prompt_from_md()
-                .await
-                .unwrap_or_else(|_| "You are a helpful coding assistant.".to_string()),
-        )
-    };
+    // Use lightweight instruction as system instruction
+    let system_instruction = SystemInstruction::new(lightweight_instruction);
 
     let request = GenerateContentRequest {
         contents,

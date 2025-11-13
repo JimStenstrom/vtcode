@@ -2,6 +2,7 @@ use crate::config::constants::{defaults, env_vars, models, urls};
 use crate::config::core::{AnthropicPromptCacheSettings, PromptCachingConfig};
 use crate::config::models::Provider;
 use crate::config::types::ReasoningEffortLevel;
+use crate::impl_provider_constructors;
 use crate::llm::client::LLMClient;
 use crate::llm::error_display;
 use crate::llm::provider::{
@@ -16,7 +17,7 @@ use serde_json::{Value, json};
 use std::env;
 
 use super::{
-    common::{extract_prompt_cache_settings, override_base_url, resolve_model},
+    common::resolve_model,
     extract_reasoning_trace,
 };
 
@@ -1069,6 +1070,125 @@ mod tests {
             .find(|msg| msg["role"] == "user")
             .expect("user message exists");
         assert!(user_message["content"][0].get("cache_control").is_none());
+    }
+
+    // ==================== Additional Message Serialization Tests ====================
+
+    #[test]
+    fn serialize_messages_handles_multiple_messages() {
+        use crate::llm::providers::test_utils::multi_message_request;
+        let provider = AnthropicProvider::new("key".to_string());
+        let request = multi_message_request(models::CLAUDE_SONNET_4_5);
+        let converted = provider.convert_to_anthropic_format(&request).expect("conversion should succeed");
+        let messages = converted["messages"].as_array().expect("messages array");
+        assert_eq!(messages.len(), 3);
+    }
+
+    #[test]
+    fn serialize_messages_with_special_characters() {
+        use crate::llm::providers::test_utils::request_with_special_chars;
+        let provider = AnthropicProvider::new("key".to_string());
+        let request = request_with_special_chars(models::CLAUDE_SONNET_4_5);
+        let converted = provider.convert_to_anthropic_format(&request).expect("conversion should succeed");
+        let messages = converted["messages"].as_array().expect("messages array");
+        assert!(messages.len() > 0);
+    }
+
+    // ==================== Tool Serialization Tests ====================
+
+    #[test]
+    fn serialize_tools_single_tool() {
+        use crate::llm::providers::test_utils::weather_tool;
+        let provider = AnthropicProvider::new("key".to_string());
+        let mut request = sample_request();
+        request.tools = Some(vec![weather_tool()]);
+        let converted = provider.convert_to_anthropic_format(&request).expect("conversion should succeed");
+        let tools = converted["tools"].as_array().expect("tools array");
+        assert_eq!(tools.len(), 1);
+        assert_eq!(tools[0]["name"], "get_weather");
+    }
+
+    #[test]
+    fn serialize_tools_multiple_tools() {
+        use crate::llm::providers::test_utils::{calculator_tool, weather_tool};
+        let provider = AnthropicProvider::new("key".to_string());
+        let mut request = sample_request();
+        request.tools = Some(vec![weather_tool(), calculator_tool()]);
+        let converted = provider.convert_to_anthropic_format(&request).expect("conversion should succeed");
+        let tools = converted["tools"].as_array().expect("tools array");
+        assert_eq!(tools.len(), 2);
+    }
+
+    #[test]
+    fn serialize_tools_with_complex_parameters() {
+        use crate::llm::providers::test_utils::complex_tool;
+        let provider = AnthropicProvider::new("key".to_string());
+        let mut request = sample_request();
+        request.tools = Some(vec![complex_tool()]);
+        let converted = provider.convert_to_anthropic_format(&request).expect("conversion should succeed");
+        let tools = converted["tools"].as_array().expect("tools array");
+        assert_eq!(tools[0]["name"], "search_database");
+        assert!(tools[0]["input_schema"].is_object());
+    }
+
+    // ==================== Request Building Tests ====================
+
+    #[test]
+    fn convert_includes_max_tokens() {
+        let provider = AnthropicProvider::new("key".to_string());
+        let mut request = sample_request();
+        request.max_tokens = Some(1000);
+        let converted = provider.convert_to_anthropic_format(&request).expect("conversion should succeed");
+        assert_eq!(converted["max_tokens"], 1000);
+    }
+
+    #[test]
+    fn convert_includes_temperature() {
+        let provider = AnthropicProvider::new("key".to_string());
+        let mut request = sample_request();
+        request.temperature = Some(0.9);
+        let converted = provider.convert_to_anthropic_format(&request).expect("conversion should succeed");
+        assert_eq!(converted["temperature"].as_f64().unwrap(), 0.9);
+    }
+
+    #[test]
+    fn convert_includes_stream_when_true() {
+        let provider = AnthropicProvider::new("key".to_string());
+        let mut request = sample_request();
+        request.stream = true;
+        let converted = provider.convert_to_anthropic_format(&request).expect("conversion should succeed");
+        assert_eq!(converted["stream"], true);
+    }
+
+    // ==================== Edge Case Tests ====================
+
+    #[test]
+    fn handles_minimax_url_routing() {
+        let provider = AnthropicProvider::with_model("key".to_string(), models::minimax::MINIMAX_M2.to_string());
+        // Minimax should use different base URL
+        assert!(provider.base_url.contains("minimax") || provider.base_url != urls::ANTHROPIC_API_BASE);
+    }
+
+    #[test]
+    fn supported_models_returns_non_empty_list() {
+        let provider = AnthropicProvider::new("key".to_string());
+        let models = provider.supported_models();
+        assert!(!models.is_empty());
+        assert!(models.contains(&models::CLAUDE_SONNET_4_5.to_string()));
+    }
+
+    #[test]
+    fn model_id_returns_correct_model() {
+        use crate::llm::client::LLMClient;
+        let provider = AnthropicProvider::with_model("key".to_string(), "claude-opus-4".to_string());
+        assert_eq!(provider.model_id(), "claude-opus-4");
+    }
+
+    #[test]
+    fn backend_kind_is_anthropic() {
+        use crate::llm::client::LLMClient;
+        let provider = AnthropicProvider::new("key".to_string());
+        assert_eq!(provider.backend_kind(), llm_types::BackendKind::Anthropic);
     }
 }
 

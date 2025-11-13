@@ -301,11 +301,11 @@ impl ThemeConfig {
     pub fn parse_cli_styles(&self) -> Result<ParsedCliColors> {
         let parser = CachedStyleParser::default();
         Ok(ParsedCliColors {
-            success: parser.parse_flexible(&self.cli.success)?,
-            error: parser.parse_flexible(&self.cli.error)?,
-            warning: parser.parse_flexible(&self.cli.warning)?,
-            info: parser.parse_flexible(&self.cli.info)?,
-            prompt: parser.parse_flexible(&self.cli.prompt)?,
+            success: parser.parse_flexible(&self.cli.success),
+            error: parser.parse_flexible(&self.cli.error),
+            warning: parser.parse_flexible(&self.cli.warning),
+            info: parser.parse_flexible(&self.cli.info),
+            prompt: parser.parse_flexible(&self.cli.prompt),
         })
     }
 
@@ -313,12 +313,12 @@ impl ThemeConfig {
     pub fn parse_diff_styles(&self) -> Result<ParsedDiffColors> {
         let parser = CachedStyleParser::default();
         Ok(ParsedDiffColors {
-            new: parser.parse_flexible(&self.diff.new)?,
-            old: parser.parse_flexible(&self.diff.old)?,
-            context: parser.parse_flexible(&self.diff.context)?,
-            header: parser.parse_flexible(&self.diff.header)?,
-            meta: parser.parse_flexible(&self.diff.meta)?,
-            frag: parser.parse_flexible(&self.diff.frag)?,
+            new: parser.parse_flexible(&self.diff.new),
+            old: parser.parse_flexible(&self.diff.old),
+            context: parser.parse_flexible(&self.diff.context),
+            header: parser.parse_flexible(&self.diff.header),
+            meta: parser.parse_flexible(&self.diff.meta),
+            frag: parser.parse_flexible(&self.diff.frag),
         })
     }
 
@@ -326,13 +326,13 @@ impl ThemeConfig {
     pub fn parse_status_styles(&self) -> Result<ParsedStatusColors> {
         let parser = CachedStyleParser::default();
         Ok(ParsedStatusColors {
-            added: parser.parse_flexible(&self.status.added)?,
-            modified: parser.parse_flexible(&self.status.modified)?,
-            deleted: parser.parse_flexible(&self.status.deleted)?,
-            untracked: parser.parse_flexible(&self.status.untracked)?,
-            current: parser.parse_flexible(&self.status.current)?,
-            local: parser.parse_flexible(&self.status.local)?,
-            remote: parser.parse_flexible(&self.status.remote)?,
+            added: parser.parse_flexible(&self.status.added),
+            modified: parser.parse_flexible(&self.status.modified),
+            deleted: parser.parse_flexible(&self.status.deleted),
+            untracked: parser.parse_flexible(&self.status.untracked),
+            current: parser.parse_flexible(&self.status.current),
+            local: parser.parse_flexible(&self.status.local),
+            remote: parser.parse_flexible(&self.status.remote),
         })
     }
 
@@ -341,20 +341,15 @@ impl ThemeConfig {
         let parser = CachedStyleParser::default();
         let mut extension_styles = std::collections::HashMap::new();
         for (ext, color_str) in &self.files.extensions {
-            let style = parser.parse_flexible(color_str).with_context(|| {
-                format!(
-                    "Failed to parse style for extension '{}': {}",
-                    ext, color_str
-                )
-            })?;
+            let style = parser.parse_flexible(color_str);
             extension_styles.insert(ext.clone(), style);
         }
 
         Ok(ParsedFileColors {
-            directory: parser.parse_flexible(&self.files.directory)?,
-            symlink: parser.parse_flexible(&self.files.symlink)?,
-            executable: parser.parse_flexible(&self.files.executable)?,
-            regular: parser.parse_flexible(&self.files.regular)?,
+            directory: parser.parse_flexible(&self.files.directory),
+            symlink: parser.parse_flexible(&self.files.symlink),
+            executable: parser.parse_flexible(&self.files.executable),
+            regular: parser.parse_flexible(&self.files.regular),
             extensions: extension_styles,
         })
     }

@@ -1,6 +1,6 @@
 use super::{PLACEHOLDER_COLOR, Session, measure_text_width, ratatui_style_from_inline};
-use crate::config::constants::ui;
-use crate::ui::tui::types::InlineTextStyle;
+use vtcode_config::constants::ui;
+use crate::tui::types::InlineTextStyle;
 use anstyle::{Color as AnsiColorEnum, Effects};
 use ratatui::{
     Frame,

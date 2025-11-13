@@ -22,7 +22,6 @@ use chrono::Local;
 use futures::FutureExt;
 use iana_time_zone::get_timezone;
 use jsonschema::Validator;
-use vtcode_tool_traits::{McpClientStatus, McpToolExecutor, McpToolInfo};
 use mcp_types::{
     CallToolRequestParams, CallToolResult, CallToolResultContentItem, ClientCapabilities,
     ClientCapabilitiesRoots, GetPromptRequestParams, GetPromptResult, Implementation,

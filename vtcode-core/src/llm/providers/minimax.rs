@@ -408,4 +408,77 @@ Continuing response."#;
         assert!(tool_calls.is_empty());
         assert_eq!(cleaned, text);
     }
+
+    // ==================== Additional Tests ====================
+
+    #[test]
+    fn constructor_new_uses_default_model() {
+        let provider = MinimaxProvider::new("test_key".to_string());
+        assert_eq!(provider.model(), models::minimax::MINIMAX_M2);
+    }
+
+    #[test]
+    fn constructor_with_model_uses_custom_model() {
+        let custom_model = "minimax-custom";
+        let provider = MinimaxProvider::with_model("test_key".to_string(), custom_model.to_string());
+        assert_eq!(provider.model(), custom_model);
+    }
+
+    #[test]
+    fn parse_complex_tool_call_parameters() {
+        let text = r#"
+<minimax:tool_call>
+<invoke name="complex_function">
+<parameter name="nested_param">{"key": "value", "number": 42}</parameter>
+<parameter name="array_param">["item1", "item2"]</parameter>
+</invoke>
+</minimax:tool_call>
+"#;
+        let (tool_calls, _) = parse_minimax_tool_calls(text, None);
+        assert_eq!(tool_calls.len(), 1);
+        assert_eq!(tool_calls[0].function.name, "complex_function");
+    }
+
+    #[test]
+    fn parse_multiple_tool_calls_in_sequence() {
+        let text = r#"
+<minimax:tool_call>
+<invoke name="first_function">
+<parameter name="param1">value1</parameter>
+</invoke>
+</minimax:tool_call>
+Some text in between
+<minimax:tool_call>
+<invoke name="second_function">
+<parameter name="param2">value2</parameter>
+</invoke>
+</minimax:tool_call>
+"#;
+        let (tool_calls, _) = parse_minimax_tool_calls(text, None);
+        assert_eq!(tool_calls.len(), 2);
+        assert_eq!(tool_calls[0].function.name, "first_function");
+        assert_eq!(tool_calls[1].function.name, "second_function");
+    }
+
+    #[test]
+    fn supported_models_returns_non_empty_list() {
+        let provider = MinimaxProvider::new("test_key".to_string());
+        let models = provider.supported_models();
+        assert!(!models.is_empty());
+    }
+
+    #[test]
+    fn model_id_returns_correct_model() {
+        use crate::llm::client::LLMClient;
+        let provider = MinimaxProvider::with_model("test_key".to_string(), "minimax-test".to_string());
+        assert_eq!(provider.model_id(), "minimax-test");
+    }
+
+    #[test]
+    fn backend_kind_is_anthropic() {
+        use crate::llm::client::LLMClient;
+        let provider = MinimaxProvider::new("test_key".to_string());
+        // Minimax wraps Anthropic
+        assert_eq!(provider.backend_kind(), llm_types::BackendKind::Anthropic);
+    }
 }

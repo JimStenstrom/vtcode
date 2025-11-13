@@ -29,7 +29,7 @@ impl PermissionCache {
 
     /// Check if a command is cached and not expired
     pub fn get(&mut self, command: &str) -> Option<bool> {
-        self.cache.get(command).map(|(allowed, reason)| {
+        self.cache.get(&command.to_string()).map(|(allowed, reason)| {
             debug!(
                 command = command,
                 reason = &reason,

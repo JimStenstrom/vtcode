@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
 import { BaseParticipant, type ParticipantContext } from "../types/participant";
+import { ConfigLimits } from "../configLimits";
 
 /**
  * Workspace participant provides workspace-wide context
@@ -16,51 +17,58 @@ export class WorkspaceParticipant extends BaseParticipant {
     }
 
     async resolveReferenceContext(message: string, context: ParticipantContext): Promise<string> {
-        return this.buildContextualMessage(
-            message,
-            context,
-            (ctx) => ctx.workspace,
-            async (workspace) => {
-                // Gather workspace context
-                const workspaceName = workspace.name;
-                const workspacePath = workspace.uri.fsPath;
+        if (!this.extractMention(message, this.id)) {
+            return message;
+        }
 
-                // Get workspace statistics
-                const files = await vscode.workspace.findFiles('**/*', '**/node_modules/**', 100);
-                const fileCount = files.length;
+        const workspace = context.workspace;
+        if (!workspace) {
+            return message;
+        }
 
-                // Get open editors
-                const openEditors = vscode.window.visibleTextEditors;
-                const openFiles = openEditors
-                    .map((editor: vscode.TextEditor) => {
-                        const fileName = editor.document.fileName;
-                        if (this.isFileInWorkspace(fileName, context)) {
-                            const relativePath = vscode.workspace.asRelativePath(fileName, false);
-                            return `- ${relativePath}`;
-                        }
-                        return null;
-                    })
-                    .filter(Boolean)
-                    .join('\n');
+        // Clean the message first
+        const cleanedMessage = this.cleanMessage(message, this.id);
 
-                // Build workspace context
-                let workspaceContext = `\n\n## Workspace Context\n`;
-                workspaceContext += `Workspace: ${workspaceName}\n`;
-                workspaceContext += `Path: ${workspacePath}\n`;
-                workspaceContext += `Files in workspace: ${fileCount}\n`;
-
-                if (openFiles) {
-                    workspaceContext += `\nCurrently open files:\n${openFiles}\n`;
+        // Gather workspace context
+        const workspaceName = workspace.name;
+        const workspacePath = workspace.uri.fsPath;
+        
+        // Get workspace statistics
+        const maxFiles = ConfigLimits.workspaceMaxFiles;
+        const files = await vscode.workspace.findFiles('**/*', '**/node_modules/**', maxFiles);
+        const fileCount = files.length;
+        const fileLimitReached = fileCount >= maxFiles;
+        
+        // Get open editors
+        const openEditors = vscode.window.visibleTextEditors;
+        const openFiles = openEditors
+            .map(editor => {
+                const fileName = editor.document.fileName;
+                if (this.isFileInWorkspace(fileName, context)) {
+                    const relativePath = vscode.workspace.asRelativePath(fileName, false);
+                    return `- ${relativePath}`;
                 }
+                return null;
+            })
+            .filter(Boolean)
+            .join('\n');
 
-                // Add recent files if available
-                if (context.activeFile) {
-                    const relativePath = vscode.workspace.asRelativePath(context.activeFile.path, false);
-                    workspaceContext += `\nActive file: ${relativePath}\n`;
-                }
+        // Build workspace context
+        let workspaceContext = `\n\n## Workspace Context\n`;
+        workspaceContext += `Workspace: ${workspaceName}\n`;
+        workspaceContext += `Path: ${workspacePath}\n`;
+        workspaceContext += `Files in workspace: ${fileCount}${fileLimitReached ? ` (limit reached, showing first ${maxFiles})` : ''}\n`;
+        
+        if (openFiles) {
+            workspaceContext += `\nCurrently open files:\n${openFiles}\n`;
+        }
 
-                return workspaceContext;
-            }
-        );
+        // Add recent files if available
+        if (context.activeFile) {
+            const relativePath = vscode.workspace.asRelativePath(context.activeFile.path, false);
+            workspaceContext += `\nActive file: ${relativePath}\n`;
+        }
+
+        return `${cleanedMessage}${workspaceContext}`;
     }
 }

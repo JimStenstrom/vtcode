@@ -128,8 +128,7 @@ impl VTCodeGitignore {
 
     /// Load patterns from the .vtcodegitignore file
     async fn load_patterns(file_path: &Path) -> Result<Vec<CompiledPattern>> {
-        let content = fs
-            .read_to_string(file_path)
+        let content = fs::read_to_string(file_path)
             .await
             .map_err(|e| anyhow!("Failed to read .vtcodegitignore: {}", e))?;
 
@@ -156,7 +155,7 @@ impl VTCodeGitignore {
             match Pattern::new(&glob_pattern) {
                 Ok(pattern) => {
                     patterns.push(CompiledPattern {
-                        original: pattern_str,
+                        original: pattern_str.to_string(),
                         pattern,
                         negated,
                     });
@@ -165,7 +164,7 @@ impl VTCodeGitignore {
                     return Err(anyhow!(
                         "Invalid pattern on line {}: '{}': {}",
                         line_num + 1,
-                        pattern_str,
+                        pattern_str.to_string(),
                         e
                     ));
                 }

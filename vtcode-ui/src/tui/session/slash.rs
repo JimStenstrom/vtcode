@@ -7,7 +7,7 @@ use ratatui::{
     widgets::{Block, BorderType, Borders, Clear, List, ListItem, Paragraph, Wrap},
 };
 
-use crate::config::constants::ui;
+use vtcode_config::constants::ui;
 
 use super::super::types::InlineTextStyle;
 use super::{
@@ -44,7 +44,7 @@ impl Session {
                 slash_palette::SlashPaletteSuggestion::Custom(prompt) => {
                     // For custom prompts, format as /prompt:name (legacy alias /prompts:name)
                     let prompt_cmd = format!("{}:{}", PROMPT_COMMAND_NAME, prompt.name);
-                    let description = prompt.description.as_deref().unwrap_or("");
+                    let description = prompt.description.as_str();
                     if !description.is_empty() {
                         format!("/{} {}", prompt_cmd, description)
                     } else {
@@ -363,7 +363,7 @@ impl Session {
                 }
                 slash_palette::SlashPaletteSuggestion::Custom(prompt) => {
                     let display_name = format!("/{}:{}", PROMPT_COMMAND_NAME, prompt.name);
-                    let description = prompt.description.clone().unwrap_or_default();
+                    let description = prompt.description.clone();
                     ListItem::new(Line::from(vec![
                         Span::styled(display_name, self.slash_name_style()),
                         Span::raw(" "),

@@ -7,7 +7,7 @@ use crate::llm::provider::{
     FinishReason, LLMError, LLMProvider, LLMRequest, LLMResponse, Message, MessageRole, Usage,
 };
 use crate::llm::providers::common::{
-    forward_prompt_cache_with_state, override_base_url, resolve_model,
+    forward_prompt_cache_with_state, resolve_model,
 };
 use crate::llm::rig_adapter::reasoning_parameters_for;
 use crate::llm::types as llm_types;
@@ -517,5 +517,66 @@ impl LLMClient for MoonshotProvider {
 
     fn model_id(&self) -> &str {
         &self.model
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::constants::models;
+    use crate::llm::providers::test_utils::*;
+
+    fn create_test_provider() -> MoonshotProvider {
+        MoonshotProvider::with_model("test_key".to_string(), models::moonshot::DEFAULT_MODEL.to_string())
+    }
+
+    #[test]
+    fn new_creates_provider_with_default_model() {
+        let provider = MoonshotProvider::new("test_key".to_string());
+        assert_eq!(provider.model, models::moonshot::DEFAULT_MODEL);
+        assert_eq!(provider.api_key, "test_key");
+    }
+
+    #[test]
+    fn serialize_messages_simple_user_message() {
+        let provider = create_test_provider();
+        let request = simple_request(models::moonshot::DEFAULT_MODEL);
+        let messages = provider.serialize_messages(&request).expect("serialization should succeed");
+        assert_eq!(messages.len(), 1);
+        assert_eq!(messages[0]["role"], "user");
+    }
+
+    #[test]
+    fn serialize_messages_multiple_messages() {
+        let provider = create_test_provider();
+        let request = multi_message_request(models::moonshot::DEFAULT_MODEL);
+        let messages = provider.serialize_messages(&request).expect("serialization should succeed");
+        assert_eq!(messages.len(), 3);
+    }
+
+    #[test]
+    fn convert_to_moonshot_format_includes_required_fields() {
+        let provider = create_test_provider();
+        let request = simple_request(models::moonshot::DEFAULT_MODEL);
+        let payload = provider.convert_to_moonshot_format(&request).expect("conversion should succeed");
+        assert_json_has_field(&payload, "model");
+        assert_json_has_field(&payload, "messages");
+    }
+
+    #[test]
+    fn convert_to_moonshot_format_includes_system_prompt() {
+        let provider = create_test_provider();
+        let request = request_with_system_prompt(models::moonshot::DEFAULT_MODEL);
+        let payload = provider.convert_to_moonshot_format(&request).expect("conversion should succeed");
+        let messages = payload["messages"].as_array().unwrap();
+        let system_msg = messages.iter().find(|m| m["role"] == "system");
+        assert!(system_msg.is_some());
+    }
+
+    #[test]
+    fn supported_models_returns_non_empty_list() {
+        let provider = create_test_provider();
+        let models = provider.supported_models();
+        assert!(!models.is_empty());
     }
 }

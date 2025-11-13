@@ -2,6 +2,7 @@ use crate::config::constants::{env_vars, models, urls};
 use crate::config::core::{OpenAIPromptCacheSettings, PromptCachingConfig};
 use crate::config::models::Provider;
 use crate::config::types::ReasoningEffortLevel;
+use crate::impl_provider_constructors;
 use crate::llm::client::LLMClient;
 use crate::llm::error_display;
 use crate::llm::provider::{
@@ -18,7 +19,6 @@ use reqwest::StatusCode;
 use serde_json::{Value, json};
 use std::collections::{HashMap, HashSet};
 use std::sync::Mutex;
-use std::time::Duration;
 #[cfg(debug_assertions)]
 use std::time::Instant;
 #[cfg(debug_assertions)]
@@ -34,7 +34,7 @@ const MAX_COMPLETION_TOKENS_FIELD: &str = "max_completion_tokens";
 
 use super::{
     ReasoningBuffer,
-    common::{extract_prompt_cache_settings, override_base_url, resolve_model},
+    common::resolve_model,
     extract_reasoning_trace, gpt5_codex_developer_prompt,
     shared::{
         StreamAssemblyError, StreamTelemetry, append_reasoning_segments, extract_data_payload,

@@ -2,7 +2,6 @@
 
 use crate::utils::CachedStyleParser;
 use anstyle::Style as AnsiStyle;
-use anyhow::Result;
 
 /// Parses color configuration strings in different syntaxes.
 ///
@@ -43,10 +42,7 @@ impl ThemeConfigParser {
     /// "dim white"      → dimmed white
     /// ```
     ///
-    /// # Errors
-    ///
-    /// Returns error if the input doesn't match Git color syntax.
-    pub fn parse_git_style(&self, input: &str) -> Result<AnsiStyle> {
+    pub fn parse_git_style(&self, input: &str) -> AnsiStyle {
         self.cached_parser.parse_git_style(input)
     }
 
@@ -61,10 +57,7 @@ impl ThemeConfigParser {
     /// "30;47"    → black text on white background
     /// ```
     ///
-    /// # Errors
-    ///
-    /// Returns error if the input doesn't match LS_COLORS syntax.
-    pub fn parse_ls_colors(&self, input: &str) -> Result<AnsiStyle> {
+    pub fn parse_ls_colors(&self, input: &str) -> AnsiStyle {
         self.cached_parser.parse_ls_colors(input)
     }
 
@@ -73,10 +66,7 @@ impl ThemeConfigParser {
     /// This is a convenience function for flexible input parsing. It tries the more
     /// human-readable Git syntax first, then falls back to ANSI codes if that fails.
     ///
-    /// # Errors
-    ///
-    /// Returns error if the input matches neither Git nor LS_COLORS syntax.
-    pub fn parse_flexible(&self, input: &str) -> Result<AnsiStyle> {
+    pub fn parse_flexible(&self, input: &str) -> AnsiStyle {
         self.cached_parser.parse_flexible(input)
     }
 }

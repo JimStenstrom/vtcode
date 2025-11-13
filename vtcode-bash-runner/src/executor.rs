@@ -1,10 +1,4 @@
 use anyhow::{Context, Result};
-#[cfg(any(
-    feature = "std-process",
-    feature = "powershell-process",
-    feature = "pure-rust"
-))]
-use anyhow::{anyhow, bail};
 #[cfg(feature = "pure-rust")]
 use std::path::Path;
 use std::path::PathBuf;

@@ -22,7 +22,7 @@ use ratatui::{
 use terminal_size::{Height, Width, terminal_size};
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, error::TryRecvError};
 
-use crate::config::{constants::ui, types::UiSurfacePreference};
+use vtcode_config::{constants::ui, types::UiSurfacePreference};
 
 use super::{
     session::Session,

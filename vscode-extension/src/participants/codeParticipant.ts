@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
 import { BaseParticipant, type ParticipantContext } from "../types/participant";
+import { ConfigLimits } from "../configLimits";
 
 /**
  * Code participant provides code-specific context and analysis
@@ -18,61 +19,70 @@ export class CodeParticipant extends BaseParticipant {
     }
 
     async resolveReferenceContext(message: string, context: ParticipantContext): Promise<string> {
-        return this.buildContextualMessage(
-            message,
-            context,
-            (ctx) => ctx.activeFile,
-            (activeFile) => {
-                // Get file information
-                const filePath = activeFile.path;
-                const language = activeFile.language;
-                const workspace = context.workspace;
+        if (!this.extractMention(message, this.id)) {
+            return message;
+        }
 
-                let relativePath = filePath;
-                if (workspace && this.isFileInWorkspace(filePath, context)) {
-                    relativePath = vscode.workspace.asRelativePath(filePath, false);
+        const activeFile = context.activeFile;
+        if (!activeFile) {
+            return message;
+        }
+
+        // Clean the message first
+        const cleanedMessage = this.cleanMessage(message, this.id);
+
+        // Get file information
+        const filePath = activeFile.path;
+        const language = activeFile.language;
+        const workspace = context.workspace;
+        
+        let relativePath = filePath;
+        if (workspace && this.isFileInWorkspace(filePath, context)) {
+            relativePath = vscode.workspace.asRelativePath(filePath, false);
+        }
+
+        // Build code context
+        let codeContext = `\n\n## Code Context\n`;
+        codeContext += `File: ${relativePath}\n`;
+        codeContext += `Language: ${language}\n`;
+
+        // Add selection information if available
+        if (activeFile.selection && !activeFile.selection.isEmpty) {
+            const startLine = activeFile.selection.start.line + 1;
+            const endLine = activeFile.selection.end.line + 1;
+            codeContext += `Selection: Lines ${startLine}-${endLine}\n`;
+            
+            // Add the selected code if content is available
+            if (activeFile.content) {
+                const lines = activeFile.content.split('\n');
+                const selectedLines = lines.slice(
+                    activeFile.selection.start.line,
+                    activeFile.selection.end.line + 1
+                );
+                if (selectedLines.length > 0) {
+                    codeContext += `\nSelected code:\n\`\`\`${language}\n${selectedLines.join('\n')}\n\`\`\`\n`;
                 }
-
-                // Build code context
-                let codeContext = `\n\n## Code Context\n`;
-                codeContext += `File: ${relativePath}\n`;
-                codeContext += `Language: ${language}\n`;
-
-                // Add selection information if available
-                if (activeFile.selection && !activeFile.selection.isEmpty) {
-                    const startLine = activeFile.selection.start.line + 1;
-                    const endLine = activeFile.selection.end.line + 1;
-                    codeContext += `Selection: Lines ${startLine}-${endLine}\n`;
-
-                    // Add the selected code if content is available
-                    if (activeFile.content) {
-                        const lines = activeFile.content.split('\n');
-                        const selectedLines = lines.slice(
-                            activeFile.selection.start.line,
-                            activeFile.selection.end.line + 1
-                        );
-                        if (selectedLines.length > 0) {
-                            codeContext += `\nSelected code:\n\`\`\`${language}\n${selectedLines.join('\n')}\n\`\`\`\n`;
-                        }
-                    }
-                } else if (activeFile.content) {
-                    // Add a snippet of the file if no selection
-                    const lines = activeFile.content.split('\n');
-                    const snippetLines = lines.slice(0, 50); // First 50 lines
-                    if (snippetLines.length > 0) {
-                        codeContext += `\nFile snippet:\n\`\`\`${language}\n${snippetLines.join('\n')}\n\`\`\`\n`;
-                    }
-                }
-
-                // Add language-specific information
-                const languageInfo = this.getLanguageInfo(language);
-                if (languageInfo) {
-                    codeContext += `\nLanguage details: ${languageInfo}\n`;
-                }
-
-                return codeContext;
             }
-        );
+        } else if (activeFile.content) {
+            // Add a snippet of the file if no selection
+            const lines = activeFile.content.split('\n');
+            const maxLines = ConfigLimits.codeParticipantMaxLines;
+            const snippetLines = lines.slice(0, maxLines);
+            if (snippetLines.length > 0) {
+                codeContext += `\nFile snippet:\n\`\`\`${language}\n${snippetLines.join('\n')}\n\`\`\`\n`;
+                if (lines.length > maxLines) {
+                    codeContext += `\n(Showing first ${maxLines} of ${lines.length} lines)\n`;
+                }
+            }
+        }
+
+        // Add language-specific information
+        const languageInfo = this.getLanguageInfo(language);
+        if (languageInfo) {
+            codeContext += `\nLanguage details: ${languageInfo}\n`;
+        }
+
+        return `${cleanedMessage}${codeContext}`;
     }
 
     private getLanguageInfo(language: string): string | undefined {

@@ -1,5 +1,5 @@
 use crate::config::loader::SyntaxHighlightingConfig;
-use crate::tools::TaskPlan;
+use crate::ui::tools::TaskPlan;
 use crate::ui::markdown::{MarkdownLine, MarkdownSegment, render_markdown_to_lines};
 use crate::ui::theme;
 use crate::ui::tui::{

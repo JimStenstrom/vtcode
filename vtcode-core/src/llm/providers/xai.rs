@@ -141,3 +141,47 @@ impl LLMClient for XAIProvider {
         &self.model
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::constants::models;
+    use crate::llm::providers::test_utils::*;
+
+    fn create_test_provider() -> XAIProvider {
+        XAIProvider::with_model("test_key".to_string(), models::xai::DEFAULT_MODEL.to_string())
+    }
+
+    #[test]
+    fn new_creates_provider_with_default_model() {
+        let provider = XAIProvider::new("test_key".to_string());
+        assert_eq!(provider.model(), models::xai::DEFAULT_MODEL);
+    }
+
+    #[test]
+    fn with_model_creates_provider_with_custom_model() {
+        let custom_model = "grok-2";
+        let provider = XAIProvider::with_model("test_key".to_string(), custom_model.to_string());
+        assert_eq!(provider.model(), custom_model);
+    }
+
+    #[test]
+    fn from_config_uses_defaults_when_none() {
+        let provider = XAIProvider::from_config(None, None, None, None);
+        assert_eq!(provider.model(), models::xai::DEFAULT_MODEL);
+    }
+
+    #[test]
+    fn wraps_openai_provider() {
+        let provider = create_test_provider();
+        // XAI wraps OpenAI, so basic functionality should work
+        assert!(!provider.model().is_empty());
+    }
+
+    #[test]
+    fn supported_models_returns_non_empty_list() {
+        let provider = create_test_provider();
+        let models = provider.supported_models();
+        assert!(!models.is_empty());
+    }
+}

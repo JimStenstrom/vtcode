@@ -1,7 +1,7 @@
 use anyhow::Result;
 use tokio::sync::mpsc;
 
-use crate::config::types::UiSurfacePreference;
+use vtcode_config::types::UiSurfacePreference;
 
 mod session;
 mod style;

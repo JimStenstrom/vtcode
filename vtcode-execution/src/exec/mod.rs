@@ -57,6 +57,8 @@ pub use agent_optimization::{
     AgentBehaviorAnalyzer, CodePattern, FailurePatterns, RecoveryPattern, SkillStatistics,
     ToolStatistics,
 };
+pub use async_command::{AsyncProcessRunner, ProcessOptions, StreamCaptureConfig};
+pub use cancellation::{current_tool_cancellation, with_tool_cancellation, CancellationToken};
 pub use code_executor::{CodeExecutor, ExecutionConfig, ExecutionResult, Language};
 pub use pii_tokenizer::{DetectedPii, PiiToken, PiiTokenizer, PiiType};
 pub use sdk_ipc::{ToolIpcHandler, ToolRequest, ToolResponse};

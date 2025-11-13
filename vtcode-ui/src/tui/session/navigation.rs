@@ -6,10 +6,8 @@ use ratatui::{
     widgets::{Block, BorderType, Borders, Clear, List, ListItem},
 };
 
-use crate::{
-    config::constants::ui,
-    tools::{PlanCompletionState, PlanStep, StepStatus},
-};
+use vtcode_config::constants::ui;
+use crate::tools::{PlanCompletionState, PlanStep, StepStatus};
 
 use super::super::types::{InlineMessageKind, InlineTextStyle};
 use super::{Session, message::MessageLine, ratatui_color_from_ansi, ratatui_style_from_inline};
@@ -115,8 +113,12 @@ impl Session {
     fn plan_status_label(&self) -> &'static str {
         match self.plan.summary.status {
             PlanCompletionState::Done => ui::PLAN_STATUS_DONE,
+            PlanCompletionState::Completed => ui::PLAN_STATUS_DONE,
             PlanCompletionState::InProgress => ui::PLAN_STATUS_IN_PROGRESS,
             PlanCompletionState::Empty => ui::PLAN_STATUS_EMPTY,
+            PlanCompletionState::NotStarted => ui::PLAN_STATUS_EMPTY,
+            PlanCompletionState::Failed => "Failed",
+            PlanCompletionState::Cancelled => "Cancelled",
         }
     }
 
@@ -162,7 +164,7 @@ impl Session {
         ));
         spans.push(Span::raw(" "));
         spans.push(Span::styled(
-            step.step.clone(),
+            step.description.clone(),
             self.plan_step_style(step.status.clone()),
         ));
         if matches!(step.status, StepStatus::InProgress) {
@@ -268,6 +270,8 @@ impl Session {
             StepStatus::Completed => self.navigation_preview_style(),
             StepStatus::InProgress => self.accent_style().add_modifier(Modifier::BOLD),
             StepStatus::Pending => self.default_style(),
+            StepStatus::Failed => self.default_style().add_modifier(Modifier::DIM),
+            StepStatus::Skipped => self.default_style().add_modifier(Modifier::DIM),
         }
     }
 
@@ -276,6 +280,8 @@ impl Session {
             StepStatus::Completed => self.navigation_preview_style(),
             StepStatus::InProgress => self.accent_style().add_modifier(Modifier::BOLD),
             StepStatus::Pending => self.default_style(),
+            StepStatus::Failed => self.default_style().add_modifier(Modifier::DIM),
+            StepStatus::Skipped => self.default_style().add_modifier(Modifier::DIM),
         }
     }
 

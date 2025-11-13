@@ -953,11 +953,9 @@ fn clamp_timeout(duration: Duration) -> u64 {
 }
 
 fn exit_status_code(status: portable_pty::ExitStatus) -> i32 {
-    if status.signal().is_some() {
-        -1
-    } else {
-        status.exit_code() as i32
-    }
+    // portable-pty ExitStatus API changed - signal() is no longer accessible
+    // Just return the exit code directly
+    status.exit_code() as i32
 }
 
 fn normalize_path(path: &Path) -> PathBuf {

@@ -1,7 +1,7 @@
 //! Markdown rendering utilities for terminal output with syntax highlighting support.
 
-use crate::config::loader::SyntaxHighlightingConfig;
-use crate::ui::theme::{self, ThemeStyles};
+use vtcode_config::loader::SyntaxHighlightingConfig;
+use crate::theme::{self, ThemeStyles};
 use anstyle::Style;
 use anstyle_syntect::to_anstyle;
 use once_cell::sync::Lazy;
@@ -168,7 +168,7 @@ pub struct MarkdownSegment {
 }
 
 impl MarkdownSegment {
-    pub(crate) fn new(style: Style, text: impl Into<String>) -> Self {
+    pub fn new(style: Style, text: impl Into<String>) -> Self {
         Self {
             style,
             text: text.into(),
@@ -208,7 +208,7 @@ impl MarkdownLine {
         self.segments = prefixed;
     }
 
-    pub(crate) fn is_empty(&self) -> bool {
+    pub fn is_empty(&self) -> bool {
         self.segments
             .iter()
             .all(|segment| segment.text.trim().is_empty())

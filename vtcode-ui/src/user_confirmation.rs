@@ -4,6 +4,7 @@
 //! performing operations that may be expensive or require explicit consent.
 
 use crate::utils::colors::style;
+use crate::utils::StyleExt;
 use anyhow::Result;
 use dialoguer::{Confirm, Select};
 // use std::io::Write;
@@ -15,7 +16,7 @@ impl UserConfirmation {
     /// Ask for confirmation before switching to the most capable model (Gemini 2.5 Pro)
     /// This is critical for ensuring user control over potentially expensive operations
     pub fn confirm_pro_model_usage(current_model: &str) -> Result<bool> {
-        use crate::config::constants::models;
+        use vtcode_config::constants::models;
         println!("{}", style("Model Upgrade Required").yellow().bold());
         println!("Current model: {}", style(current_model).cyan());
         println!(

@@ -91,12 +91,14 @@ impl<T: Clone + Default> ProviderBuilder<T> {
     }
 
     /// Use a custom HTTP client instead of the shared one
+    #[allow(dead_code)]
     pub fn with_http_client(mut self, client: HttpClient) -> Self {
         self.http_client = client;
         self
     }
 
     /// Build the provider with the configured values
+    #[allow(dead_code)]
     pub fn build(self) -> Self {
         self
     }
@@ -112,6 +114,7 @@ impl<T: Clone + Default> ProviderBuilder<T> {
 /// * `prompt_cache` - Optional prompt caching config
 /// * `default_model` - Default model to use if none provided
 /// * `default_base_url` - Default API base URL
+#[allow(dead_code)]
 pub fn build_provider_from_config<T: Clone + Default, SelectFn, EnabledFn>(
     api_key: Option<String>,
     model: Option<String>,

@@ -16,6 +16,9 @@ pub mod theme_config;
 pub mod theme_manager;
 pub mod tui;
 pub mod user_confirmation;
+pub mod utils;
+pub mod tools;
+pub mod prompts;
 
 pub use file_colorizer::FileColorizer;
 pub use git_config::GitColorConfig;
@@ -28,6 +31,7 @@ pub use theme::*;
 pub use theme_config::ThemeConfig;
 pub use theme_manager::ThemeManager;
 pub use tui::*;
+pub use utils::StyleExt;
 
 #[cfg(test)]
 mod tests {

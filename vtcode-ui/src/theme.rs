@@ -5,7 +5,7 @@ use once_cell::sync::Lazy;
 use parking_lot::RwLock;
 use std::collections::HashMap;
 
-use crate::config::constants::{defaults, ui};
+use vtcode_config::constants::{defaults, ui};
 
 /// Identifier for the default theme.
 pub const DEFAULT_THEME_ID: &str = defaults::DEFAULT_THEME;

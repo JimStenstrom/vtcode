@@ -4,7 +4,6 @@ use crate::utils::default_true;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
-const DEFAULT_CHECKPOINTS_ENABLED: bool = true;
 const DEFAULT_MAX_SNAPSHOTS: usize = 50;
 const DEFAULT_MAX_AGE_DAYS: u64 = 30;
 
