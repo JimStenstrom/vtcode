@@ -1,3 +1,4 @@
+use crate::utils::default_true;
 use serde::{Deserialize, Serialize};
 
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
@@ -13,8 +14,4 @@ impl Default for TelemetryConfig {
             trajectory_enabled: true,
         }
     }
-}
-
-fn default_true() -> bool {
-    true
 }
