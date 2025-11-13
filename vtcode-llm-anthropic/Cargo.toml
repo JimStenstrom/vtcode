@@ -1,0 +1,36 @@
+[package]
+name = "vtcode-llm-anthropic"
+version = "0.43.6"
+edition = "2024"
+authors = ["vinhnx <vinhnx@users.noreply.github.com>"]
+description = "Standalone Anthropic LLM provider for VTCode"
+license = "MIT"
+publish = false
+categories = ["api-bindings", "science::ml"]
+keywords = ["vtcode", "llm", "ai", "anthropic", "claude"]
+
+[features]
+default = ["streaming", "tool-calling", "prompt-caching"]
+streaming = []
+tool-calling = []
+prompt-caching = []
+
+[dependencies]
+anyhow = "1.0"
+async-trait = "0.1"
+async-stream = "0.3"
+futures = "0.3"
+reqwest = { version = "0.12", features = ["json", "stream"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "2.0"
+tokio = { version = "1", features = ["full"] }
+tracing = "0.1"
+
+# VTCode dependencies
+vtcode-commons = { path = "../vtcode-commons", version = "0.43.6" }
+
+[dev-dependencies]
+tokio-test = "0.4"
+tempfile = "3"
+assert_fs = "1.1"
