@@ -31,7 +31,7 @@
 
 use crate::exec::async_command::{AsyncProcessRunner, ProcessOptions, StreamCaptureConfig};
 use crate::exec::sdk_ipc::{ToolIpcHandler, ToolResponse};
-use crate::mcp::McpToolExecutor;
+use vtcode_mcp::McpToolExecutor;
 use crate::sandbox::SandboxProfile;
 use anyhow::{Context, Result};
 use serde_json::Value;

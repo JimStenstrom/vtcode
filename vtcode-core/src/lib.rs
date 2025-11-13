@@ -185,7 +185,7 @@ pub use exec::{CodeExecutor, ExecutionConfig, ExecutionResult, Language};
 pub use gemini::{Content, FunctionDeclaration, Part};
 pub use llm::{AnyClient, make_client};
 pub use mcp::{
-    tool_discovery::{DetailLevel, ToolDiscovery, ToolDiscoveryResult},
+    DetailLevel, ToolDiscovery, ToolDiscoveryResult,
     validate_mcp_config,
 };
 pub use prompts::{

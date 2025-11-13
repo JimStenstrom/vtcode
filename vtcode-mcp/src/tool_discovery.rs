@@ -16,7 +16,7 @@
 //! let detail = discovery.get_tool_detail("read_file").await?;
 //! ```
 
-use crate::mcp::McpToolInfo;
+use crate::client::McpToolInfo;
 use anyhow::Result;
 use serde_json::Value;
 use std::cmp::Ordering;
@@ -80,12 +80,12 @@ impl ToolDiscoveryResult {
 
 /// Tool discovery service for progressive disclosure of MCP tools.
 pub struct ToolDiscovery {
-    mcp_client: Arc<dyn crate::mcp::McpToolExecutor>,
+    mcp_client: Arc<dyn crate::client::McpToolExecutor>,
 }
 
 impl ToolDiscovery {
     /// Create a new tool discovery service.
-    pub fn new(mcp_client: Arc<dyn crate::mcp::McpToolExecutor>) -> Self {
+    pub fn new(mcp_client: Arc<dyn crate::client::McpToolExecutor>) -> Self {
         Self { mcp_client }
     }
 
@@ -300,7 +300,7 @@ mod tests {
     }
 
     #[async_trait::async_trait]
-    impl crate::mcp::McpToolExecutor for MockMcpClient {
+    impl crate::client::McpToolExecutor for MockMcpClient {
         async fn execute_mcp_tool(&self, _tool_name: &str, _args: Value) -> Result<Value> {
             Ok(Value::Null)
         }
@@ -313,8 +313,8 @@ mod tests {
             Ok(false)
         }
 
-        fn get_status(&self) -> crate::mcp::McpClientStatus {
-            crate::mcp::McpClientStatus {
+        fn get_status(&self) -> crate::client::McpClientStatus {
+            crate::client::McpClientStatus {
                 enabled: true,
                 provider_count: 0,
                 active_connections: 0,

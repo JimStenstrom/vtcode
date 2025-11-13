@@ -12,15 +12,9 @@
 //! the amount of bespoke glue we have to maintain while aligning the
 //! behaviour with the upstream MCP implementations.
 
-use crate::config::mcp::{
+use vtcode_config::mcp::{
     McpAllowListConfig, McpClientConfig, McpProviderConfig, McpTransportConfig,
 };
-
-pub mod cli;
-pub mod enhanced_config;
-pub mod tool_discovery;
-
-pub use tool_discovery::{DetailLevel, ToolDiscovery, ToolDiscoveryResult};
 
 use anyhow::{Context, Result, anyhow, bail};
 use async_trait::async_trait;

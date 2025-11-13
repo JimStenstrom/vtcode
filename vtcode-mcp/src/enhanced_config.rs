@@ -117,14 +117,14 @@ fn default_max_argument_size() -> u32 {
 #[derive(Debug, Clone)]
 pub struct ValidatedMcpClientConfig {
     /// Original configuration
-    pub original: crate::config::mcp::McpClientConfig,
+    pub original: vtcode_config::mcp::McpClientConfig,
     /// Enhanced security configuration
     pub security: EnhancedMcpSecurityConfig,
 }
 
 impl ValidatedMcpClientConfig {
     /// Create a new validated configuration from the original
-    pub fn new(original: crate::config::mcp::McpClientConfig) -> Self {
+    pub fn new(original: vtcode_config::mcp::McpClientConfig) -> Self {
         let security = EnhancedMcpSecurityConfig::default();
         Self { original, security }
     }
@@ -278,7 +278,7 @@ fn default_tool_enabled() -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::mcp::{
+    use vtcode_config::mcp::{
         McpClientConfig, McpProviderConfig, McpServerConfig, McpStdioServerConfig,
         McpTransportConfig,
     };
@@ -304,7 +304,7 @@ mod tests {
                 enabled: true,
                 bind_address: "127.0.0.1".to_string(),
                 port: 3000,
-                transport: crate::config::mcp::McpServerTransport::Sse,
+                transport: vtcode_config::mcp::McpServerTransport::Sse,
                 name: "test_server".to_string(),
                 version: "1.0.0".to_string(),
                 exposed_tools: vec![],

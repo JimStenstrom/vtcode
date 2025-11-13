@@ -1,8 +1,8 @@
 //! CLI commands for managing Model Context Protocol providers.
 
-use crate::config::VTCodeConfig;
-use crate::config::loader::ConfigManager;
-use crate::config::mcp::{
+use vtcode_config::VTCodeConfig;
+use vtcode_config::loader::ConfigManager;
+use vtcode_config::mcp::{
     McpHttpServerConfig, McpProviderConfig, McpStdioServerConfig, McpTransportConfig,
 };
 use anyhow::{Context, Result, anyhow, bail};

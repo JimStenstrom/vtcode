@@ -1,5 +1,5 @@
 use crate::config::PtyConfig;
-use crate::mcp::{DetailLevel, ToolDiscovery};
+use vtcode_mcp::{DetailLevel, ToolDiscovery};
 use crate::tools::apply_patch::Patch;
 use crate::tools::grep_file::GrepSearchInput;
 use crate::tools::traits::Tool;

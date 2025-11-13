@@ -124,6 +124,7 @@ vtcode-exec-events = { path = "../vtcode-exec-events", version = "0.43.6" }
 vtcode-config = { path = "../vtcode-config", version = "0.43.6" }
 vtcode-markdown-store = { path = "../vtcode-markdown-store", version = "0.43.6" }
 vtcode-indexer = { path = "../vtcode-indexer", version = "0.43.6" }
+vtcode-mcp = { path = "../vtcode-mcp", version = "0.43.6" }
 
 # Token counting for attention budget management
 tokenizers = { version = "0.22", features = ["http"] }
@@ -131,16 +132,10 @@ tokenizers = { version = "0.22", features = ["http"] }
 # Schema generation
 schemars = { version = "0.8", optional = true }
 
-# MCP (Model Context Protocol) support
-rmcp = { version = "0.8.3", features = [
-    "client",
-    "transport-child-process",
-    "transport-streamable-http-client-reqwest",
-] }
-mcp-types = { path = "../third-party/mcp-types", version = "0.1.1" }
+# MCP (Model Context Protocol) support is now in vtcode-mcp crate
+# Keeping these dependencies for other parts of vtcode-core that might use them
 openai-harmony = "0.0.3"
 url = "2.5"
-jsonschema = "0.29"
 uuid = { version = "1.8.0", features = ["v4", "fast-rng"] }
 which = "8.0.0"
 textwrap = "0.16"

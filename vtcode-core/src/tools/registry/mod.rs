@@ -52,7 +52,7 @@ use std::time::Duration;
 use tracing::{debug, warn};
 
 use super::plan::PlanManager;
-use crate::mcp::{McpClient, McpToolExecutor, McpToolInfo};
+use vtcode_mcp::{McpClient, McpToolExecutor, McpToolInfo};
 
 #[cfg(test)]
 use super::traits::Tool;
