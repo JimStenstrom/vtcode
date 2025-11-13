@@ -215,6 +215,23 @@ check_clean_tree() {
     fi
 }
 
+# Check version consistency before release
+check_version_consistency() {
+    print_info 'Checking version consistency across all components...'
+
+    if [[ ! -f 'scripts/sync-versions.sh' ]]; then
+        print_warning 'Version sync script not found - skipping version consistency check'
+        return 0
+    fi
+
+    if ! ./scripts/sync-versions.sh check; then
+        print_error 'Version inconsistency detected! Run ./scripts/sync-versions.sh sync to fix.'
+        exit 1
+    fi
+
+    print_success 'All versions are consistent'
+}
+
 # Run all authentication checks (without npm)
 check_all_auth() {
     local skip_npm=$1
@@ -817,6 +834,7 @@ main() {
     load_env_file
     check_branch
     check_clean_tree
+    check_version_consistency
     ensure_cargo_release
     
     # Only install cross if we're not in dry-run mode and not skipping binaries
@@ -854,15 +872,44 @@ main() {
     released_version=$(get_current_version)
     print_success "Release completed for version $released_version"
 
-    # Update npm package version to match the released version and commit the change
-    if [[ "$skip_npm" == 'false' ]]; then
-        update_npm_package_version "$released_version"
-        # Commit the npm package.json change
+    # Synchronize all versions across all components using the centralized version management script
+    print_info "Synchronizing versions across all components..."
+    if [[ -f 'scripts/sync-versions.sh' ]]; then
+        ./scripts/sync-versions.sh sync
+
+        # Commit all version changes together
         if [[ "$dry_run" != 'true' ]]; then
-            if [[ -n "$(git status --porcelain npm/package.json)" ]]; then
-                git add npm/package.json
-                git commit -m "chore: update npm package.json to v$released_version [skip ci]" --no-verify
-                print_info "Committed npm package.json with version $released_version"
+            local version_files_changed=false
+
+            # Check if any version-related files were modified
+            if [[ -n "$(git status --porcelain npm/package.json vscode-extension/package.json vtcode-*/Cargo.toml 2>/dev/null)" ]]; then
+                git add npm/package.json vscode-extension/package.json vtcode-*/Cargo.toml 2>/dev/null || true
+                git commit -m "chore: synchronize all component versions to v$released_version [skip ci]" --no-verify || true
+                print_success "All component versions synchronized to $released_version"
+                version_files_changed=true
+            fi
+
+            # Update Cargo.lock if workspace versions changed
+            if [[ "$version_files_changed" == true ]]; then
+                print_info "Updating Cargo.lock after version sync..."
+                cargo update --workspace --quiet 2>/dev/null || cargo update --quiet || true
+                if [[ -n "$(git status --porcelain Cargo.lock 2>/dev/null)" ]]; then
+                    git add Cargo.lock
+                    git commit -m "chore: update Cargo.lock after version sync [skip ci]" --no-verify || true
+                fi
+            fi
+        fi
+    else
+        print_warning "Version sync script not found - using legacy method"
+        # Fallback to legacy npm update method
+        if [[ "$skip_npm" == 'false' ]]; then
+            update_npm_package_version "$released_version"
+            if [[ "$dry_run" != 'true' ]]; then
+                if [[ -n "$(git status --porcelain npm/package.json)" ]]; then
+                    git add npm/package.json
+                    git commit -m "chore: update npm package.json to v$released_version [skip ci]" --no-verify
+                    print_info "Committed npm package.json with version $released_version"
+                fi
             fi
         fi
     fi
@@ -915,8 +962,9 @@ main() {
         print_info "Zed extension checksum update functionality has been removed from this release"
     fi
 
-    # Update extension versions to match main project version
-    update_extensions_version "$released_version"
+    # Extension versions are now handled by the centralized sync-versions.sh script
+    # (called earlier in the release process)
+    print_info "Extension versions synchronized by centralized version management"
 
     # Wait for all background processes to complete
     print_info 'Waiting for background processes to complete...'
