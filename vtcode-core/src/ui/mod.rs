@@ -1,53 +1,38 @@
 //! User interface utilities and shared UI components
 //!
-//! This module contains shared UI functionality including loading indicators,
-//! markdown rendering, and terminal utilities.
+//! **Note**: As of vtcode 0.43.6, the UI implementation has been extracted into
+//! the standalone [`vtcode-ui`](https://docs.rs/vtcode-ui) crate as part of
+//! Phase 2 of the architecture transformation.
+//!
+//! This module re-exports all types from `vtcode-ui` for backward compatibility,
+//! so existing code using `vtcode_core::ui` will continue to work without changes.
+//!
+//! # Migration
+//!
+//! For new code, you can choose to either:
+//! 1. Continue using `vtcode_core::ui` (recommended for vtcode integration)
+//! 2. Use `vtcode_ui` directly (for standalone UI usage)
+//!
+//! ```rust,ignore
+//! // Option 1: Through vtcode-core (unchanged)
+//! use vtcode_core::ui::{render_markdown, ThemeManager};
+//!
+//! // Option 2: Direct vtcode-ui usage
+//! use vtcode_ui::{render_markdown, ThemeManager};
+//! ```
+//!
+//! Both approaches work identically. See [`vtcode-ui` documentation](https://docs.rs/vtcode-ui)
+//! for details.
+//!
+//! # Re-exported Types
+//!
+//! All public types from `vtcode-ui` are re-exported here:
+//! - Terminal UI components (TUI, session management)
+//! - Theme system (themes, configuration, manager)
+//! - Rendering utilities (markdown, diff, file colorization)
+//! - Input and interaction components
+//! - User confirmation dialogs
+//!
+//! See `vtcode-ui` crate documentation for detailed API reference.
 
-pub mod diff_renderer;
-pub mod file_colorizer;
-pub mod git_config;
-pub mod markdown;
-pub mod search;
-pub mod slash;
-pub mod styled;
-pub mod terminal;
-pub mod theme;
-pub mod theme_config;
-pub mod theme_manager;
-pub mod tui;
-pub mod user_confirmation;
-
-pub use file_colorizer::FileColorizer;
-pub use git_config::GitColorConfig;
-pub use markdown::*;
-pub use search::*;
-pub use slash::*;
-pub use styled::*;
-pub use terminal::*;
-pub use theme::*;
-pub use theme_config::ThemeConfig;
-pub use theme_manager::ThemeManager;
-pub use tui::*;
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_render_markdown() {
-        let markdown_text = r#"
-# Welcome to VTCode
-
-This is a **bold** statement and this is *italic*.
-
-## Features
-
-- Advanced code analysis
-- Multi-language support
-- Real-time collaboration
-"#;
-
-        // This should not panic
-        render_markdown(markdown_text);
-    }
-}
+pub use vtcode_ui::*;
