@@ -15,6 +15,15 @@ VTCode uses a configuration file named `vtcode.toml` that can be placed at the r
 -   [Profiles and overrides](#profiles-and-overrides)
 -   [Reference table](#config-reference)
 
+## Specialized Configuration Documentation
+
+For advanced configuration topics, see:
+
+-   **[Configuration Precedence](config/CONFIGURATION_PRECEDENCE.md)** - Detailed information on configuration resolution order, validation, and default values
+-   **[Router Configuration](config/ROUTER.md)** - Dynamic model selection based on task complexity
+-   **[Tools Configuration](config/TOOLS_CONFIG.md)** - Tool execution policies and loop limits
+-   **[Config Crate Migration](development/config-crate-migration.md)** - Developer guide for migrating to the vtcode-config crate
+
 VTCode supports several mechanisms for setting config values:
 
 -   The `$VTCODE_HOME/config.toml` configuration file where the `VTCODE_HOME` environment value defaults to `~/.vtcode`.
@@ -124,6 +133,23 @@ context_window = 128000    # Context window size in tokens
 max_output_tokens = 4096   # Maximum tokens for model output
 temperature = 0.7          # Model temperature (0.0-2.0)
 top_p = 0.9                # Top-P sampling parameter
+```
+
+### Dynamic model routing
+
+VTCode can automatically select the appropriate model based on task complexity using the Router system. For detailed router configuration including complexity mapping and budget controls, see the **[Router Configuration Guide](config/ROUTER.md)**.
+
+Basic router configuration:
+
+```toml
+[router]
+enabled = true
+heuristic_classification = true
+
+[router.models]
+simple = "gemini-2.5-flash-lite"
+standard = "gemini-2.5-flash"
+complex = "gemini-2.5-pro"
 ```
 
 ## Execution environment
@@ -241,6 +267,8 @@ web_search = "ask"        # Options: "ask", "allow", "deny"
 # Custom policies for specific tools
 custom_tool_example = "deny"
 ```
+
+For detailed information about tool loop limits and additional tool configuration options, see the **[Tools Configuration Guide](config/TOOLS_CONFIG.md)**.
 
 ### automation
 
@@ -380,6 +408,8 @@ Users can specify config values at multiple levels. Order of precedence is as fo
 1. Workspace-level `vtcode.toml` (highest precedence in the workspace)
 2. User-level `$VTCODE_HOME/config.toml`
 3. Extension defaults (lowest precedence)
+
+For detailed information about configuration resolution, validation, CLI overrides, and environment variables, see the **[Configuration Precedence Guide](config/CONFIGURATION_PRECEDENCE.md)**.
 
 ### workspace-specific overrides
 
