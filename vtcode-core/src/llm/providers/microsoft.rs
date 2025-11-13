@@ -46,7 +46,7 @@ struct Activity {
     value: Option<Value>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 struct ActivityParticipant {
     id: String,
 }
