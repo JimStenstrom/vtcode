@@ -57,6 +57,8 @@ pub use vtcode_llm_anthropic::AnthropicProvider;
 pub use vtcode_core::llm::providers::DeepSeekProvider;
 #[cfg(feature = "google")]
 pub use vtcode_core::llm::providers::GeminiProvider;
+#[cfg(feature = "microsoft")]
+pub use vtcode_core::llm::providers::DirectLineProvider;
 #[cfg(feature = "moonshot")]
 pub use vtcode_core::llm::providers::MoonshotProvider;
 #[cfg(feature = "ollama")]
@@ -85,6 +87,8 @@ pub mod providers {
     pub use vtcode_core::llm::providers::deepseek::*;
     #[cfg(feature = "google")]
     pub use vtcode_llm_gemini::*;
+    #[cfg(feature = "microsoft")]
+    pub use vtcode_llm_microsoft::*;
     #[cfg(feature = "moonshot")]
     pub use vtcode_core::llm::providers::moonshot::*;
     #[cfg(feature = "ollama")]

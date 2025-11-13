@@ -54,7 +54,7 @@ impl LLMFactory {
             "lmstudio" => LmStudioProvider,
             "xai" => XAIProvider,
             "zai" => ZAIProvider,
-            "microsoft" => MicrosoftProvider,
+            "microsoft" => MicrosoftProvider
         );
 
         factory

@@ -45,4 +45,14 @@ This index collects provider-specific guides for configuring VT Code with differ
 - **Catalog:** Also ships with `lmstudio-community/meta-llama-3-8b-instruct`, `lmstudio-community/qwen2.5-7b-instruct`, `lmstudio-community/gemma-2-2b-it`, `lmstudio-community/gemma-2-9b-it`, and `lmstudio-community/phi-3.1-mini-4k-instruct`, plus any custom GGUF models you expose
 - **Features:** Streaming, tool calling, structured output, and reasoning effort passthrough via the shared OpenAI surface
 
+## Microsoft DirectLine Bot Framework
+
+- **Guide:** [Microsoft DirectLine Provider Guide](./providers/microsoft.md)
+- **Protocol:** DirectLine API v3 for Azure Bot Service integration
+- **Environment:** `DIRECTLINE_API_KEY` (required) - DirectLine secret from Azure Portal; optional `DIRECTLINE_BASE_URL` for custom endpoints
+- **Default model:** `directline-gpt-4` (Azure-hosted bots)
+- **Use Cases:** Azure Bot Service, Bot Framework bots, Azure OpenAI Service bots, enterprise conversational AI
+- **Features:** Stateful conversations, Azure integration, OpenAI compatibility, tool calling via Bot Framework activities
+- **Local Development:** Bot Framework Emulator for testing without Azure deployment
+
 > ℹ️ Additional provider-specific guides will be added as new integrations land in VT Code.

@@ -1,0 +1,26 @@
+[package]
+name = "vtcode-llm-microsoft"
+version = "0.43.6"
+edition = "2024"
+authors = ["vinhnx <vinhnx@users.noreply.github.com>"]
+description = "Microsoft DirectLine v3 provider for VTCode LLM integration"
+license = "MIT"
+publish = false
+categories = ["api-bindings", "science::ml"]
+keywords = ["vtcode", "llm", "microsoft", "directline", "azure"]
+
+[features]
+default = ["microsoft"]
+microsoft = []
+telemetry = ["vtcode-llm/telemetry"]
+mock = ["vtcode-llm/mock"]
+
+[dependencies]
+anyhow = "1.0"
+vtcode-commons = { path = "../vtcode-commons", version = "0.43.6" }
+vtcode-llm = { path = "../vtcode-llm", version = "0.43.6", features = ["microsoft"] }
+
+[dev-dependencies]
+futures = "0.3"
+tempfile = "3"
+assert_fs = "1.1"

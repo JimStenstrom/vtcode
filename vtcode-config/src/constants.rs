@@ -299,6 +299,20 @@ pub mod models {
         pub const MINIMAX_M2: &str = "MiniMax-M2";
     }
 
+    // Microsoft DirectLine models
+    pub mod microsoft {
+        pub const DEFAULT_MODEL: &str = "directline-gpt-4";
+        pub const SUPPORTED_MODELS: &[&str] = &[
+            "directline-gpt-4",
+            "directline-gpt-35-turbo",
+            "directline-custom",
+        ];
+
+        pub const DIRECTLINE_GPT_4: &str = "directline-gpt-4";
+        pub const DIRECTLINE_GPT_35_TURBO: &str = "directline-gpt-35-turbo";
+        pub const DIRECTLINE_CUSTOM: &str = "directline-custom";
+    }
+
     // xAI models
     pub mod xai {
         pub const DEFAULT_MODEL: &str = "grok-4";
@@ -410,6 +424,8 @@ pub mod model_helpers {
             "xai" => Some(models::xai::SUPPORTED_MODELS),
             "zai" => Some(models::zai::SUPPORTED_MODELS),
             "ollama" => Some(models::ollama::SUPPORTED_MODELS),
+            "lmstudio" => Some(models::lmstudio::SUPPORTED_MODELS),
+            "microsoft" | "directline" => Some(models::microsoft::SUPPORTED_MODELS),
             _ => None,
         }
     }
@@ -430,6 +446,8 @@ pub mod model_helpers {
             "xai" => Some(models::xai::DEFAULT_MODEL),
             "zai" => Some(models::zai::DEFAULT_MODEL),
             "ollama" => Some(models::ollama::DEFAULT_MODEL),
+            "lmstudio" => Some(models::lmstudio::DEFAULT_MODEL),
+            "microsoft" | "directline" => Some(models::microsoft::DEFAULT_MODEL),
             _ => None,
         }
     }

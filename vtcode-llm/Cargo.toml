@@ -14,6 +14,7 @@ default = [
     "anthropic",
     "deepseek",
     "google",
+    "microsoft",
     "moonshot",
     "ollama",
     "openai",
@@ -26,6 +27,7 @@ default = [
 anthropic = ["dep:vtcode-llm-anthropic"]
 deepseek = []
 google = ["dep:vtcode-llm-gemini"]
+microsoft = ["dep:vtcode-llm-microsoft"]
 moonshot = []
 ollama = []
 openai = ["dep:vtcode-llm-openai"]
@@ -43,6 +45,7 @@ vtcode-commons = { path = "../vtcode-commons", version = "0.43.6" }
 vtcode-core = { path = "../vtcode-core", version = "0.43.6" }
 vtcode-llm-anthropic = { path = "../vtcode-llm-anthropic", version = "0.43.6", optional = true }
 vtcode-llm-gemini = { path = "../vtcode-llm-gemini", version = "0.43.6", optional = true }
+vtcode-llm-microsoft = { path = "../vtcode-llm-microsoft", version = "0.43.6", optional = true }
 vtcode-llm-openai = { path = "../vtcode-llm-openai", version = "0.43.6", optional = true }
 
 [dev-dependencies]
