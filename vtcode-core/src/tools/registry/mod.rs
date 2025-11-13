@@ -16,6 +16,7 @@ mod registration;
 mod risk_scorer;
 mod telemetry;
 mod utils;
+pub mod validation;
 
 pub use approval_recorder::ApprovalRecorder;
 pub use declarations::{
