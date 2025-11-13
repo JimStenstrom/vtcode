@@ -1,3 +1,161 @@
+//! Execution policy validation and security enforcement.
+//!
+//! This module provides command validation and security policy enforcement to prevent
+//! workspace breakout, destructive operations, and unauthorized access. It implements
+//! a curated allow-list of safe commands with argument validation.
+//!
+//! # Features
+//!
+//! - **Command Allow-list**: Only approved commands can execute
+//! - **Argument Validation**: Prevent injection and dangerous arguments
+//! - **Workspace Boundaries**: Enforce path restrictions
+//! - **Path Normalization**: Prevent traversal attacks (../, symlinks)
+//! - **File Validation**: Ensure files exist before operations
+//!
+//! # Security Model
+//!
+//! The policy follows a default-deny approach:
+//!
+//! 1. Only explicitly allowed commands can run
+//! 2. All file paths must be within workspace boundaries
+//! 3. Dangerous arguments are rejected (eval, arbitrary execution)
+//! 4. Paths are normalized to prevent traversal
+//! 5. File existence is validated before operations
+//!
+//! # Allowed Commands
+//!
+//! The following commands are permitted with validation:
+//!
+//! ## File Operations
+//! - `cat` - Read file contents
+//! - `head` - Read file beginning
+//! - `tail` - Read file end
+//! - `ls` - List directory contents
+//! - `cp` - Copy files
+//! - `wc` - Count words/lines
+//!
+//! ## Search
+//! - `grep` - Text search
+//! - `rg` (ripgrep) - Fast text search
+//! - `sed` - Stream editor
+//!
+//! ## Development Tools
+//! - `git` - Version control operations
+//! - `cargo` - Rust package manager
+//! - `npm` - Node package manager
+//! - `python`/`python3` - Python interpreter
+//! - `node` - Node.js runtime
+//!
+//! ## System Info
+//! - `echo` - Print text
+//! - `pwd` - Print working directory
+//! - `printenv` - Print environment variables
+//! - `which` - Locate programs
+//! - `date` - Display date/time
+//! - `whoami` - Current user
+//! - `hostname` - System hostname
+//! - `uname` - System information
+//!
+//! # Examples
+//!
+//! ## Basic Validation
+//!
+//! ```rust,ignore
+//! use vtcode_execution::policy::validate_command;
+//! use std::path::Path;
+//!
+//! let workspace = Path::new("/workspace");
+//! let working_dir = Path::new("/workspace/project");
+//!
+//! // Safe command - allowed
+//! let cmd = vec!["git".to_string(), "status".to_string()];
+//! validate_command(&cmd, workspace, working_dir).await?;
+//!
+//! // Unsafe command - rejected
+//! let cmd = vec!["rm".to_string(), "-rf".to_string(), "/".to_string()];
+//! assert!(validate_command(&cmd, workspace, working_dir).await.is_err());
+//! ```
+//!
+//! ## Working Directory Sanitization
+//!
+//! ```rust,ignore
+//! use vtcode_execution::policy::sanitize_working_dir;
+//! use std::path::Path;
+//!
+//! let workspace = Path::new("/workspace");
+//!
+//! // Valid subdirectory
+//! let dir = sanitize_working_dir(workspace, Some("./project")).await?;
+//! assert_eq!(dir, Path::new("/workspace/project"));
+//!
+//! // Attempt to escape - rejected
+//! let result = sanitize_working_dir(workspace, Some("../../etc")).await;
+//! assert!(result.is_err());
+//! ```
+//!
+//! ## Path Validation
+//!
+//! ```rust,ignore
+//! // All paths are validated against workspace boundaries
+//! let cmd = vec!["cat".to_string(), "src/main.rs".to_string()];
+//! validate_command(&cmd, workspace, working_dir).await?;
+//!
+//! // Paths outside workspace are rejected
+//! let cmd = vec!["cat".to_string(), "/etc/passwd".to_string()];
+//! assert!(validate_command(&cmd, workspace, working_dir).await.is_err());
+//! ```
+//!
+//! # Use Cases
+//!
+//! ## AI Agent Execution
+//!
+//! Validate commands before executing agent-generated code:
+//!
+//! ```rust,ignore
+//! let command = agent.generate_command()?;
+//! validate_command(&command, workspace, working_dir).await?;
+//! execute_command(&command).await?;
+//! ```
+//!
+//! ## Educational Platforms
+//!
+//! Ensure student code only accesses approved resources:
+//!
+//! ```rust,ignore
+//! // Students can only run approved commands
+//! // within their workspace directory
+//! validate_command(&student_command, student_workspace, working_dir).await?;
+//! ```
+//!
+//! ## Code Analysis
+//!
+//! Safe execution of analysis tools:
+//!
+//! ```rust,ignore
+//! let cmd = vec!["cargo".to_string(), "check".to_string()];
+//! validate_command(&cmd, workspace, working_dir).await?;
+//! ```
+//!
+//! # Security Considerations
+//!
+//! This policy prevents common attack vectors:
+//!
+//! - **Command Injection**: Only allowed commands execute
+//! - **Path Traversal**: Paths are normalized and validated
+//! - **Workspace Breakout**: All paths must be within workspace
+//! - **Arbitrary Code Execution**: Dangerous flags are rejected (eval, -c)
+//! - **Destructive Operations**: Commands like rm, chmod are not allowed
+//!
+//! # Extending the Policy
+//!
+//! To add new allowed commands:
+//!
+//! 1. Add command to the match statement in [`validate_command`]
+//! 2. Implement validation function (e.g., `validate_mycommand`)
+//! 3. Validate all arguments and file paths
+//! 4. Ensure workspace boundary enforcement
+//! 5. Document allowed flags and behavior
+
 use std::env;
 use std::io;
 use std::path::{Component, Path, PathBuf};
@@ -10,6 +168,30 @@ use anyhow::{Context, Result, anyhow};
 /// The policy is inspired by the Codex execution policy and limits commands to
 /// a curated allow-list with argument validation to prevent workspace
 /// breakout or destructive actions.
+///
+/// # Arguments
+///
+/// * `command` - The command and arguments to validate (first element is program)
+/// * `workspace_root` - The root workspace directory
+/// * `working_dir` - The current working directory
+///
+/// # Returns
+///
+/// * `Ok(())` if the command is allowed
+/// * `Err(_)` if the command is not allowed or arguments are invalid
+///
+/// # Examples
+///
+/// ```rust,ignore
+/// use vtcode_execution::policy::validate_command;
+/// use std::path::Path;
+///
+/// let workspace = Path::new("/workspace");
+/// let working_dir = Path::new("/workspace/project");
+/// let command = vec!["git".to_string(), "status".to_string()];
+///
+/// validate_command(&command, workspace, working_dir).await?;
+/// ```
 pub async fn validate_command(
     command: &[String],
     workspace_root: &Path,
@@ -52,7 +234,37 @@ pub async fn validate_command(
     }
 }
 
-/// Normalize a working directory relative to the workspace root.
+/// Normalize and validate a working directory relative to the workspace root.
+///
+/// This function ensures the working directory is within workspace boundaries
+/// and normalizes the path to prevent traversal attacks.
+///
+/// # Arguments
+///
+/// * `workspace_root` - The root workspace directory
+/// * `working_dir` - The working directory (relative or absolute)
+///
+/// # Returns
+///
+/// * `Ok(PathBuf)` with the normalized absolute path
+/// * `Err(_)` if the path escapes the workspace
+///
+/// # Examples
+///
+/// ```rust,ignore
+/// use vtcode_execution::policy::sanitize_working_dir;
+/// use std::path::Path;
+///
+/// let workspace = Path::new("/workspace");
+///
+/// // Valid path
+/// let dir = sanitize_working_dir(workspace, Some("./project")).await?;
+/// assert!(dir.starts_with(workspace));
+///
+/// // Escape attempt - rejected
+/// let result = sanitize_working_dir(workspace, Some("../../etc")).await;
+/// assert!(result.is_err());
+/// ```
 pub async fn sanitize_working_dir(
     workspace_root: &Path,
     working_dir: Option<&str>,

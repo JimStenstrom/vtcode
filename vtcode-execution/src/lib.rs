@@ -1,30 +1,51 @@
 //! Code execution, sandbox management, and execution policy for VTCode
 //!
-//! This crate provides the execution layer for VTCode, including:
+//! This crate provides the execution layer for VTCode, enabling secure code execution,
+//! sandbox management, and execution policy enforcement. It was extracted from `vtcode-core`
+//! as part of Phase 2 of the architecture transformation to enable independent testing
+//! and reusability.
 //!
-//! - **Code Execution**: Run code snippets in various languages with MCP tool integration
-//! - **Sandbox Management**: Configure and manage sandboxed execution environments
-//! - **Execution Policy**: Validate and enforce security policies for command execution
-//! - **Async Commands**: Execute system commands asynchronously with streaming output
-//! - **Skills & Versioning**: Manage agent skills and tool version compatibility
+//! # Features
+//!
+//! - **Code Execution**: Execute Python/JavaScript code with MCP tool integration
+//! - **Sandbox Management**: Configure secure execution environments with fine-grained permissions
+//! - **Execution Policy**: Validate commands against security allow-lists and workspace boundaries
+//! - **Async Commands**: Execute long-running processes with streaming output
+//! - **Skills Management**: Save and reuse code functions across sessions
+//! - **PII Detection**: Identify and tokenize personally identifiable information
+//! - **Agent Optimization**: Analyze agent behavior patterns and suggest improvements
+//! - **Tool Versioning**: Manage tool compatibility and migration paths
 //!
 //! # Architecture
 //!
-//! This crate was extracted from `vtcode-core` as part of Phase 2 of the architecture
-//! transformation. It depends only on foundation crates:
+//! This crate depends only on foundation layers, maintaining a clean dependency hierarchy:
 //!
-//! - `vtcode-commons` - Shared utilities and safety validation
-//! - `vtcode-bash-runner` - Bash command execution
-//! - `vtcode-tool-traits` - Tool system traits and MCP interfaces
-//! - `vtcode-exec-events` - Execution event types
+//! ```text
+//! vtcode-execution
+//!     ├─→ vtcode-commons (utilities, safety validation)
+//!     ├─→ vtcode-bash-runner (command execution primitives)
+//!     ├─→ vtcode-tool-traits (MCP tool executor trait)
+//!     └─→ vtcode-exec-events (execution event types)
+//! ```
 //!
-//! # Example: Code Execution
+//! This design ensures:
+//! - No circular dependencies
+//! - Independent compilation and testing
+//! - Reusability in other projects
+//! - Clear separation of concerns
+//!
+//! # Quick Start
+//!
+//! ## Code Execution with MCP Tools
+//!
+//! Execute code that can call MCP tools directly, reducing LLM round-trips:
 //!
 //! ```rust,ignore
-//! use vtcode_execution::exec::{CodeExecutor, Language, ExecutionConfig};
+//! use vtcode_execution::{CodeExecutor, Language};
 //! use std::sync::Arc;
 //! use std::path::PathBuf;
 //!
+//! // Create executor with MCP client integration
 //! let executor = CodeExecutor::new(
 //!     Language::Python3,
 //!     sandbox_profile,
@@ -32,40 +53,177 @@
 //!     PathBuf::from("/workspace"),
 //! );
 //!
+//! // Execute code that calls MCP tools
 //! let code = r#"
-//! result = {"hello": "world"}
+//! # MCP tools are available as Python functions
+//! files = list_files(path="/workspace", recursive=True)
+//! filtered = [f for f in files if "test" in f]
+//! result = {"count": len(filtered), "files": filtered[:10]}
 //! "#;
 //!
 //! let result = executor.execute(code).await?;
+//! println!("Found {} test files", result["count"]);
 //! ```
 //!
-//! # Example: Sandbox Management
+//! ## Sandbox Configuration
+//!
+//! Set up secure execution environments with precise control:
 //!
 //! ```rust,ignore
 //! use vtcode_execution::sandbox::{SandboxEnvironment, SandboxRuntimeKind};
 //!
-//! let mut environment = SandboxEnvironment::builder("./workspace")
+//! // Build sandbox environment
+//! let mut env = SandboxEnvironment::builder("./workspace")
 //!     .sandbox_root("./.vtcode/sandbox")
 //!     .runtime_kind(SandboxRuntimeKind::AnthropicSrt)
 //!     .build();
 //!
-//! environment.allow_domain("example.com")?;
-//! environment.allow_path("logs")?;
-//! environment.write_settings()?;
+//! // Configure permissions
+//! env.allow_domain("api.example.com")?;  // Allow network access
+//! env.allow_path("logs")?;               // Allow file access
+//! env.deny_path("secrets")?;             // Explicitly deny
+//!
+//! // Write settings and create profile
+//! env.write_settings()?;
+//! let profile = env.create_profile("/usr/local/bin/srt");
 //! ```
 //!
-//! # Example: Execution Policy
+//! ## Command Validation
+//!
+//! Enforce security policies before executing commands:
 //!
 //! ```rust,ignore
-//! use vtcode_execution::policy::validate_command;
+//! use vtcode_execution::policy::{validate_command, sanitize_working_dir};
 //! use std::path::Path;
 //!
 //! let workspace = Path::new("/workspace");
-//! let working_dir = Path::new("/workspace/project");
-//! let command = vec!["git".to_string(), "status".to_string()];
+//! let working_dir = sanitize_working_dir(workspace, Some("./project")).await?;
 //!
-//! validate_command(&command, workspace, working_dir).await?;
+//! // Validate against allow-list
+//! let command = vec!["git".to_string(), "status".to_string()];
+//! validate_command(&command, workspace, &working_dir).await?;
+//!
+//! // Only approved commands with safe arguments pass validation
+//! // Prevents: workspace breakout, destructive operations, unauthorized access
 //! ```
+//!
+//! ## Async Process Execution
+//!
+//! Stream output from long-running commands:
+//!
+//! ```rust,ignore
+//! use vtcode_execution::exec::async_command::{AsyncProcessRunner, ProcessOptions};
+//! use std::time::Duration;
+//!
+//! let options = ProcessOptions {
+//!     command: vec!["cargo".to_string(), "build".to_string()],
+//!     working_dir: Some("/workspace".into()),
+//!     timeout: Some(Duration::from_secs(300)),
+//!     ..Default::default()
+//! };
+//!
+//! let mut runner = AsyncProcessRunner::new(options);
+//! let mut stream = runner.spawn().await?;
+//!
+//! // Stream output in real-time
+//! while let Some(line) = stream.next().await {
+//!     println!("Build: {}", line);
+//! }
+//! ```
+//!
+//! # Module Overview
+//!
+//! - [`exec`] - Code execution, async commands, skills, and agent optimization
+//! - [`sandbox`] - Sandbox environment configuration and management
+//! - [`policy`] - Command validation and security policy enforcement
+//!
+//! # Use Cases
+//!
+//! ## AI Agent Frameworks
+//!
+//! Add secure code execution to your AI agent:
+//!
+//! ```rust,ignore
+//! // Agent generates code, executor runs it safely
+//! let code = agent.generate_code(task)?;
+//! let result = executor.execute(code).await?;
+//! agent.process_result(result)?;
+//! ```
+//!
+//! ## Code Analysis Tools
+//!
+//! Execute code analysis in sandboxed environments:
+//!
+//! ```rust,ignore
+//! let env = SandboxEnvironment::builder(workspace)
+//!     .deny_path("/etc")
+//!     .deny_path("/root")
+//!     .build();
+//! ```
+//!
+//! ## Educational Platforms
+//!
+//! Run student code safely with resource limits:
+//!
+//! ```rust,ignore
+//! let config = ExecutionConfig {
+//!     timeout: Duration::from_secs(30),
+//!     max_output_size: 10_000,
+//!     ..Default::default()
+//! };
+//! ```
+//!
+//! ## Security Research
+//!
+//! Validate commands before execution:
+//!
+//! ```rust,ignore
+//! // Ensure command is safe before running
+//! validate_command(&cmd, workspace, working_dir).await?;
+//! ```
+//!
+//! # Safety and Security
+//!
+//! This crate implements multiple layers of security:
+//!
+//! 1. **Command Allow-lists**: Only approved commands can execute
+//! 2. **Argument Validation**: Prevent injection and breakout attempts
+//! 3. **Workspace Boundaries**: Enforce path restrictions
+//! 4. **Sandbox Integration**: Support for Anthropic's sandbox runtime
+//! 5. **Resource Limits**: Timeout and output size constraints
+//! 6. **PII Detection**: Identify sensitive data before processing
+//!
+//! # Performance
+//!
+//! - Async execution with tokio for efficient I/O
+//! - Streaming output to avoid memory buildup
+//! - Process pooling for repeated executions
+//! - Minimal allocations in hot paths
+//!
+//! # Examples
+//!
+//! See the [`examples`](https://github.com/vinhnx/vtcode/tree/main/vtcode-execution/examples)
+//! directory for complete working examples of:
+//!
+//! - Code execution with MCP tools
+//! - Sandbox configuration
+//! - Command validation
+//! - Skills management
+//! - Agent optimization
+//!
+//! # Testing
+//!
+//! Run tests with:
+//!
+//! ```bash
+//! cargo test -p vtcode-execution
+//! ```
+//!
+//! # Related Documentation
+//!
+//! - [Architecture Transformation Plan](https://github.com/vinhnx/vtcode/blob/main/ARCHITECTURE_TRANSFORMATION.md)
+//! - [Phase 2 Completion Summary](https://github.com/vinhnx/vtcode/blob/main/vtcode-execution/PHASE2_VTCODE_EXECUTION_COMPLETE.md)
+//! - [VTCode Main Documentation](https://docs.rs/vtcode-core)
 
 pub mod exec;
 pub mod policy;
