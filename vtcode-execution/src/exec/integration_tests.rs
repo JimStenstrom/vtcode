@@ -9,7 +9,7 @@
 
 #[cfg(test)]
 mod tests {
-    use crate::exec::{
+    use super::{
         AgentBehaviorAnalyzer, ExecutionConfig, PiiTokenizer, Skill, SkillManager, SkillMetadata,
     };
     use chrono;

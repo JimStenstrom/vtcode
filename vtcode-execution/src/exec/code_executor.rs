@@ -29,10 +29,10 @@
 //! let result = executor.execute(code).await?;
 //! ```
 
-use crate::exec::async_command::{AsyncProcessRunner, ProcessOptions, StreamCaptureConfig};
-use crate::exec::sdk_ipc::{ToolIpcHandler, ToolResponse};
-use crate::mcp::McpToolExecutor;
+use super::async_command::{AsyncProcessRunner, ProcessOptions, StreamCaptureConfig};
+use super::sdk_ipc::{ToolIpcHandler, ToolResponse};
 use crate::sandbox::SandboxProfile;
+use vtcode_tool_traits::McpToolExecutor;
 use anyhow::{Context, Result};
 use serde_json::Value;
 use std::collections::HashMap;

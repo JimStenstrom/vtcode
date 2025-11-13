@@ -31,6 +31,7 @@ members = [
     "vtcode-core",
     "vtcode-commons",
     "vtcode-config",
+    "vtcode-execution",
     "vtcode-llm",
     "vtcode-llm-types",
     "vtcode-markdown-store",
@@ -44,6 +45,7 @@ exclude = ["zed-extension", "third-party/mcp-types"]
 
 [patch.crates-io]
 vtcode-commons = { path = "vtcode-commons" }
+vtcode-execution = { path = "vtcode-execution" }
 vtcode-llm-types = { path = "vtcode-llm-types" }
 vtcode-tool-traits = { path = "vtcode-tool-traits" }
 vtcode-markdown-store = { path = "vtcode-markdown-store" }

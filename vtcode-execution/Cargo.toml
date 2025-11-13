@@ -1,0 +1,54 @@
+[package]
+name = "vtcode-execution"
+version = "0.43.6"
+edition = "2024"
+authors = ["vinhnx <vinhnx@users.noreply.github.com>"]
+description = "Code execution, sandbox management, and execution policy for VTCode"
+license = "MIT"
+readme = "../README.md"
+homepage = "https://github.com/vinhnx/vtcode"
+repository = "https://github.com/vinhnx/vtcode"
+documentation = "https://docs.rs/vtcode-execution"
+keywords = ["vtcode", "execution", "sandbox", "policy", "security"]
+categories = ["development-tools", "api-bindings"]
+
+[dependencies]
+# Core dependencies
+anyhow = "1.0"
+thiserror = "2.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Async runtime
+tokio = { version = "1.48", features = [
+    "fs",
+    "io-util",
+    "macros",
+    "process",
+    "sync",
+    "time",
+] }
+tokio-util = { version = "0.7", features = ["codec"] }
+async-process = "2.2"
+async-trait = "0.1"
+futures = "0.3"
+futures-lite = "2.3"
+
+# Logging and tracing
+tracing = "0.1"
+
+# Path manipulation
+walkdir = "2.5"
+
+# VTCode dependencies
+vtcode-commons = { version = "0.43.6", path = "../vtcode-commons" }
+vtcode-bash-runner = { version = "0.43.6", path = "../vtcode-bash-runner" }
+vtcode-tool-traits = { version = "0.43.6", path = "../vtcode-tool-traits" }
+vtcode-exec-events = { version = "0.43.6", path = "../vtcode-exec-events" }
+
+[lints]
+workspace = true
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]

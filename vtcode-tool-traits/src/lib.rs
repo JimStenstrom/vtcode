@@ -39,12 +39,14 @@
 //! ```
 
 pub mod error;
+pub mod mcp;
 pub mod policy;
 pub mod traits;
 pub mod types;
 
 // Re-export commonly used types
 pub use error::{classify_error, ToolErrorType, ToolExecutionError, ToolResult};
+pub use mcp::{McpClientStatus, McpToolExecutor, McpToolInfo};
 pub use policy::ToolPolicy;
 pub use traits::{Tool, ToolExecutor, ToolValidator};
 pub use types::{ToolMetadata, ToolParameter, ToolRequest, ToolResponse};
