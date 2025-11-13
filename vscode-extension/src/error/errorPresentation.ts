@@ -3,6 +3,8 @@
  * Converts technical errors to helpful user messages with suggestions
  */
 
+import { getErrorMessage, getErrorStack } from '../utils/errorUtils';
+
 export interface ErrorPresentation {
     readonly title: string;
     readonly message: string;
@@ -15,9 +17,9 @@ export class ErrorPresentationHandler {
     /**
      * Convert an error to a user-friendly presentation
      */
-    public static format(error: Error | string): ErrorPresentation {
-        const errorMessage = typeof error === "string" ? error : error.message;
-        const errorStack = error instanceof Error ? error.stack : undefined;
+    public static format(error: unknown): ErrorPresentation {
+        const errorMessage = getErrorMessage(error);
+        const errorStack = getErrorStack(error);
 
         // Network errors
         if (errorMessage.includes("ECONNREFUSED")) {
@@ -146,7 +148,7 @@ export class ErrorPresentationHandler {
     /**
      * Format error for display in chat
      */
-    public static formatForChat(error: Error | string): string {
+    public static formatForChat(error: unknown): string {
         const presentation = this.format(error);
         let output = `**${presentation.title}**\n\n${presentation.message}`;
 
@@ -164,14 +166,14 @@ export class ErrorPresentationHandler {
     /**
      * Get error context for logging/debugging
      */
-    public static getContext(error: Error | string): Record<string, unknown> {
+    public static getContext(error: unknown): Record<string, unknown> {
         const presentation = this.format(error);
         return {
             title: presentation.title,
             message: presentation.message,
             severity: presentation.severity,
             timestamp: new Date().toISOString(),
-            originalError: typeof error === "string" ? error : error.message,
+            originalError: getErrorMessage(error),
         };
     }
 }
