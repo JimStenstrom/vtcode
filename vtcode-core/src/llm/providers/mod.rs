@@ -1,6 +1,5 @@
 pub mod anthropic;
 pub mod deepseek;
-pub mod gemini;
 pub mod lmstudio;
 pub mod minimax;
 pub mod moonshot;
@@ -20,7 +19,6 @@ pub(crate) use reasoning::{ReasoningBuffer, extract_reasoning_trace, split_reaso
 
 pub use anthropic::AnthropicProvider;
 pub use deepseek::DeepSeekProvider;
-pub use gemini::GeminiProvider;
 pub use lmstudio::LmStudioProvider;
 pub use minimax::MinimaxProvider;
 pub use moonshot::MoonshotProvider;
@@ -29,3 +27,6 @@ pub use openai::OpenAIProvider;
 pub use openrouter::OpenRouterProvider;
 pub use xai::XAIProvider;
 pub use zai::ZAIProvider;
+
+// Re-export GeminiProvider from the modularized crate
+pub use vtcode_llm_gemini::GeminiProvider;

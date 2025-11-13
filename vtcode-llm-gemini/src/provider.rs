@@ -1,5 +1,5 @@
-use crate::config::constants::{env_vars, models, urls};
-use crate::config::core::{GeminiPromptCacheMode, GeminiPromptCacheSettings, PromptCachingConfig};
+use vtcode_core::config::constants::{env_vars, models, urls};
+use vtcode_core::config::core::{GeminiPromptCacheMode, GeminiPromptCacheSettings, PromptCachingConfig};
 use crate::gemini::function_calling::{
     FunctionCall as GeminiFunctionCall, FunctionCallingConfig, FunctionResponse,
 };
@@ -11,13 +11,13 @@ use crate::gemini::{
     Candidate, Content, FunctionDeclaration, GenerateContentRequest, GenerateContentResponse, Part,
     Tool, ToolConfig,
 };
-use crate::llm::client::LLMClient;
-use crate::llm::error_display;
-use crate::llm::provider::{
+use vtcode_core::llm::client::LLMClient;
+use vtcode_core::llm::error_display;
+use vtcode_core::llm::provider::{
     FinishReason, FunctionCall, LLMError, LLMProvider, LLMRequest, LLMResponse, LLMStream,
     LLMStreamEvent, Message, MessageContent, MessageRole, ToolCall, ToolChoice,
 };
-use crate::llm::types as llm_types;
+use vtcode_core::llm::types as llm_types;
 use async_stream::try_stream;
 use async_trait::async_trait;
 use reqwest::Client as HttpClient;
@@ -25,7 +25,7 @@ use serde_json::{Map, Value, json};
 use std::collections::HashMap;
 use tokio::sync::mpsc;
 
-use super::common::{extract_prompt_cache_settings, override_base_url, resolve_model};
+use crate::common::{extract_prompt_cache_settings, override_base_url, resolve_model};
 
 pub struct GeminiProvider {
     api_key: String,
@@ -812,7 +812,7 @@ impl LLMClient for GeminiProvider {
         // Check if the prompt is a serialized GenerateContentRequest
         let request = if prompt.starts_with('{') && prompt.contains("\"contents\"") {
             // Try to parse as JSON GenerateContentRequest
-            match serde_json::from_str::<crate::gemini::GenerateContentRequest>(prompt) {
+            match serde_json::from_str::<GenerateContentRequest>(prompt) {
                 Ok(gemini_request) => {
                     // Convert GenerateContentRequest to LLMRequest
                     let mut messages = Vec::new();
@@ -821,9 +821,9 @@ impl LLMClient for GeminiProvider {
                     // Convert contents to messages
                     for content in &gemini_request.contents {
                         let role = match content.role.as_str() {
-                            crate::config::constants::message_roles::USER => MessageRole::User,
+                            vtcode_core::config::constants::message_roles::USER => MessageRole::User,
                             "model" => MessageRole::Assistant,
-                            crate::config::constants::message_roles::SYSTEM => {
+                            vtcode_core::config::constants::message_roles::SYSTEM => {
                                 // Extract system message
                                 let text = content
                                     .parts
@@ -860,9 +860,9 @@ impl LLMClient for GeminiProvider {
                         gemini_tools
                             .iter()
                             .flat_map(|tool| &tool.function_declarations)
-                            .map(|decl| crate::llm::provider::ToolDefinition {
+                            .map(|decl| vtcode_core::llm::provider::ToolDefinition {
                                 tool_type: "function".to_string(),
-                                function: crate::llm::provider::FunctionDefinition {
+                                function: vtcode_core::llm::provider::FunctionDefinition {
                                     name: decl.name.clone(),
                                     description: decl.description.clone(),
                                     parameters: decl.parameters.clone(),
@@ -1013,8 +1013,8 @@ impl LLMClient for GeminiProvider {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::constants::models;
-    use crate::llm::provider::{SpecificFunctionChoice, SpecificToolChoice, ToolDefinition};
+    use vtcode_core::config::constants::models;
+    use vtcode_core::llm::provider::{SpecificFunctionChoice, SpecificToolChoice, ToolDefinition};
 
     #[test]
     fn convert_to_gemini_request_maps_history_and_system_prompt() {
@@ -1097,7 +1097,7 @@ mod tests {
     #[test]
     fn convert_from_gemini_response_extracts_tool_calls() {
         let response = GenerateContentResponse {
-            candidates: vec![crate::gemini::Candidate {
+            candidates: vec![Candidate {
                 content: Content {
                     role: "model".to_string(),
                     parts: vec![

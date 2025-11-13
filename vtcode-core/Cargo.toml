@@ -124,6 +124,7 @@ vtcode-exec-events = { path = "../vtcode-exec-events", version = "0.43.6" }
 vtcode-config = { path = "../vtcode-config", version = "0.43.6" }
 vtcode-markdown-store = { path = "../vtcode-markdown-store", version = "0.43.6" }
 vtcode-indexer = { path = "../vtcode-indexer", version = "0.43.6" }
+vtcode-llm-gemini = { path = "../vtcode-llm-gemini", version = "0.43.6" }
 
 # Token counting for attention budget management
 tokenizers = { version = "0.22", features = ["http"] }

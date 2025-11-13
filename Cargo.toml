@@ -32,6 +32,7 @@ members = [
     "vtcode-commons",
     "vtcode-config",
     "vtcode-llm",
+    "vtcode-llm-gemini",
     "vtcode-markdown-store",
     "vtcode-indexer",
     "vtcode-tools",

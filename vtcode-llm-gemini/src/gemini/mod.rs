@@ -13,7 +13,7 @@ pub use client::{Client, ClientConfig, RetryConfig};
 pub use function_calling::{FunctionCall, FunctionCallingConfig, FunctionResponse};
 pub use models::{
     Candidate, Content, FunctionDeclaration, GenerateContentRequest, GenerateContentResponse, Part,
-    Tool, ToolConfig,
+    SystemInstruction, Tool, ToolConfig,
 };
 pub use streaming::{
     StreamingCandidate, StreamingConfig, StreamingError, StreamingMetrics, StreamingProcessor,

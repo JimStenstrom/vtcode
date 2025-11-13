@@ -12,7 +12,7 @@ use crate::core::agent::events::{EventSink, ExecEventRecorder};
 pub use crate::core::agent::task::{ContextItem, Task, TaskOutcome, TaskResults};
 use crate::core::agent::types::AgentType;
 use crate::exec::events::{CommandExecutionStatus, ThreadEvent};
-use crate::gemini::{Content, Part, Tool};
+use vtcode_llm_gemini::{Content, Part, Tool};
 use crate::llm::factory::create_provider_for_model;
 use crate::llm::provider as uni_provider;
 use crate::llm::provider::{FunctionDefinition, LLMRequest, Message, ToolCall, ToolDefinition};
@@ -1901,7 +1901,7 @@ impl AgentRunner {
             .into_iter()
             .filter(|decl| self.is_tool_allowed(&decl.name))
             .map(|decl| Tool {
-                function_declarations: vec![crate::gemini::FunctionDeclaration {
+                function_declarations: vec![vtcode_llm_gemini::FunctionDeclaration {
                     name: decl.name,
                     description: decl.description,
                     parameters: sanitize_function_parameters(decl.parameters),

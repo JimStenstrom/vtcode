@@ -1,7 +1,7 @@
 //! Helpers for composing agent conversations and bridging provider-specific message formats.
 
 use crate::core::agent::task::{ContextItem, Task};
-use crate::gemini::{Content, Part};
+use vtcode_llm_gemini::{Content, Part};
 use crate::llm::provider::Message;
 
 /// Compose the full system instruction text combining the base prompt with task metadata.
