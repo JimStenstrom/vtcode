@@ -9,7 +9,7 @@
 
 Phase 2 is complete with zero code duplication across the 4 extracted crates (vtcode-mcp, vtcode-execution, vtcode-prompts, vtcode-ui). However, **comprehensive analysis reveals significant duplication in LLM provider code** that should be addressed in Phase 3.
 
-⚠️ **CRITICAL: TIMELINE REVISED** - Deep code analysis revealed the original 7-8 week estimate was unrealistic. **Realistic timeline: 10-12 weeks (165-245 hours)**. Key gaps: streaming complexity drastically underestimated (should be 40-60h not 6-8h), test coverage inadequate (need +40-60h), and validation insufficient (need +40-50h). See revised timeline below.
+⚠️ **CRITICAL: TIMELINE REVISED** - Deep code analysis revealed the original 7-8 week estimate was unrealistic. **Realistic timeline: 10-12 weeks (196-274 hours, most likely 235 hours)**. Key gaps: streaming complexity drastically underestimated (should be 35-50h not 6-8h), test coverage inadequate (need +35-50h), core abstractions more complex (+13-18h), and validation insufficient (+30-45h). See revised timeline below.
 
 ### Key Findings
 
@@ -18,8 +18,8 @@ Phase 2 is complete with zero code duplication across the 4 extracted crates (vt
 | **Phase 2 Crates** | ✅ Clean | Zero duplication, properly integrated |
 | **Provider Code** | ⚠️ Needs Work | ~2,500-3,000 LOC duplicated (22-26%) |
 | **Test Coverage** | ❌ INADEQUATE | Only 39 tests (need 150+) - CRITICAL gap |
-| **Timeline Estimate** | ❌ UNREALISTIC | Original 7-8 weeks → Revised 10-12 weeks |
-| **Streaming Complexity** | ❌ UNDERESTIMATED | Original 6-8h → Should be 40-60h |
+| **Timeline Estimate** | ❌ UNREALISTIC | Original 7-8 weeks (61-88h) → Revised 10-12 weeks (196-274h) |
+| **Streaming Complexity** | ❌ UNDERESTIMATED | Original 6-8h → Should be 35-50h |
 | **Documentation** | ✅ Excellent | Comprehensive docs for all crates |
 | **Architecture** | ✅ Solid | Clean dependency graph, no circular deps |
 
@@ -335,7 +335,7 @@ Based on the duplication analysis, here's the recommended phase-by-phase approac
 
 **Total Savings**: ~1,100-1,400 lines
 **Risk**: MEDIUM-HIGH (affects core logic, many provider variations)
-**Effort**: ~40-59 hours
+**Effort**: ~35-50 hours
 
 #### Week 5-6: Streaming & Advanced (HIGH Risk)
 
@@ -359,7 +359,7 @@ Based on the duplication analysis, here's the recommended phase-by-phase approac
 
 **Total Savings**: ~700-1,000 lines
 **Risk**: HIGH (complex state machines and provider-specific logic)
-**Effort**: ~40-60 hours
+**Effort**: ~35-50 hours
 
 #### Week 7-8: Comprehensive Test Coverage (CRITICAL)
 
@@ -387,7 +387,7 @@ Based on the duplication analysis, here's the recommended phase-by-phase approac
    - Provider-specific streaming edge cases
 
 **Risk**: CRITICAL (without these tests, 60-70% probability of subtle bugs)
-**Effort**: ~40-60 hours
+**Effort**: ~35-50 hours
 
 #### Week 9-10: Integration & Validation
 
@@ -411,7 +411,7 @@ Based on the duplication analysis, here's the recommended phase-by-phase approac
    - Migration guide creation
 6. **Update documentation** (5-7 hrs)
 
-**Effort**: ~57-75 hours
+**Effort**: ~45-60 hours
 
 #### Week 11-12: Final Polish & Stabilization
 
@@ -426,25 +426,32 @@ Based on the duplication analysis, here's the recommended phase-by-phase approac
 4. **Final documentation** (5-8 hrs)
 5. **Rollback strategy documentation** (3-5 hrs)
 
-**Effort**: ~51-70 hours
+**Effort**: ~40-55 hours
 
 ### Total Phase 3 Estimate
 
 ⚠️ **CRITICAL UPDATE**: Original estimate was significantly underestimated. Revised estimates based on comprehensive code analysis and complexity discovered in the critical review.
 
 **Duration**: 10-12 weeks (was 7-8 weeks)
-**Effort**: 165-245 hours (was 61-88 hours)
+**Effort**: 196-274 hours (was 61-88 hours)
 **Code Reduction**: 2,600-3,300 lines (87-110% of Phase 3 target)
 **Risk Level**: MEDIUM-HIGH (manageable with comprehensive testing and incremental approach)
 
-**Why the increase?**
-- Testing infrastructure: +40-60 hours (was missing)
-- Streaming complexity: +34-52 hours (was drastically underestimated at 6-8 hours)
-- Integration tests: +15-30 hours (inadequate in original plan)
-- Performance validation: +15-20 hours (minimal in original plan)
-- Provider compatibility matrix: +40-50 hours (not included in original)
+**Estimate Range Explanation:**
+- **Aggressive scenario** (196 hours / 10 weeks): Assumes efficient execution, minimal rework, parallel testing
+- **Conservative scenario** (274 hours / 12 weeks): Accounts for unexpected issues, iteration, thorough validation
+- **Most likely** (235 hours / 11 weeks): Balanced estimate with moderate buffer
 
-**Confidence Level**: 80% (vs 30% for original plan)
+**Why the increase?**
+- Testing infrastructure: +35-50 hours (was completely missing)
+- Streaming complexity: +29-42 hours (was drastically underestimated at 6-8 hours)
+- Core abstractions: +13-18 hours (more complex than initially assessed)
+- Integration/validation: +30-45 hours (was inadequate at 15-21 hours)
+- Final polish/stabilization: +40-55 hours (not included in original)
+
+**Total Added**: +147-210 hours beyond original 61-88 hour estimate
+
+**Confidence Level**: 75% (vs 30% for original plan)
 
 ---
 
