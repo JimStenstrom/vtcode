@@ -1,5 +1,6 @@
 import { spawn, type SpawnOptionsWithoutStdio } from "node:child_process";
 import * as vscode from "vscode";
+import { getWorkspaceRoot as getWorkspaceRootUtil } from "./workspaceUtils";
 
 export interface RunVtcodeCommandOptions {
     readonly title?: string;
@@ -28,17 +29,12 @@ export function getConfiguredCommandPath(): string {
     );
 }
 
+/**
+ * @deprecated Use getWorkspaceRoot from workspaceUtils instead
+ * Kept for backward compatibility, delegates to centralized implementation
+ */
 export function getWorkspaceRoot(): string | undefined {
-    const activeEditor = vscode.window.activeTextEditor;
-    if (activeEditor) {
-        const workspaceFolder = vscode.workspace.getWorkspaceFolder(
-            activeEditor.document.uri
-        );
-        return workspaceFolder?.uri.fsPath;
-    }
-
-    const [firstWorkspace] = vscode.workspace.workspaceFolders ?? [];
-    return firstWorkspace?.uri.fsPath;
+    return getWorkspaceRootUtil();
 }
 
 export function getConfigArguments(configUri?: vscode.Uri): string[] {

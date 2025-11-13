@@ -2,6 +2,8 @@
 
 VT Code includes integration with Anthropic's sandbox runtime (`srt`), providing enhanced security for command execution within the agent. The sandbox runtime creates a secure, isolated environment for running terminal commands with configurable permissions.
 
+**This guide covers sandbox-specific setup. For overall security architecture and best practices, see the [Security Guide](./security.md).**
+
 ## Overview
 
 The Anthropic sandbox runtime integration:
@@ -12,6 +14,8 @@ The Anthropic sandbox runtime integration:
 - Streams activity to a sandbox event log for auditing and UX improvements
 - Integrates seamlessly with VT Code's existing tool system
 - Can be paired with Firecracker microVMs for hardware-backed isolation
+
+The sandbox provides **Layer 4** of VT Code's defense-in-depth security model. For the complete security architecture, see [Security Guide - Layer 4](./security.md#layer-4-sandbox-integration).
 
 ## Installation
 

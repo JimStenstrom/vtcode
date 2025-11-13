@@ -15,6 +15,22 @@ use fs2::FileExt;
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 
+/// Helper function to list file stems (names without extensions) in a directory
+fn list_file_stems(dir: &Path) -> Result<Vec<String>> {
+    let mut items = Vec::new();
+    for entry in fs::read_dir(dir)? {
+        let entry = entry?;
+        if let Some(name) = entry
+            .path()
+            .file_stem()
+            .and_then(|file_name| file_name.to_str())
+        {
+            items.push(name.to_string());
+        }
+    }
+    Ok(items)
+}
+
 /// Simple markdown storage manager
 #[derive(Clone)]
 pub struct MarkdownStorage {
@@ -33,41 +49,33 @@ impl MarkdownStorage {
         Ok(())
     }
 
+    /// Get the file path for a given key
+    fn get_file_path(&self, key: &str) -> PathBuf {
+        self.storage_dir.join(format!("{}.md", key))
+    }
+
     /// Store data as markdown
     pub fn store<T: Serialize>(&self, key: &str, data: &T, title: &str) -> Result<()> {
-        let file_path = self.storage_dir.join(format!("{}.md", key));
+        let file_path = self.get_file_path(key);
         let markdown = self.serialize_to_markdown(data, title)?;
         write_with_lock(&file_path, markdown.as_bytes())
     }
 
     /// Load data from markdown
     pub fn load<T: for<'de> Deserialize<'de>>(&self, key: &str) -> Result<T> {
-        let file_path = self.storage_dir.join(format!("{}.md", key));
+        let file_path = self.get_file_path(key);
         let content = read_with_shared_lock(&file_path)?;
         self.deserialize_from_markdown(&content)
     }
 
     /// List all stored items
     pub fn list(&self) -> Result<Vec<String>> {
-        let mut items = Vec::new();
-
-        for entry in fs::read_dir(&self.storage_dir)? {
-            let entry = entry?;
-            if let Some(name) = entry
-                .path()
-                .file_stem()
-                .and_then(|file_name| file_name.to_str())
-            {
-                items.push(name.to_string());
-            }
-        }
-
-        Ok(items)
+        list_file_stems(&self.storage_dir)
     }
 
     /// Delete stored item
     pub fn delete(&self, key: &str) -> Result<()> {
-        let file_path = self.storage_dir.join(format!("{}.md", key));
+        let file_path = self.get_file_path(key);
         if file_path.exists() {
             // Try to obtain an exclusive lock before removing the file so
             // concurrent readers or writers can finish gracefully.
@@ -94,8 +102,7 @@ impl MarkdownStorage {
 
     /// Check if item exists
     pub fn exists(&self, key: &str) -> bool {
-        let file_path = self.storage_dir.join(format!("{}.md", key));
-        file_path.exists()
+        self.get_file_path(key).exists()
     }
 
     fn serialize_to_markdown<T: Serialize>(&self, data: &T, title: &str) -> Result<String> {
@@ -418,14 +425,19 @@ impl SimpleProjectManager {
         self.project_root.join(project_name)
     }
 
+    /// Get a project subdirectory (helper for config_dir and cache_dir)
+    fn project_subdir(&self, project_name: &str, subdir: &str) -> PathBuf {
+        self.project_data_dir(project_name).join(subdir)
+    }
+
     /// Get project config directory
     pub fn config_dir(&self, project_name: &str) -> PathBuf {
-        self.project_data_dir(project_name).join("config")
+        self.project_subdir(project_name, "config")
     }
 
     /// Get project cache directory
     pub fn cache_dir(&self, project_name: &str) -> PathBuf {
-        self.project_data_dir(project_name).join("cache")
+        self.project_subdir(project_name, "cache")
     }
 
     /// Get workspace root
@@ -509,15 +521,20 @@ impl SimpleCache {
         Ok(())
     }
 
+    /// Get the file path for a given key
+    fn get_file_path(&self, key: &str) -> PathBuf {
+        self.cache_dir.join(format!("{}.txt", key))
+    }
+
     /// Store data in cache
     pub fn store(&self, key: &str, data: &str) -> Result<()> {
-        let file_path = self.cache_dir.join(format!("{}.txt", key));
+        let file_path = self.get_file_path(key);
         write_with_lock(&file_path, data.as_bytes())
     }
 
     /// Load data from cache
     pub fn load(&self, key: &str) -> Result<String> {
-        let file_path = self.cache_dir.join(format!("{}.txt", key));
+        let file_path = self.get_file_path(key);
         read_with_shared_lock(&file_path).map_err(|err| {
             if err
                 .downcast_ref::<std::io::Error>()
@@ -532,8 +549,7 @@ impl SimpleCache {
 
     /// Check if cache entry exists
     pub fn exists(&self, key: &str) -> bool {
-        let file_path = self.cache_dir.join(format!("{}.txt", key));
-        file_path.exists()
+        self.get_file_path(key).exists()
     }
 
     /// Clear cache
@@ -549,18 +565,7 @@ impl SimpleCache {
 
     /// List cache entries
     pub fn list(&self) -> Result<Vec<String>> {
-        let mut entries = Vec::new();
-        for entry in fs::read_dir(&self.cache_dir)? {
-            let entry = entry?;
-            if let Some(name) = entry
-                .path()
-                .file_stem()
-                .and_then(|file_name| file_name.to_str())
-            {
-                entries.push(name.to_string());
-            }
-        }
-        Ok(entries)
+        list_file_stems(&self.cache_dir)
     }
 }
 

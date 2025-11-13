@@ -76,6 +76,8 @@ Network commands require the Anthropic sandbox runtime:
 - **System protection** - No access to system directories
 - **Resource limits** - CPU, memory, and time constraints
 
+**For detailed sandbox setup instructions, see [Anthropic Sandbox Runtime Guide](./anthropic-sandbox-runtime.md).**
+
 ### Layer 5: Human-in-the-Loop
 
 Three-tier approval system for tool execution:
@@ -157,6 +159,8 @@ allowed_domains = [
     "github.com"
 ]
 ```
+
+**See [Anthropic Sandbox Runtime Guide](./anthropic-sandbox-runtime.md) for complete setup instructions, slash commands, and troubleshooting.**
 
 ### Execution Policy
 

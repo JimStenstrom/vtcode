@@ -1,5 +1,6 @@
 use crate::constants::context as context_defaults;
 use anyhow::{Context, Result, ensure};
+use crate::utils::{validate_range, validate_non_empty};
 use serde::{Deserialize, Serialize};
 
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
@@ -89,29 +90,18 @@ impl Default for TokenBudgetConfig {
 
 impl TokenBudgetConfig {
     pub fn validate(&self) -> Result<()> {
-        ensure!(
-            (0.0..=1.0).contains(&self.warning_threshold),
-            "Token budget warning_threshold must be between 0.0 and 1.0"
-        );
-        ensure!(
-            (0.0..=1.0).contains(&self.alert_threshold),
-            "Token budget alert_threshold must be between 0.0 and 1.0"
-        );
+        validate_range(self.warning_threshold, 0.0, 1.0, "Token budget warning_threshold")?;
+        validate_range(self.alert_threshold, 0.0, 1.0, "Token budget alert_threshold")?;
+
         ensure!(
             self.warning_threshold <= self.alert_threshold,
             "Token budget warning_threshold must be less than or equal to alert_threshold"
         );
 
         if self.enabled {
-            ensure!(
-                !self.model.trim().is_empty(),
-                "Token budget model must be provided when token budgeting is enabled"
-            );
+            validate_non_empty(&self.model, "Token budget model")?;
             if let Some(tokenizer) = &self.tokenizer {
-                ensure!(
-                    !tokenizer.trim().is_empty(),
-                    "Token budget tokenizer override cannot be empty"
-                );
+                validate_non_empty(tokenizer, "Token budget tokenizer override")?;
             }
         }
 

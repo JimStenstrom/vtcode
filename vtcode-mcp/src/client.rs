@@ -22,6 +22,7 @@ use chrono::Local;
 use futures::FutureExt;
 use iana_time_zone::get_timezone;
 use jsonschema::Validator;
+use vtcode_tool_traits::{McpClientStatus, McpToolExecutor, McpToolInfo};
 use mcp_types::{
     CallToolRequestParams, CallToolResult, CallToolResultContentItem, ClientCapabilities,
     ClientCapabilitiesRoots, GetPromptRequestParams, GetPromptResult, Implementation,
@@ -60,14 +61,8 @@ use url::Url;
 
 const ELICITATION_SCHEMA_VALIDATION_FLAG: &str = "schemaValidation";
 
-/// Information about an MCP tool exposed by a provider.
-#[derive(Debug, Clone)]
-pub struct McpToolInfo {
-    pub name: String,
-    pub description: String,
-    pub provider: String,
-    pub input_schema: Value,
-}
+// Re-export MCP tool types from vtcode-tool-traits
+pub use vtcode_tool_traits::{McpClientStatus, McpToolExecutor, McpToolInfo};
 
 /// Summary of an MCP resource exposed by a provider.
 #[derive(Debug, Clone)]
@@ -108,15 +103,6 @@ pub struct McpPromptDetail {
     pub meta: Map<String, Value>,
 }
 
-/// Snapshot describing the MCP client at runtime.
-#[derive(Debug, Clone)]
-pub struct McpClientStatus {
-    pub enabled: bool,
-    pub provider_count: usize,
-    pub active_connections: usize,
-    pub configured_providers: Vec<String>,
-}
-
 /// Request payload for handling elicitation prompts from MCP providers.
 #[derive(Debug, Clone)]
 pub struct McpElicitationRequest {
@@ -139,15 +125,6 @@ pub trait McpElicitationHandler: Send + Sync {
         provider: &str,
         request: McpElicitationRequest,
     ) -> Result<McpElicitationResponse>;
-}
-
-/// Trait abstraction used by the tool registry to talk to the MCP client.
-#[async_trait]
-pub trait McpToolExecutor: Send + Sync {
-    async fn execute_mcp_tool(&self, tool_name: &str, args: Value) -> Result<Value>;
-    async fn list_mcp_tools(&self) -> Result<Vec<McpToolInfo>>;
-    async fn has_mcp_tool(&self, tool_name: &str) -> Result<bool>;
-    fn get_status(&self) -> McpClientStatus;
 }
 
 /// High level MCP client responsible for managing multiple providers and

@@ -268,12 +268,35 @@ impl PureRustCommandExecutor {
             .ok_or_else(|| anyhow!("invocation missing target path"))
     }
 
+    fn extract_source_dest_paths(
+        invocation: &CommandInvocation,
+        operation: &str,
+    ) -> Result<(&Path, &Path)> {
+        let source = invocation
+            .touched_paths
+            .first()
+            .ok_or_else(|| anyhow!("{} missing source path", operation))?;
+        let dest = invocation
+            .touched_paths
+            .get(1)
+            .ok_or_else(|| anyhow!("{} missing destination path", operation))?;
+        Ok((source.as_path(), dest.as_path()))
+    }
+
     fn should_include_hidden(command: &str) -> bool {
         command.contains("-a") || command.contains("-Force")
     }
 
+    fn is_recursive(command: &str) -> bool {
+        command.contains("-r") || command.contains("-Recurse")
+    }
+
+    fn has_parents_flag(command: &str) -> bool {
+        command.contains("-p") || command.contains("-Force")
+    }
+
     fn mkdir(path: &Path, command: &str) -> Result<()> {
-        if command.contains("-p") || command.contains("-Force") {
+        if Self::has_parents_flag(command) {
             fs::create_dir_all(path)
                 .with_context(|| format!("failed to create directory `{}`", path.display()))?
         } else {
@@ -285,7 +308,7 @@ impl PureRustCommandExecutor {
 
     fn rm(path: &Path, command: &str) -> Result<()> {
         if path.is_dir() {
-            if command.contains("-r") || command.contains("-Recurse") {
+            if Self::is_recursive(command) {
                 fs::remove_dir_all(path)
                     .with_context(|| format!("failed to remove directory `{}`", path.display()))?
             } else {
@@ -327,8 +350,8 @@ impl PureRustCommandExecutor {
         Ok(())
     }
 
-    fn copy_file(source: &Path, dest: &Path) -> Result<()> {
-        if let Some(parent) = dest.parent() {
+    fn ensure_parent_dir(path: &Path) -> Result<()> {
+        if let Some(parent) = path.parent() {
             fs::create_dir_all(parent).with_context(|| {
                 format!(
                     "failed to prepare destination directory `{}`",
@@ -336,6 +359,11 @@ impl PureRustCommandExecutor {
                 )
             })?;
         }
+        Ok(())
+    }
+
+    fn copy_file(source: &Path, dest: &Path) -> Result<()> {
+        Self::ensure_parent_dir(dest)?;
         fs::copy(source, dest).with_context(|| {
             format!(
                 "failed to copy `{}` to `{}`",
@@ -347,14 +375,7 @@ impl PureRustCommandExecutor {
     }
 
     fn move_path(source: &Path, dest: &Path) -> Result<()> {
-        if let Some(parent) = dest.parent() {
-            fs::create_dir_all(parent).with_context(|| {
-                format!(
-                    "failed to prepare destination directory `{}`",
-                    parent.display()
-                )
-            })?;
-        }
+        Self::ensure_parent_dir(dest)?;
 
         if let Err(rename_err) = fs::rename(source, dest) {
             Self::copy_recursive(source, dest, true)
@@ -403,29 +424,14 @@ impl CommandExecutor for PureRustCommandExecutor {
                 Ok(CommandOutput::success(String::new()))
             }
             CommandCategory::Copy => {
-                let source = invocation
-                    .touched_paths
-                    .first()
-                    .ok_or_else(|| anyhow!("copy missing source path"))?;
-                let dest = invocation
-                    .touched_paths
-                    .get(1)
-                    .ok_or_else(|| anyhow!("copy missing destination path"))?;
-                let recursive =
-                    invocation.command.contains("-r") || invocation.command.contains("-Recurse");
-                Self::copy_recursive(source.as_path(), dest.as_path(), recursive)?;
+                let (source, dest) = Self::extract_source_dest_paths(invocation, "copy")?;
+                let recursive = Self::is_recursive(&invocation.command);
+                Self::copy_recursive(source, dest, recursive)?;
                 Ok(CommandOutput::success(String::new()))
             }
             CommandCategory::Move => {
-                let source = invocation
-                    .touched_paths
-                    .first()
-                    .ok_or_else(|| anyhow!("move missing source path"))?;
-                let dest = invocation
-                    .touched_paths
-                    .get(1)
-                    .ok_or_else(|| anyhow!("move missing destination path"))?;
-                Self::move_path(source.as_path(), dest.as_path())?;
+                let (source, dest) = Self::extract_source_dest_paths(invocation, "move")?;
+                Self::move_path(source, dest)?;
                 Ok(CommandOutput::success(String::new()))
             }
             CommandCategory::Search => bail!(

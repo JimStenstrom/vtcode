@@ -1,68 +1,47 @@
 //! Command permission cache
 //! Caches policy evaluation results with TTL to improve performance
 
-use std::collections::HashMap;
-use std::time::{Duration, Instant};
+use crate::core::cache::TtlCache;
+use std::time::Duration;
 use tracing::debug;
 
-/// A cached permission decision
-#[derive(Debug, Clone)]
-struct CacheEntry {
-    allowed: bool,
-    timestamp: Instant,
-    reason: String,
-}
-
 /// Cache for command permission decisions
+///
+/// Migrated to use unified TtlCache for automatic expiration handling
 pub struct PermissionCache {
-    entries: HashMap<String, CacheEntry>,
-    ttl: Duration,
+    cache: TtlCache<String, (bool, String)>,
 }
 
 impl PermissionCache {
     /// Create cache with 5-minute default TTL
     pub fn new() -> Self {
         Self {
-            entries: HashMap::new(),
-            ttl: Duration::from_secs(300),
+            cache: TtlCache::new(Duration::from_secs(300)),
         }
     }
 
     /// Create cache with custom TTL
     pub fn with_ttl(ttl: Duration) -> Self {
         Self {
-            entries: HashMap::new(),
-            ttl,
+            cache: TtlCache::new(ttl),
         }
     }
 
     /// Check if a command is cached and not expired
-    pub fn get(&self, command: &str) -> Option<bool> {
-        self.entries.get(command).and_then(|entry| {
-            if entry.timestamp.elapsed() < self.ttl {
-                debug!(
-                    command = command,
-                    reason = &entry.reason,
-                    "Permission cache hit ({}s old)",
-                    entry.timestamp.elapsed().as_secs()
-                );
-                Some(entry.allowed)
-            } else {
-                None
-            }
+    pub fn get(&mut self, command: &str) -> Option<bool> {
+        self.cache.get(command).map(|(allowed, reason)| {
+            debug!(
+                command = command,
+                reason = &reason,
+                "Permission cache hit"
+            );
+            allowed
         })
     }
 
     /// Store a permission decision in cache
     pub fn put(&mut self, command: &str, allowed: bool, reason: &str) {
-        self.entries.insert(
-            command.to_string(),
-            CacheEntry {
-                allowed,
-                timestamp: Instant::now(),
-                reason: reason.to_string(),
-            },
-        );
+        self.cache.insert(command.to_string(), (allowed, reason.to_string()));
         debug!(
             command = command,
             allowed = allowed,
@@ -73,24 +52,19 @@ impl PermissionCache {
 
     /// Clear expired entries
     pub fn cleanup_expired(&mut self) {
-        let cutoff = Instant::now() - self.ttl;
-        self.entries.retain(|_, entry| entry.timestamp > cutoff);
+        self.cache.cleanup_expired();
     }
 
     /// Get cache statistics
     pub fn stats(&self) -> (usize, usize) {
-        let total = self.entries.len();
-        let expired = self
-            .entries
-            .iter()
-            .filter(|(_, entry)| entry.timestamp.elapsed() >= self.ttl)
-            .count();
-        (total, expired)
+        let stats = self.cache.stats();
+        // Return (total entries, expired evictions)
+        (stats.entries, stats.expired_evictions)
     }
 
     /// Clear all entries
     pub fn clear(&mut self) {
-        self.entries.clear();
+        self.cache.clear();
         debug!("Permission cache cleared");
     }
 }

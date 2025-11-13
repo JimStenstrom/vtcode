@@ -81,10 +81,10 @@ impl WebFetchTool {
         // Validate URL
         self.validate_url(url)?;
 
-        let client = reqwest::Client::builder()
-            .timeout(std::time::Duration::from_secs(timeout_secs))
-            .user_agent("VTCode/1.0 (compatible; web-fetch tool)")
-            .build()?;
+        let client = crate::http_client::with_timeout_and_user_agent(
+            timeout_secs,
+            "VTCode/1.0 (compatible; web-fetch tool)",
+        )?;
 
         let response = client.get(url).send().await?;
 

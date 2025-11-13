@@ -24,6 +24,8 @@ use std::{
 use tokio::time::sleep;
 use tracing::{debug, trace, warn};
 
+use super::validation;
+
 const DEFAULT_TERMINAL_TIMEOUT_SECS: u64 = 180;
 const DEFAULT_PTY_TIMEOUT_SECS: u64 = 300;
 const RUN_PTY_POLL_TIMEOUT_SECS: u64 = 5;
@@ -130,79 +132,16 @@ impl ToolRegistry {
             let payload: GrepArgs =
                 serde_json::from_value(args).context("grep_file requires a 'pattern' field")?;
 
-            // Validate the path parameter to avoid security issues
-            if payload.path.contains("..") || payload.path.starts_with('/') {
-                return Err(anyhow!(
-                    "Path must be a relative path and cannot contain '..' or start with '/'"
-                ));
-            }
-
-            // Validate and enforce hard limits
-            if let Some(max_results) = payload.max_results {
-                // Enforce a reasonable upper limit to prevent excessive resource usage
-                const MAX_ALLOWED_RESULTS: usize = 1000;
-                if max_results > MAX_ALLOWED_RESULTS {
-                    return Err(anyhow!(
-                        "max_results ({}) exceeds the maximum allowed value of {}",
-                        max_results,
-                        MAX_ALLOWED_RESULTS
-                    ));
-                }
-                if max_results == 0 {
-                    return Err(anyhow!("max_results must be greater than 0"));
-                }
-            }
-
-            if let Some(max_file_size) = payload.max_file_size {
-                // Enforce a reasonable upper limit for file size (100MB)
-                const MAX_ALLOWED_FILE_SIZE: usize = 100 * 1024 * 1024; // 100MB in bytes
-                if max_file_size > MAX_ALLOWED_FILE_SIZE {
-                    return Err(anyhow!(
-                        "max_file_size ({}) exceeds the maximum allowed value of {} bytes (100MB)",
-                        max_file_size,
-                        MAX_ALLOWED_FILE_SIZE
-                    ));
-                }
-                if max_file_size == 0 {
-                    return Err(anyhow!("max_file_size must be greater than 0"));
-                }
-            }
-
-            // Validate context_lines to prevent excessive context
-            if let Some(context_lines) = payload.context_lines {
-                const MAX_ALLOWED_CONTEXT: usize = 20; // Increased from 10 to 20 for more flexibility
-                if context_lines > MAX_ALLOWED_CONTEXT {
-                    return Err(anyhow!(
-                        "context_lines ({}) exceeds the maximum allowed value of {}",
-                        context_lines,
-                        MAX_ALLOWED_CONTEXT
-                    ));
-                }
-                if (context_lines as i32) < 0 {
-                    return Err(anyhow!("context_lines must not be negative"));
-                }
-            }
-
-            // Validate glob_pattern for security
-            if let Some(glob_pattern) = &payload.glob_pattern {
-                if glob_pattern.contains("..") || glob_pattern.starts_with('/') {
-                    return Err(anyhow!(
-                        "glob_pattern must be a relative path and cannot contain '..' or start with '/'"
-                    ));
-                }
-            }
-
-            // Validate type_pattern for basic security (only allow alphanumeric, hyphens, underscores)
-            if let Some(type_pattern) = &payload.type_pattern {
-                if !type_pattern
-                    .chars()
-                    .all(|c| c.is_alphanumeric() || c == '-' || c == '_')
-                {
-                    return Err(anyhow!(
-                        "type_pattern can only contain alphanumeric characters, hyphens, and underscores"
-                    ));
-                }
-            }
+            // Validate all parameters using the validation module
+            validation::validate_grep_params(
+                &payload.path,
+                payload.glob_pattern.as_deref(),
+                payload.type_pattern.as_deref(),
+                payload.max_results,
+                payload.max_file_size,
+                payload.context_lines,
+            )
+            .context("grep_file parameter validation failed")?;
 
             let input = GrepSearchInput {
                 pattern: payload.pattern.clone(),

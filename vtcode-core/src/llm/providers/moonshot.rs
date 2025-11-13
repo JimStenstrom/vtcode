@@ -42,27 +42,25 @@ impl MoonshotProvider {
         base_url: Option<String>,
         prompt_cache: Option<PromptCachingConfig>,
     ) -> Self {
-        let resolved_model = resolve_model(model, models::moonshot::DEFAULT_MODEL);
-        let resolved_base_url = override_base_url(
-            urls::MOONSHOT_API_BASE,
-            base_url,
-            Some(env_vars::MOONSHOT_BASE_URL),
-        );
+        use super::common::ProviderBuilder;
+
+        let api_key_value = api_key.unwrap_or_default();
+        let model_value = resolve_model(model, models::moonshot::DEFAULT_MODEL);
+
+        let builder: ProviderBuilder<()> = ProviderBuilder::new(api_key_value, model_value, urls::MOONSHOT_API_BASE)
+            .with_base_url(base_url, Some(env_vars::MOONSHOT_BASE_URL));
+
         let (prompt_cache_enabled, _) = forward_prompt_cache_with_state(
             prompt_cache,
             |cfg| cfg.enabled && cfg.providers.moonshot.enabled,
             false,
         );
 
-        let http_client = Client::builder()
-            .build()
-            .expect("Failed to create HTTP client");
-
         Self {
-            api_key: api_key.unwrap_or_default(),
-            base_url: resolved_base_url,
-            model: resolved_model,
-            http_client,
+            api_key: builder.api_key,
+            base_url: builder.base_url,
+            model: builder.model,
+            http_client: builder.http_client,
             prompt_cache_enabled,
         }
     }

@@ -164,26 +164,29 @@ where
 
     fn record_event(&self, event: AdapterEvent) {
         if let Err(err) = self.telemetry.record(&event) {
-            self.handle_error(err.context("failed to record vtcode-llm adapter telemetry event"));
+            self.report_error_with_event(
+                err.context("failed to record vtcode-llm adapter telemetry event"),
+                |msg| AdapterEvent::TelemetryFailure { message: msg },
+            );
         }
     }
 
-    fn report_error(&self, error: Error) {
+    /// Generic error handling that formats the error, reports it, and records a
+    /// telemetry event. The event constructor allows callers to specify the
+    /// appropriate event type based on the error context.
+    fn report_error_with_event<F>(&self, error: Error, event_constructor: F)
+    where
+        F: FnOnce(String) -> AdapterEvent,
+    {
         let message = self.error_formatter.format_error(&error).into_owned();
         let _ = self.error_reporter.capture(&error);
         // Best-effort recording of the formatted message; ignore additional
         // failures to avoid recursive error handling loops.
-        let _ = self
-            .telemetry
-            .record(&AdapterEvent::AdapterError { message });
+        let _ = self.telemetry.record(&event_constructor(message));
     }
 
-    fn handle_error(&self, error: Error) {
-        let message = self.error_formatter.format_error(&error).into_owned();
-        let _ = self.error_reporter.capture(&error);
-        let _ = self
-            .telemetry
-            .record(&AdapterEvent::TelemetryFailure { message });
+    fn report_error(&self, error: Error) {
+        self.report_error_with_event(error, |msg| AdapterEvent::AdapterError { message: msg });
     }
 }
 
@@ -363,40 +366,71 @@ mod tests {
     }
 }
 
-/// [`ProviderConfig`] implementation for VTCode's dot-config provider entries.
-impl ProviderConfig for vtcode_core::utils::dot_config::ProviderConfig {
-    fn api_key(&self) -> Option<Cow<'_, str>> {
-        self.api_key.as_deref().map(Cow::Borrowed)
-    }
+/// Macro to generate common ProviderConfig trait implementations for types with
+/// standard Option<String> fields for api_key, base_url, and model.
+macro_rules! impl_provider_config {
+    // Implementation without prompt_cache support
+    ($type:ty) => {
+        impl ProviderConfig for $type {
+            fn api_key(&self) -> Option<Cow<'_, str>> {
+                self.api_key.as_deref().map(Cow::Borrowed)
+            }
 
-    fn base_url(&self) -> Option<Cow<'_, str>> {
-        self.base_url.as_deref().map(Cow::Borrowed)
-    }
+            fn base_url(&self) -> Option<Cow<'_, str>> {
+                self.base_url.as_deref().map(Cow::Borrowed)
+            }
 
-    fn model(&self) -> Option<Cow<'_, str>> {
-        self.model.as_deref().map(Cow::Borrowed)
-    }
+            fn model(&self) -> Option<Cow<'_, str>> {
+                self.model.as_deref().map(Cow::Borrowed)
+            }
+        }
+    };
+    // Implementation with prompt_cache support
+    ($type:ty, with_prompt_cache) => {
+        impl ProviderConfig for $type {
+            fn api_key(&self) -> Option<Cow<'_, str>> {
+                self.api_key.as_deref().map(Cow::Borrowed)
+            }
+
+            fn base_url(&self) -> Option<Cow<'_, str>> {
+                self.base_url.as_deref().map(Cow::Borrowed)
+            }
+
+            fn model(&self) -> Option<Cow<'_, str>> {
+                self.model.as_deref().map(Cow::Borrowed)
+            }
+
+            fn prompt_cache(&self) -> Option<Cow<'_, PromptCachingConfig>> {
+                self.prompt_cache
+                    .as_ref()
+                    .map(|cfg| Cow::Owned(cfg.clone()))
+            }
+        }
+    };
 }
 
+/// [`ProviderConfig`] implementation for VTCode's dot-config provider entries.
+impl_provider_config!(vtcode_core::utils::dot_config::ProviderConfig);
+
 /// [`ProviderConfig`] implementation for the concrete factory configuration.
-impl ProviderConfig for vtcode_core::llm::factory::ProviderConfig {
-    fn api_key(&self) -> Option<Cow<'_, str>> {
-        self.api_key.as_deref().map(Cow::Borrowed)
-    }
+impl_provider_config!(vtcode_core::llm::factory::ProviderConfig, with_prompt_cache);
 
-    fn base_url(&self) -> Option<Cow<'_, str>> {
-        self.base_url.as_deref().map(Cow::Borrowed)
-    }
-
-    fn model(&self) -> Option<Cow<'_, str>> {
-        self.model.as_deref().map(Cow::Borrowed)
-    }
-
-    fn prompt_cache(&self) -> Option<Cow<'_, PromptCachingConfig>> {
-        self.prompt_cache
-            .as_ref()
-            .map(|cfg| Cow::Owned(cfg.clone()))
-    }
+/// Macro to generate builder methods for OwnedProviderConfig fields.
+macro_rules! builder_method {
+    // For String fields that accept impl Into<String>
+    ($method_name:ident, $field:ident, String) => {
+        pub fn $method_name(mut self, value: impl Into<String>) -> Self {
+            self.$field = Some(value.into());
+            self
+        }
+    };
+    // For other field types that are used directly
+    ($method_name:ident, $field:ident, $type:ty) => {
+        pub fn $method_name(mut self, value: $type) -> Self {
+            self.$field = Some(value);
+            self
+        }
+    };
 }
 
 /// Simple builder-friendly provider configuration backed by owned values.
@@ -413,43 +447,10 @@ impl OwnedProviderConfig {
         Self::default()
     }
 
-    pub fn with_api_key(mut self, value: impl Into<String>) -> Self {
-        self.api_key = Some(value.into());
-        self
-    }
-
-    pub fn with_base_url(mut self, value: impl Into<String>) -> Self {
-        self.base_url = Some(value.into());
-        self
-    }
-
-    pub fn with_model(mut self, value: impl Into<String>) -> Self {
-        self.model = Some(value.into());
-        self
-    }
-
-    pub fn with_prompt_cache(mut self, value: PromptCachingConfig) -> Self {
-        self.prompt_cache = Some(value);
-        self
-    }
+    builder_method!(with_api_key, api_key, String);
+    builder_method!(with_base_url, base_url, String);
+    builder_method!(with_model, model, String);
+    builder_method!(with_prompt_cache, prompt_cache, PromptCachingConfig);
 }
 
-impl ProviderConfig for OwnedProviderConfig {
-    fn api_key(&self) -> Option<Cow<'_, str>> {
-        self.api_key.as_deref().map(Cow::Borrowed)
-    }
-
-    fn base_url(&self) -> Option<Cow<'_, str>> {
-        self.base_url.as_deref().map(Cow::Borrowed)
-    }
-
-    fn model(&self) -> Option<Cow<'_, str>> {
-        self.model.as_deref().map(Cow::Borrowed)
-    }
-
-    fn prompt_cache(&self) -> Option<Cow<'_, PromptCachingConfig>> {
-        self.prompt_cache
-            .as_ref()
-            .map(|cfg| Cow::Owned(cfg.clone()))
-    }
-}
+impl_provider_config!(OwnedProviderConfig, with_prompt_cache);

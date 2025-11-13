@@ -11,7 +11,7 @@ export class OpenConfigCommand extends BaseCommand {
     public readonly description = "Open the vtcode.toml configuration file";
     public readonly icon = "gear";
 
-    async execute(context: CommandContext): Promise<void> {
+    async execute(_context: CommandContext): Promise<void> {
         try {
             const configUri = await pickVtcodeConfigUri();
             if (!configUri) {
@@ -28,14 +28,7 @@ export class OpenConfigCommand extends BaseCommand {
                 preview: false,
             });
         } catch (error) {
-            this.handleCommandError("open configuration", error);
+            this.handleError("open configuration", error);
         }
-    }
-
-    private handleCommandError(context: string, error: unknown): void {
-        const message = error instanceof Error ? error.message : String(error);
-        void vscode.window.showErrorMessage(
-            `Failed to ${context} with VTCode: ${message}`
-        );
     }
 }

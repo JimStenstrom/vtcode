@@ -1,4 +1,5 @@
 use crate::constants::prompt_cache;
+use crate::utils::default_true;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
@@ -323,10 +324,6 @@ fn default_auto_cleanup() -> bool {
 
 fn default_min_quality_threshold() -> f64 {
     prompt_cache::DEFAULT_MIN_QUALITY_THRESHOLD
-}
-
-fn default_true() -> bool {
-    true
 }
 
 fn default_openai_min_prefix_tokens() -> u32 {

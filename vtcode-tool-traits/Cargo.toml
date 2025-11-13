@@ -1,0 +1,26 @@
+[package]
+name = "vtcode-tool-traits"
+version = "0.43.6"
+edition = "2021"
+authors = ["vinhnx <vinhnx@users.noreply.github.com>"]
+description = "Core traits and types for the VTCode tool system - extracted to break circular dependencies"
+license = "MIT"
+readme = "../README.md"
+homepage = "https://github.com/vinhnx/vtcode"
+repository = "https://github.com/vinhnx/vtcode"
+documentation = "https://docs.rs/vtcode-tool-traits"
+categories = ["development-tools", "command-line-interface"]
+keywords = ["vt", "tools", "traits", "agent", "llm"]
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[features]
+default = []
+
+[dependencies]
+anyhow = "1.0"
+async-trait = "0.1.89"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
