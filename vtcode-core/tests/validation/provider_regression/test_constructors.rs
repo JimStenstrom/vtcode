@@ -4,6 +4,8 @@
 //! handle various configuration scenarios properly.
 
 use vtcode_core::config::constants::models;
+use vtcode_core::llm::client::LLMClient;  // For model_id() method
+use vtcode_core::llm::provider::LLMProvider;  // For name() method
 use vtcode_core::llm::providers::{
     AnthropicProvider, DeepSeekProvider, GeminiProvider, LmStudioProvider, MinimaxProvider,
     MoonshotProvider, OllamaProvider, OpenAIProvider, OpenRouterProvider, XAIProvider,

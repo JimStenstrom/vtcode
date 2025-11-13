@@ -239,23 +239,39 @@ fn bench_message_creation(c: &mut Criterion) {
 // ============================================================================
 
 fn bench_provider_metadata(c: &mut Criterion) {
+    use vtcode_core::llm::client::LLMClient;
+    use vtcode_core::llm::provider::LLMProvider;
+
     let mut group = c.benchmark_group("provider_metadata");
 
-    let providers = vec![
-        ("anthropic", AnthropicProvider::new("test_key".to_string()) as Box<dyn vtcode_core::llm::provider::LLMProvider>),
-        ("openai", Box::new(OpenAIProvider::new("test_key".to_string())) as Box<dyn vtcode_core::llm::provider::LLMProvider>),
-        ("gemini", Box::new(GeminiProvider::new("test_key".to_string())) as Box<dyn vtcode_core::llm::provider::LLMProvider>),
-    ];
+    // Benchmark provider name() method
+    let anthropic = AnthropicProvider::new("test_key".to_string());
+    group.bench_function("anthropic_name", |b| {
+        b.iter(|| black_box(anthropic.name()))
+    });
 
-    for (name, provider) in providers.iter() {
-        group.bench_with_input(BenchmarkId::new("name", name), provider, |b, p| {
-            b.iter(|| black_box(p.name()))
-        });
+    let openai = OpenAIProvider::new("test_key".to_string());
+    group.bench_function("openai_name", |b| {
+        b.iter(|| black_box(openai.name()))
+    });
 
-        group.bench_with_input(BenchmarkId::new("model_id", name), provider, |b, p| {
-            b.iter(|| black_box(p.model_id()))
-        });
-    }
+    let gemini = GeminiProvider::new("test_key".to_string());
+    group.bench_function("gemini_name", |b| {
+        b.iter(|| black_box(gemini.name()))
+    });
+
+    // Benchmark provider model_id() method
+    group.bench_function("anthropic_model_id", |b| {
+        b.iter(|| black_box(anthropic.model_id()))
+    });
+
+    group.bench_function("openai_model_id", |b| {
+        b.iter(|| black_box(openai.model_id()))
+    });
+
+    group.bench_function("gemini_model_id", |b| {
+        b.iter(|| black_box(gemini.model_id()))
+    });
 
     group.finish();
 }

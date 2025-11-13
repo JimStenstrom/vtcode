@@ -12,6 +12,6 @@ pub mod mocks;
 pub mod fixtures;
 pub mod utils;
 pub mod provider_regression;
-// pub mod provider_edge_cases;
-// pub mod integration;
-// pub mod compatibility_matrix;
+pub mod compatibility_matrix;
+// pub mod provider_edge_cases;  // TODO: Implement provider edge case tests
+// pub mod integration;  // TODO: Implement integration tests

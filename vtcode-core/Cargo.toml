@@ -162,6 +162,10 @@ path = "examples/dialoguer_example.rs"
 name = "migration_test"
 path = "examples/migration_test.rs"
 
+[[bench]]
+name = "provider_performance"
+harness = false
+
 [features]
 default = []
 swift = ["dep:tree-sitter-swift"]
@@ -181,3 +185,5 @@ rustdoc-args = ["--cfg", "docsrs"]
 [dev-dependencies]
 assert_fs = "1.1"
 nix = { version = "0.30", features = ["user"] }
+criterion = { version = "0.5", features = ["html_reports"] }
+tokio-test = "0.4"
