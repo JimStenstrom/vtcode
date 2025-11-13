@@ -37,30 +37,7 @@ pub struct GeminiProvider {
 }
 
 impl GeminiProvider {
-    pub fn new(api_key: String) -> Self {
-        Self::with_model_internal(
-            api_key,
-            models::google::GEMINI_2_5_FLASH.to_string(),
-            None,
-            None,
-        )
-    }
-
-    pub fn with_model(api_key: String, model: String) -> Self {
-        Self::with_model_internal(api_key, model, None, None)
-    }
-
-    pub fn from_config(
-        api_key: Option<String>,
-        model: Option<String>,
-        base_url: Option<String>,
-        prompt_cache: Option<PromptCachingConfig>,
-    ) -> Self {
-        let api_key_value = api_key.unwrap_or_default();
-        let model_value = resolve_model(model, models::google::GEMINI_2_5_FLASH);
-
-        Self::with_model_internal(api_key_value, model_value, prompt_cache, base_url)
-    }
+    impl_provider_constructors!(default_model: models::google::GEMINI_2_5_FLASH, resolve_fn: resolve_model);
 
     fn with_model_internal(
         api_key: String,
