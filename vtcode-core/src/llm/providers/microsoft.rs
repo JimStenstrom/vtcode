@@ -3,21 +3,21 @@ use crate::config::core::PromptCachingConfig;
 use crate::llm::client::LLMClient;
 use crate::llm::error_display;
 use crate::llm::provider::{
-    FinishReason, LLMError, LLMProvider, LLMRequest, LLMResponse, LLMStream, LLMStreamEvent,
-    Message, MessageContent, MessageRole, ToolCall, ToolChoice, ToolDefinition,
+    ContentPart, FinishReason, LLMError, LLMProvider, LLMRequest, LLMResponse, Message,
+    MessageContent, MessageRole,
 };
 use crate::llm::types as llm_types;
 use async_trait::async_trait;
 use reqwest::Client as HttpClient;
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::Value;
 use std::time::Duration;
 #[cfg(debug_assertions)]
 use std::time::Instant;
 #[cfg(debug_assertions)]
 use tracing::debug;
 
-use super::common::{override_base_url, resolve_model};
+use super::common::override_base_url;
 
 /// Microsoft Direct Line v3 provider for Bot Framework and M365 Copilot
 pub struct MicrosoftProvider {
@@ -77,7 +77,17 @@ struct Attachment {
 }
 
 impl MicrosoftProvider {
-    impl_provider_constructors!(default_model: models::microsoft::DEFAULT_MODEL, resolve_fn: resolve_model);
+    /// Create a new Microsoft provider from configuration
+    pub fn from_config(
+        api_key: Option<String>,
+        model: Option<String>,
+        base_url: Option<String>,
+        prompt_cache: Option<PromptCachingConfig>,
+    ) -> Self {
+        let api_key = api_key.unwrap_or_default();
+        let model = model.unwrap_or_else(|| models::microsoft::DEFAULT_MODEL.to_string());
+        Self::with_model_internal(api_key, model, prompt_cache, base_url)
+    }
 
     fn with_model_internal(
         api_key: String,
@@ -273,7 +283,7 @@ impl MicrosoftProvider {
                 }
                 MessageContent::Parts(parts) => {
                     for part in parts {
-                        if let Some(text) = &part.text {
+                        if let ContentPart::Text { text } = part {
                             combined.push_str(text);
                             combined.push('\n');
                         }
@@ -447,11 +457,12 @@ impl LLMProvider for MicrosoftProvider {
                             }
 
                             return Ok(LLMResponse {
-                                content,
-                                finish_reason: FinishReason::Stop,
+                                content: Some(content),
+                                tool_calls: None,
                                 usage: None,
-                                cached_prompt: None,
+                                finish_reason: FinishReason::Stop,
                                 reasoning: None,
+                                reasoning_details: None,
                             });
                         }
                     }
@@ -507,8 +518,11 @@ impl LLMClient for MicrosoftProvider {
             messages: vec![Message {
                 role: MessageRole::User,
                 content: MessageContent::Text(prompt.to_string()),
+                reasoning: None,
+                reasoning_details: None,
                 tool_calls: None,
                 tool_call_id: None,
+                origin_tool: None,
             }],
             system_prompt: None,
             tools: None,
@@ -518,18 +532,19 @@ impl LLMClient for MicrosoftProvider {
             stream: false,
             tool_choice: None,
             parallel_tool_calls: None,
+            parallel_tool_config: None,
             reasoning_effort: None,
         };
 
         let response = LLMProvider::generate(self, request).await?;
 
         Ok(llm_types::LLMResponse {
-            content: response.content,
+            content: response.content.unwrap_or_default(),
             model: self.model.clone(),
             usage: response.usage.map(|u| llm_types::Usage {
-                prompt_tokens: u.input_tokens,
-                completion_tokens: u.output_tokens,
-                total_tokens: u.input_tokens + u.output_tokens,
+                prompt_tokens: u.prompt_tokens as usize,
+                completion_tokens: u.completion_tokens as usize,
+                total_tokens: u.total_tokens as usize,
                 cached_prompt_tokens: None,
                 cache_creation_tokens: None,
                 cache_read_tokens: None,
