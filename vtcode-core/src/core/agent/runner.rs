@@ -12,7 +12,7 @@ use crate::core::agent::events::{EventSink, ExecEventRecorder};
 pub use crate::core::agent::task::{ContextItem, Task, TaskOutcome, TaskResults};
 use crate::core::agent::types::AgentType;
 use crate::exec::events::{CommandExecutionStatus, ThreadEvent};
-use vtcode_llm_gemini::{Content, Part, Tool};
+use vtcode_llm_gemini::{Content, Part, Tool, sanitize_function_parameters};
 use crate::llm::factory::create_provider_for_model;
 use crate::llm::provider as uni_provider;
 use crate::llm::provider::{FunctionDefinition, LLMRequest, Message, ToolCall, ToolDefinition};
@@ -712,7 +712,7 @@ impl AgentRunner {
                 function: FunctionDefinition {
                     name: decl.name,
                     description: decl.description,
-                    parameters: crate::llm::providers::gemini::sanitize_function_parameters(
+                    parameters: sanitize_function_parameters(
                         decl.parameters,
                     ),
                 },
@@ -1891,8 +1891,6 @@ impl AgentRunner {
 
     /// Build available tools for this agent type
     fn build_agent_tools(&self) -> Result<Vec<Tool>> {
-        use crate::llm::providers::gemini::sanitize_function_parameters;
-
         // Build function declarations based on available tools
         let declarations = build_function_declarations();
 

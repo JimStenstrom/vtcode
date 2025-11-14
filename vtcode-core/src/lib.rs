@@ -132,7 +132,6 @@ pub mod commands;
 pub mod config;
 pub mod constants;
 pub mod core;
-pub mod gemini;
 pub mod http_client;
 pub mod instructions;
 pub mod llm;
@@ -184,7 +183,7 @@ pub use vtcode_execution::{CodeExecutor, ExecutionConfig, ExecutionResult, Langu
 pub use vtcode_execution::{
     SandboxEnvironment, SandboxProfile, SandboxRuntimeKind, SandboxSettings,
 };
-pub use gemini::{Content, FunctionDeclaration, Part};
+pub use vtcode_llm_gemini::gemini::{Content, FunctionDeclaration, Part};
 pub use llm::{AnyClient, make_client};
 pub use mcp::{
     DetailLevel, ToolDiscovery, ToolDiscoveryResult,

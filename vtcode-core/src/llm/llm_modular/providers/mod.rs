@@ -3,7 +3,7 @@ pub mod openai;
 pub mod anthropic;
 pub mod xai;
 
-pub use gemini::GeminiProvider;
-pub use openai::OpenAIProvider;
-pub use anthropic::AnthropicProvider;
-pub use xai::XAIProvider;
+pub use self::gemini::GeminiProvider;
+pub use self::openai::OpenAIProvider;
+pub use self::anthropic::AnthropicProvider;
+pub use self::xai::XAIProvider;
