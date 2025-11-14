@@ -944,105 +944,40 @@ pub enum FinishReason {
     Error(String),
 }
 
-#[derive(Debug, Clone)]
-pub enum LLMStreamEvent {
-    Token { delta: String },
-    Reasoning { delta: String },
-    Completed { response: LLMResponse },
-}
+// Re-export Phase 3 provider types from vtcode-llm-types
+pub use vtcode_llm_types::{
+    // Provider trait and streaming
+    LLMProvider, LLMStream, LLMStreamEvent,
+    // Error types
+    LLMError as LLMProviderError,
+    // Request and response types
+    LLMRequest, LLMResponse, Usage, FinishReason,
+    // Message types
+    Message, MessageContent, MessageRole, ContentPart,
+    // Tool types
+    ToolCall, ToolChoice, ToolDefinition, FunctionCall, FunctionDefinition,
+    SpecificToolChoice, SpecificFunctionChoice,
+    // Other types
+    ParallelToolConfig, ReasoningEffortLevel,
+};
 
-pub type LLMStream = Pin<Box<dyn futures::Stream<Item = Result<LLMStreamEvent, LLMError>> + Send>>;
-
-/// Universal LLM provider trait
-#[async_trait]
-pub trait LLMProvider: Send + Sync {
-    /// Provider name (e.g., "gemini", "openai", "anthropic")
-    fn name(&self) -> &str;
-
-    /// Whether the provider has native streaming support
-    fn supports_streaming(&self) -> bool {
-        false
-    }
-
-    /// Whether the provider surfaces structured reasoning traces for the given model
-    fn supports_reasoning(&self, _model: &str) -> bool {
-        false
-    }
-
-    /// Whether the provider accepts configurable reasoning effort for the model
-    fn supports_reasoning_effort(&self, _model: &str) -> bool {
-        false
-    }
-
-    /// Whether the provider supports structured tool calling for the given model
-    fn supports_tools(&self, _model: &str) -> bool {
-        true
-    }
-
-    /// Whether the provider understands parallel tool configuration payloads
-    fn supports_parallel_tool_config(&self, _model: &str) -> bool {
-        false
-    }
-
-    /// Whether the provider supports structured output (JSON schema guarantees)
-    fn supports_structured_output(&self, _model: &str) -> bool {
-        false
-    }
-
-    /// Whether the provider supports prompt/context caching
-    fn supports_context_caching(&self, _model: &str) -> bool {
-        false
-    }
-
-    /// Get the effective context window size for a model
-    fn effective_context_size(&self, _model: &str) -> usize {
-        // Default to 128k context window (common baseline)
-        128_000
-    }
-
-    /// Generate completion
-    async fn generate(&self, request: LLMRequest) -> Result<LLMResponse, LLMError>;
-
-    /// Stream completion (optional)
-    async fn stream(&self, request: LLMRequest) -> Result<LLMStream, LLMError> {
-        // Default implementation falls back to non-streaming
-        let response = self.generate(request).await?;
-        let stream = try_stream! {
-            yield LLMStreamEvent::Completed { response };
-        };
-        Ok(Box::pin(stream))
-    }
-
-    /// Get supported models
-    fn supported_models(&self) -> Vec<String>;
-
-    /// Validate request for this provider
-    fn validate_request(&self, request: &LLMRequest) -> Result<(), LLMError>;
-}
-
-#[derive(Debug, thiserror::Error)]
-pub enum LLMError {
-    #[error("Authentication failed: {0}")]
-    Authentication(String),
-    #[error("Rate limit exceeded")]
-    RateLimit,
-    #[error("Invalid request: {0}")]
-    InvalidRequest(String),
-    #[error("Network error: {0}")]
-    Network(String),
-    #[error("Provider error: {0}")]
-    Provider(String),
-}
+// Type alias for backward compatibility
+pub type LLMError = LLMProviderError;
 
 // Implement conversion from provider::LLMError to llm::types::LLMError
 impl From<LLMError> for crate::llm::types::LLMError {
     fn from(err: LLMError) -> crate::llm::types::LLMError {
         match err {
-            LLMError::Authentication(msg) => crate::llm::types::LLMError::ApiError(msg),
+            LLMError::AuthenticationError(msg) => crate::llm::types::LLMError::ApiError(msg),
             LLMError::RateLimit => crate::llm::types::LLMError::RateLimit,
             LLMError::InvalidRequest(msg) => crate::llm::types::LLMError::InvalidRequest(msg),
-            LLMError::Network(msg) => crate::llm::types::LLMError::NetworkError(msg),
+            LLMError::NetworkError(msg) => crate::llm::types::LLMError::NetworkError(msg),
             LLMError::Provider(msg) => crate::llm::types::LLMError::ApiError(msg),
+            LLMError::ApiError(msg) => crate::llm::types::LLMError::ApiError(msg),
+            LLMError::SerializationError(msg) => crate::llm::types::LLMError::SerializationError(msg),
+            LLMError::ModelNotFound(msg) => crate::llm::types::LLMError::ModelNotFound(msg),
+            LLMError::Timeout(msg) => crate::llm::types::LLMError::Timeout(msg),
+            LLMError::Other(msg) => crate::llm::types::LLMError::Other(msg),
         }
     }
 }

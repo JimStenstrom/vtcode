@@ -486,7 +486,7 @@ impl LLMProvider for DeepSeekProvider {
                     PROVIDER_NAME,
                     "Authentication failed (check DEEPSEEK_API_KEY)",
                 );
-                return Err(LLMError::Authentication(formatted_error));
+                return Err(LLMError::AuthenticationError(formatted_error));
             }
 
             if status.as_u16() == 429 || error_text.contains("quota") {
@@ -509,6 +509,18 @@ impl LLMProvider for DeepSeekProvider {
         })?;
 
         self.parse_response(response_json)
+    }
+
+    async fn stream(&self, request: LLMRequest) -> Result<crate::llm::provider::LLMStream, LLMError> {
+        // DeepSeek doesn't support native streaming in this implementation, fall back to non-streaming
+        use async_stream::try_stream;
+        use crate::llm::provider::LLMStreamEvent;
+
+        let response = self.generate(request).await?;
+        let stream = try_stream! {
+            yield LLMStreamEvent::Completed { response };
+        };
+        Ok(Box::pin(stream))
     }
 
     fn supported_models(&self) -> Vec<String> {

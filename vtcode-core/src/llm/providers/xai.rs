@@ -95,6 +95,10 @@ impl LLMProvider for XAIProvider {
         self.inner.generate(request).await
     }
 
+    async fn stream(&self, request: LLMRequest) -> Result<crate::llm::provider::LLMStream, LLMError> {
+        self.inner.stream(request).await
+    }
+
     fn supported_models(&self) -> Vec<String> {
         models::xai::SUPPORTED_MODELS
             .iter()

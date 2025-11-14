@@ -583,6 +583,18 @@ impl LLMProvider for ZAIProvider {
         self.parse_zai_response(json)
     }
 
+    async fn stream(&self, request: LLMRequest) -> Result<crate::llm::provider::LLMStream, LLMError> {
+        // Z.AI doesn't support native streaming, fall back to non-streaming
+        use async_stream::try_stream;
+        use crate::llm::provider::LLMStreamEvent;
+
+        let response = self.generate(request).await?;
+        let stream = try_stream! {
+            yield LLMStreamEvent::Completed { response };
+        };
+        Ok(Box::pin(stream))
+    }
+
     fn supported_models(&self) -> Vec<String> {
         Self::available_models()
     }

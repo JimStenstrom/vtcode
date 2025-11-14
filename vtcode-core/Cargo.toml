@@ -118,6 +118,7 @@ vtcode-indexer = { path = "../vtcode-indexer", version = "0.43.6" }
 vtcode-mcp = { path = "../vtcode-mcp", version = "0.43.6" }
 vtcode-ui = { path = "../vtcode-ui", version = "0.43.6" }
 # Provider crates can be used directly now that circular dependencies are resolved
+vtcode-llm-types = { path = "../vtcode-llm-types", version = "0.43.6" }
 vtcode-llm-gemini = { path = "../vtcode-llm-gemini", version = "0.43.6" }
 vtcode-llm-openrouter = { path = "../vtcode-llm-openrouter", version = "0.43.6" }
 

@@ -5912,6 +5912,7 @@ dependencies = [
  "vtcode-indexer",
  "vtcode-llm-gemini",
  "vtcode-llm-openrouter",
+ "vtcode-llm-types",
  "vtcode-markdown-store",
  "vtcode-mcp",
  "vtcode-prompts",

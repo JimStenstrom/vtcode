@@ -885,6 +885,18 @@ impl LLMProvider for AnthropicProvider {
         self.parse_anthropic_response(anthropic_response)
     }
 
+    async fn stream(&self, request: LLMRequest) -> Result<crate::llm::provider::LLMStream, LLMError> {
+        // Anthropic doesn't support native streaming in this implementation, fall back to non-streaming
+        use async_stream::try_stream;
+        use crate::llm::provider::LLMStreamEvent;
+
+        let response = self.generate(request).await?;
+        let stream = try_stream! {
+            yield LLMStreamEvent::Completed { response };
+        };
+        Ok(Box::pin(stream))
+    }
+
     fn supported_models(&self) -> Vec<String> {
         let mut supported: Vec<String> = models::anthropic::SUPPORTED_MODELS
             .iter()

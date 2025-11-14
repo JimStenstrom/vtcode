@@ -435,6 +435,18 @@ impl LLMProvider for MoonshotProvider {
         self.parse_response(response_json)
     }
 
+    async fn stream(&self, request: LLMRequest) -> Result<crate::llm::provider::LLMStream, LLMError> {
+        // Moonshot doesn't support native streaming in this implementation, fall back to non-streaming
+        use async_stream::try_stream;
+        use crate::llm::provider::LLMStreamEvent;
+
+        let response = self.generate(request).await?;
+        let stream = try_stream! {
+            yield LLMStreamEvent::Completed { response };
+        };
+        Ok(Box::pin(stream))
+    }
+
     fn supported_models(&self) -> Vec<String> {
         models::moonshot::SUPPORTED_MODELS
             .iter()

@@ -485,6 +485,18 @@ impl LLMProvider for MicrosoftProvider {
         )))
     }
 
+    async fn stream(&self, request: LLMRequest) -> Result<crate::llm::provider::LLMStream, LLMError> {
+        // Microsoft DirectLine doesn't support native streaming in this implementation, fall back to non-streaming
+        use async_stream::try_stream;
+        use crate::llm::provider::LLMStreamEvent;
+
+        let response = self.generate(request).await?;
+        let stream = try_stream! {
+            yield LLMStreamEvent::Completed { response };
+        };
+        Ok(Box::pin(stream))
+    }
+
     fn supported_models(&self) -> Vec<String> {
         models::microsoft::SUPPORTED_MODELS
             .iter()
@@ -504,7 +516,7 @@ impl LLMProvider for MicrosoftProvider {
                 "Microsoft",
                 "Direct Line secret is required. Set MICROSOFT_DIRECTLINE_SECRET environment variable.",
             );
-            return Err(LLMError::Authentication(formatted));
+            return Err(LLMError::AuthenticationError(formatted));
         }
 
         Ok(())
