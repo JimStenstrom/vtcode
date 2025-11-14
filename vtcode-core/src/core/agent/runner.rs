@@ -1166,27 +1166,6 @@ impl AgentRunner {
 
                 task_state.record_turn(&turn_started_at, &mut turn_recorded);
                 continue;
-            } else {
-                // Gemini path (existing flow)
-                let response = self
-                    .client
-                    .generate(&serde_json::to_string(&request)?)
-                    .await
-                    .map_err(|e| {
-                        runner_println!(
-                            self,
-                            "{} {} Failed",
-                            agent_prefix,
-                            style("(ERROR)").red().bold().on_black()
-                        );
-                        anyhow!(
-                            "Agent {} execution failed at turn {}: {}",
-                            self.agent_type,
-                            turn,
-                            e
-                        )
-                    })?;
-                response_opt = Some(response);
             }
 
             // For Gemini path: use original response handling
