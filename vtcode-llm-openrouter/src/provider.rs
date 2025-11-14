@@ -646,7 +646,27 @@ impl OpenRouterProvider {
     const TOOL_UNSUPPORTED_ERROR: &'static str = "No endpoints found that support tool use";
 
     // Note: impl_provider_constructors! macro removed during Phase 3 refactoring
-    // Constructors are now defined in lib.rs
+    // Constructors are now manually defined below
+
+    /// Create a new OpenRouter provider with default model
+    pub fn new(api_key: String) -> Self {
+        Self::with_model(api_key, models::openrouter::DEFAULT_MODEL.to_string())
+    }
+
+    /// Create a new OpenRouter provider with a specific model
+    pub fn with_model(api_key: String, model: String) -> Self {
+        Self::with_model_internal(api_key, model, None, None)
+    }
+
+    /// Create a new OpenRouter provider from config
+    pub fn from_config(
+        api_key: String,
+        model: String,
+        base_url: Option<String>,
+        prompt_cache: Option<PromptCachingConfig>,
+    ) -> Self {
+        Self::with_model_internal(api_key, model, prompt_cache, base_url)
+    }
 
     fn with_model_internal(
         api_key: String,
