@@ -6,7 +6,7 @@
 use crate::config::constants::{
     instructions as instruction_constants, project_doc as project_doc_constants,
 };
-use crate::gemini::Content;
+use vtcode_llm_gemini::gemini::Content;
 use crate::instructions::{InstructionBundle, InstructionScope, read_instruction_bundle};
 use crate::project_doc::read_project_doc;
 use dirs::home_dir;
