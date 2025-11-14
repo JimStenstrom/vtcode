@@ -1,7 +1,6 @@
 use vtcode_config::constants::{env_vars, models, urls};
 use vtcode_config::core::{OpenRouterPromptCacheSettings, PromptCachingConfig};
-use vtcode_config::models::{ModelId, Provider};
-use vtcode_config::types::ReasoningEffortLevel;
+use vtcode_config::models::ModelId;
 use vtcode_llm_types::{
     FinishReason, LLMError, LLMProvider, LLMRequest, LLMResponse, LLMStream, LLMStreamEvent,
     Message, MessageContent, MessageRole, ToolCall, ToolChoice, ToolDefinition, Usage,
@@ -19,7 +18,6 @@ use tracing::debug;
 use crate::reasoning::{
     ReasoningBuffer, extract_reasoning_trace, split_reasoning_from_text,
 };
-use crate::common::{extract_prompt_cache_settings, override_base_url, resolve_model};
 use crate::codex_prompt::gpt5_codex_developer_prompt;
 use crate::shared::{
     StreamAssemblyError, StreamDelta, StreamFragment, StreamTelemetry, ToolCallBuilder,
@@ -647,7 +645,8 @@ pub struct OpenRouterProvider {
 impl OpenRouterProvider {
     const TOOL_UNSUPPORTED_ERROR: &'static str = "No endpoints found that support tool use";
 
-    impl_provider_constructors!(default_model: models::openrouter::DEFAULT_MODEL, resolve_fn: resolve_model);
+    // Note: impl_provider_constructors! macro removed during Phase 3 refactoring
+    // Constructors are now defined in lib.rs
 
     fn with_model_internal(
         api_key: String,
@@ -655,23 +654,28 @@ impl OpenRouterProvider {
         prompt_cache: Option<PromptCachingConfig>,
         base_url: Option<String>,
     ) -> Self {
-        use super::common::ProviderBuilder;
+        // Determine base URL
+        let base_url = base_url
+            .filter(|s| !s.trim().is_empty())
+            .or_else(|| std::env::var(env_vars::OPENROUTER_BASE_URL).ok())
+            .unwrap_or_else(|| urls::OPENROUTER_API_BASE.to_string());
 
-        let builder = ProviderBuilder::new(api_key, model, urls::OPENROUTER_API_BASE)
-            .with_base_url(base_url, Some(env_vars::OPENROUTER_BASE_URL))
-            .with_prompt_cache(
-                prompt_cache,
-                |providers| &providers.openrouter,
-                |cfg, provider_settings| cfg.enabled && provider_settings.enabled,
-            );
+        // Extract prompt cache settings
+        let (prompt_cache_enabled, prompt_cache_settings) = if let Some(cfg) = prompt_cache {
+            let settings = cfg.providers.openrouter.clone();
+            let enabled = cfg.enabled && settings.enabled;
+            (enabled, settings)
+        } else {
+            (false, OpenRouterPromptCacheSettings::default())
+        };
 
         Self {
-            api_key: builder.api_key,
-            http_client: builder.http_client,
-            base_url: builder.base_url,
-            model: builder.model,
-            prompt_cache_enabled: builder.prompt_cache_enabled,
-            prompt_cache_settings: builder.prompt_cache_settings,
+            api_key,
+            http_client: HttpClient::new(),
+            base_url,
+            model,
+            prompt_cache_enabled,
+            prompt_cache_settings,
         }
     }
 
@@ -811,8 +815,8 @@ impl OpenRouterProvider {
             .await
             .map_err(|e| {
                 let formatted_error =
-                    error_display::format_llm_error("OpenRouter", &format!("Network error: {}", e));
-                LLMError::Network(formatted_error)
+                    format!("OpenRouter: Network error: {}", e);
+                LLMError::NetworkError(formatted_error)
             })
     }
 
@@ -872,14 +876,11 @@ impl OpenRouterProvider {
                 "HTTP {}: {} | Tool fallback failed with HTTP {}: {}",
                 status, error_text, fallback_status, fallback_text
             );
-            let formatted_error = error_display::format_llm_error("OpenRouter", &combined_error);
+            let formatted_error = format!("OpenRouter: {}", combined_error);
             return Err(LLMError::Provider(formatted_error));
         }
 
-        let formatted_error = error_display::format_llm_error(
-            "OpenRouter",
-            &format!("HTTP {}: {}", status, error_text),
-        );
+        let formatted_error = format!("OpenRouter: HTTP {}: {}", status, error_text);
         Err(LLMError::Provider(formatted_error))
     }
 
@@ -892,7 +893,7 @@ impl OpenRouterProvider {
             let role = entry
                 .get("role")
                 .and_then(|r| r.as_str())
-                .unwrap_or(crate::config::constants::message_roles::USER);
+                .unwrap_or(vtcode_config::constants::message_roles::USER);
             let content = entry.get("content");
             let text_content = content.map(Self::extract_content_text).unwrap_or_default();
 
@@ -1029,13 +1030,18 @@ impl OpenRouterProvider {
         let reasoning_effort = value
             .get("reasoning_effort")
             .and_then(|v| v.as_str())
-            .and_then(ReasoningEffortLevel::parse)
+            .and_then(vtcode_config::ReasoningEffortLevel::parse)
             .or_else(|| {
                 value
                     .get("reasoning")
                     .and_then(|r| r.get("effort"))
                     .and_then(|effort| effort.as_str())
-                    .and_then(ReasoningEffortLevel::parse)
+                    .and_then(vtcode_config::ReasoningEffortLevel::parse)
+            })
+            .map(|e| match e {
+                vtcode_config::ReasoningEffortLevel::Low => vtcode_llm_types::ReasoningEffortLevel::Low,
+                vtcode_config::ReasoningEffortLevel::Medium => vtcode_llm_types::ReasoningEffortLevel::Medium,
+                vtcode_config::ReasoningEffortLevel::High => vtcode_llm_types::ReasoningEffortLevel::High,
             });
 
         let model = value
@@ -1172,10 +1178,7 @@ impl OpenRouterProvider {
                 }
                 MessageRole::Tool => {
                     let tool_call_id = msg.tool_call_id.clone().ok_or_else(|| {
-                        let formatted_error = error_display::format_llm_error(
-                            "OpenRouter",
-                            "Tool messages must include tool_call_id for Responses API",
-                        );
+                        let formatted_error = format!("OpenRouter: Tool messages must include tool_call_id for Responses API");
                         LLMError::InvalidRequest(formatted_error)
                     })?;
 
@@ -1269,10 +1272,7 @@ impl OpenRouterProvider {
                 }
                 MessageRole::Tool => {
                     let tool_call_id = msg.tool_call_id.clone().ok_or_else(|| {
-                        let formatted_error = error_display::format_llm_error(
-                            "OpenRouter",
-                            "Tool messages must include tool_call_id for Responses API",
-                        );
+                        let formatted_error = format!("OpenRouter: Tool messages must include tool_call_id for Responses API");
                         LLMError::InvalidRequest(formatted_error)
                     })?;
 
@@ -1331,10 +1331,7 @@ impl OpenRouterProvider {
         };
 
         if input.is_empty() {
-            let formatted_error = error_display::format_llm_error(
-                "OpenRouter",
-                "No messages provided for Responses API",
-            );
+            let formatted_error = format!("OpenRouter: No messages provided for Responses API");
             return Err(LLMError::InvalidRequest(formatted_error));
         }
 
@@ -1381,11 +1378,9 @@ impl OpenRouterProvider {
 
         if let Some(effort) = request.reasoning_effort {
             if self.supports_reasoning_effort(resolved_model) {
-                if let Some(payload) = reasoning_parameters_for(Provider::OpenRouter, effort) {
-                    provider_request["reasoning"] = payload;
-                } else {
-                    provider_request["reasoning"] = json!({ "effort": effort.as_str() });
-                }
+                // FIXME: reasoning_parameters_for function was removed during Phase 3 refactoring
+                // Using default reasoning effort format for now
+                provider_request["reasoning"] = json!({ "effort": effort.as_str() });
             }
         }
 
@@ -1402,7 +1397,7 @@ impl OpenRouterProvider {
 
         if let Some(system_prompt) = &request.system_prompt {
             messages.push(json!({
-                "role": crate::config::constants::message_roles::SYSTEM,
+                "role": vtcode_config::constants::message_roles::SYSTEM,
                 "content": system_prompt
             }));
         }
@@ -1452,7 +1447,7 @@ impl OpenRouterProvider {
 
         if messages.is_empty() {
             let formatted_error =
-                error_display::format_llm_error("OpenRouter", "No messages provided");
+                format!("OpenRouter: No messages provided");
             return Err(LLMError::InvalidRequest(formatted_error));
         }
 
@@ -1499,11 +1494,9 @@ impl OpenRouterProvider {
 
         if let Some(effort) = request.reasoning_effort {
             if self.supports_reasoning_effort(resolved_model) {
-                if let Some(payload) = reasoning_parameters_for(Provider::OpenRouter, effort) {
-                    provider_request["reasoning"] = payload;
-                } else {
-                    provider_request["reasoning"] = json!({ "effort": effort.as_str() });
-                }
+                // FIXME: reasoning_parameters_for function was removed during Phase 3 refactoring
+                // Using default reasoning effort format for now
+                provider_request["reasoning"] = json!({ "effort": effort.as_str() });
             }
         }
 
@@ -1517,16 +1510,13 @@ impl OpenRouterProvider {
         {
             if choices.is_empty() {
                 let formatted_error =
-                    error_display::format_llm_error("OpenRouter", "No choices in response");
+                    format!("OpenRouter: No choices in response");
                 return Err(LLMError::Provider(formatted_error));
             }
 
             let choice = &choices[0];
             let message = choice.get("message").ok_or_else(|| {
-                let formatted_error = error_display::format_llm_error(
-                    "OpenRouter",
-                    "Invalid response format: missing message",
-                );
+                let formatted_error = format!("OpenRouter: Invalid response format: missing message");
                 LLMError::Provider(formatted_error)
             })?;
 
@@ -1650,16 +1640,13 @@ impl OpenRouterProvider {
             .or_else(|| response_container.get("outputs"))
             .and_then(|value| value.as_array())
             .ok_or_else(|| {
-                let formatted_error = error_display::format_llm_error(
-                    "OpenRouter",
-                    "Invalid response format: missing output",
-                );
+                let formatted_error = format!("OpenRouter: Invalid response format: missing output");
                 LLMError::Provider(formatted_error)
             })?;
 
         if outputs.is_empty() {
             let formatted_error =
-                error_display::format_llm_error("OpenRouter", "No output in response");
+                format!("OpenRouter: No output in response");
             return Err(LLMError::Provider(formatted_error));
         }
 
@@ -1862,11 +1849,8 @@ impl LLMProvider for OpenRouterProvider {
 
             while let Some(chunk_result) = body_stream.next().await {
                 let chunk = chunk_result.map_err(|err| {
-                    let formatted_error = error_display::format_llm_error(
-                        "OpenRouter",
-                        &format!("Streaming error: {}", err),
-                    );
-                    LLMError::Network(formatted_error)
+                    let formatted_error = format!("OpenRouter: Streaming error: {}", err);
+                    LLMError::NetworkError(formatted_error)
                 })?;
 
                 buffer.push_str(&String::from_utf8_lossy(&chunk));
@@ -1979,10 +1963,7 @@ impl LLMProvider for OpenRouterProvider {
         let response = self.send_with_tool_fallback(&request, None).await?;
 
         let openrouter_response: Value = response.json().await.map_err(|e| {
-            let formatted_error = error_display::format_llm_error(
-                "OpenRouter",
-                &format!("Failed to parse response: {}", e),
-            );
+            let formatted_error = format!("OpenRouter: Failed to parse response: {}", e);
             LLMError::Provider(formatted_error)
         })?;
 
@@ -1999,20 +1980,20 @@ impl LLMProvider for OpenRouterProvider {
     fn validate_request(&self, request: &LLMRequest) -> Result<(), LLMError> {
         if request.messages.is_empty() {
             let formatted_error =
-                error_display::format_llm_error("OpenRouter", "Messages cannot be empty");
+                format!("OpenRouter: Messages cannot be empty");
             return Err(LLMError::InvalidRequest(formatted_error));
         }
 
         for message in &request.messages {
             if let Err(err) = message.validate_for_provider("openai") {
-                let formatted = error_display::format_llm_error("OpenRouter", &err);
+                let formatted = format!("OpenRouter: {}", err);
                 return Err(LLMError::InvalidRequest(formatted));
             }
         }
 
         if request.model.trim().is_empty() {
             let formatted_error =
-                error_display::format_llm_error("OpenRouter", "Model must be provided");
+                format!("OpenRouter: Model must be provided");
             return Err(LLMError::InvalidRequest(formatted_error));
         }
 
@@ -2021,35 +2002,35 @@ impl LLMProvider for OpenRouterProvider {
 }
 
 #[async_trait]
-impl LLMClient for OpenRouterProvider {
-    async fn generate(&mut self, prompt: &str) -> Result<llm_types::LLMResponse, LLMError> {
-        let request = self.parse_client_prompt(prompt);
-        let request_model = request.model.clone();
-        let response = LLMProvider::generate(self, request).await?;
-
-        Ok(llm_types::LLMResponse {
-            content: response.content.unwrap_or_default(),
-            model: request_model,
-            usage: response.usage.map(|u| llm_types::Usage {
-                prompt_tokens: u.prompt_tokens as usize,
-                completion_tokens: u.completion_tokens as usize,
-                total_tokens: u.total_tokens as usize,
-                cached_prompt_tokens: u.cached_prompt_tokens.map(|v| v as usize),
-                cache_creation_tokens: u.cache_creation_tokens.map(|v| v as usize),
-                cache_read_tokens: u.cache_read_tokens.map(|v| v as usize),
-            }),
-            reasoning: response.reasoning,
-        })
-    }
-
-    fn backend_kind(&self) -> llm_types::BackendKind {
-        llm_types::BackendKind::OpenRouter
-    }
-
-    fn model_id(&self) -> &str {
-        &self.model
-    }
-}
+// DEPRECATED: impl LLMClient for OpenRouterProvider {
+// DEPRECATED:     async fn generate(&mut self, prompt: &str) -> Result<vtcode_llm_types::LLMResponse, LLMError> {
+// DEPRECATED:         let request = self.parse_client_prompt(prompt);
+// DEPRECATED:         let request_model = request.model.clone();
+// DEPRECATED:         let response = LLMProvider::generate(self, request).await?;
+// DEPRECATED: 
+// DEPRECATED:         Ok(vtcode_llm_types::LLMResponse {
+// DEPRECATED:             content: response.content.unwrap_or_default(),
+// DEPRECATED:             model: request_model,
+// DEPRECATED:             usage: response.usage.map(|u| vtcode_llm_types::Usage {
+// DEPRECATED:                 prompt_tokens: u.prompt_tokens as usize,
+// DEPRECATED:                 completion_tokens: u.completion_tokens as usize,
+// DEPRECATED:                 total_tokens: u.total_tokens as usize,
+// DEPRECATED:                 cached_prompt_tokens: u.cached_prompt_tokens.map(|v| v as usize),
+// DEPRECATED:                 cache_creation_tokens: u.cache_creation_tokens.map(|v| v as usize),
+// DEPRECATED:                 cache_read_tokens: u.cache_read_tokens.map(|v| v as usize),
+// DEPRECATED:             }),
+// DEPRECATED:             reasoning: response.reasoning,
+// DEPRECATED:         })
+// DEPRECATED:     }
+// DEPRECATED: 
+// DEPRECATED:     fn backend_kind(&self) -> vtcode_llm_types::BackendKind {
+// DEPRECATED:         vtcode_llm_types::BackendKind::OpenRouter
+// DEPRECATED:     }
+// DEPRECATED: 
+// DEPRECATED:     fn model_id(&self) -> &str {
+// DEPRECATED:         &self.model
+// DEPRECATED:     }
+// DEPRECATED: }
 
 #[cfg(test)]
 mod tests {
@@ -2303,6 +2284,6 @@ mod tests {
     fn backend_kind_is_openrouter() {
         use crate::llm::client::LLMClient;
         let provider = OpenRouterProvider::new("test_key".to_string());
-        assert_eq!(provider.backend_kind(), llm_types::BackendKind::OpenRouter);
+        assert_eq!(provider.backend_kind(), vtcode_llm_types::BackendKind::OpenRouter);
     }
 }
