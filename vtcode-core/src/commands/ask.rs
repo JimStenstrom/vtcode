@@ -2,8 +2,8 @@
 
 use crate::config::models::ModelId;
 use crate::config::types::AgentConfig;
-use vtcode_llm_gemini::{Content, GenerateContentRequest, Part, SystemInstruction};
 use crate::llm::make_client;
+use crate::llm::provider::{LLMProvider, LLMRequest, Message};
 use crate::prompts::generate_lightweight_instruction;
 use anyhow::Result;
 
@@ -13,50 +13,33 @@ pub async fn handle_ask_command(config: AgentConfig, prompt: Vec<String>) -> Res
         .model
         .parse::<ModelId>()
         .map_err(|_| anyhow::anyhow!("Invalid model: {}", config.model))?;
-    let mut client = make_client(config.api_key.clone(), model_id);
+    let mut client = make_client(config.api_key.clone(), model_id.clone());
     let prompt_text = prompt.join(" ");
 
     if config.verbose {
         println!("Sending prompt to {}: {}", config.model, prompt_text);
     }
 
-    let contents = vec![Content::user_text(prompt_text)];
     let lightweight_instruction = generate_lightweight_instruction();
 
-    // Use lightweight instruction as system instruction
-    let system_instruction = SystemInstruction::new(lightweight_instruction);
-
-    let request = GenerateContentRequest {
-        contents,
+    let request = LLMRequest {
+        messages: vec![Message::user(prompt_text)],
+        system_prompt: Some(lightweight_instruction),
         tools: None,
-        tool_config: None,
-        generation_config: None,
-        system_instruction: Some(system_instruction),
-        reasoning_config: None,
+        model: model_id.as_str().to_string(),
+        max_tokens: None,
+        temperature: None,
+        stream: false,
+        tool_choice: None,
+        parallel_tool_calls: None,
+        parallel_tool_config: None,
+        reasoning_effort: None,
     };
 
-    // Convert the request to a string prompt
-    let prompt = request
-        .contents
-        .iter()
-        .map(|content| {
-            content
-                .parts
-                .iter()
-                .map(|part| match part {
-                    Part::Text { text } => text.clone(),
-                    _ => String::new(),
-                })
-                .collect::<Vec<_>>()
-                .join("\n")
-        })
-        .collect::<Vec<_>>()
-        .join("\n\n");
-
-    let response = client.generate(&prompt).await?;
+    let response = client.generate(request).await?;
 
     // Print the response content directly
-    println!("{}", response.content);
+    println!("{}", response.content.unwrap_or_else(|| "No response content".to_string()));
 
     Ok(())
 }

@@ -1,6 +1,5 @@
 use crate::config::constants::{env_vars, models, urls};
 use crate::config::core::PromptCachingConfig;
-use crate::llm::client::LLMClient;
 use crate::llm::provider::{
     FinishReason, LLMError, LLMProvider, LLMRequest, LLMResponse, LLMStream, LLMStreamEvent,
     Message, MessageRole, ToolCall, ToolChoice, ToolDefinition, Usage,
@@ -856,42 +855,6 @@ impl LLMProvider for OllamaProvider {
         Ok(())
     }
 }
-
-#[async_trait]
-impl LLMClient for OllamaProvider {
-    async fn generate(&mut self, prompt: &str) -> Result<llm_types::LLMResponse, LLMError> {
-        let mut request = self.parse_client_prompt(prompt);
-        if request.model.is_empty() {
-            request.model = self.model.clone();
-        }
-
-        let request_model = request.model.clone();
-        let response = LLMProvider::generate(self, request).await?;
-
-        Ok(llm_types::LLMResponse {
-            content: response.content.unwrap_or_default(),
-            model: request_model,
-            usage: response.usage.map(|usage| llm_types::Usage {
-                prompt_tokens: usage.prompt_tokens as usize,
-                completion_tokens: usage.completion_tokens as usize,
-                total_tokens: usage.total_tokens as usize,
-                cached_prompt_tokens: usage.cached_prompt_tokens.map(|value| value as usize),
-                cache_creation_tokens: usage.cache_creation_tokens.map(|value| value as usize),
-                cache_read_tokens: usage.cache_read_tokens.map(|value| value as usize),
-            }),
-            reasoning: response.reasoning,
-        })
-    }
-
-    fn backend_kind(&self) -> llm_types::BackendKind {
-        llm_types::BackendKind::Ollama
-    }
-
-    fn model_id(&self) -> &str {
-        &self.model
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

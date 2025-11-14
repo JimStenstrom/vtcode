@@ -1,6 +1,5 @@
 use crate::config::constants::{env_vars, models, urls};
 use crate::config::core::PromptCachingConfig;
-use crate::llm::client::LLMClient;
 use crate::llm::error_display;
 use crate::llm::provider::{LLMError, LLMProvider, LLMRequest, LLMResponse};
 use crate::llm::providers::openai::OpenAIProvider;
@@ -130,22 +129,6 @@ impl LLMProvider for XAIProvider {
         Ok(())
     }
 }
-
-#[async_trait]
-impl LLMClient for XAIProvider {
-    async fn generate(&mut self, prompt: &str) -> Result<llm_types::LLMResponse, LLMError> {
-        <OpenAIProvider as LLMClient>::generate(&mut self.inner, prompt).await
-    }
-
-    fn backend_kind(&self) -> llm_types::BackendKind {
-        llm_types::BackendKind::XAI
-    }
-
-    fn model_id(&self) -> &str {
-        &self.model
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

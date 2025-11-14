@@ -1,6 +1,5 @@
 use crate::config::constants::{env_vars, models, urls};
 use crate::config::core::PromptCachingConfig;
-use crate::llm::client::LLMClient;
 use crate::llm::error_display;
 use crate::llm::provider::{
     ContentPart, FinishReason, LLMError, LLMProvider, LLMRequest, LLMResponse, Message,
@@ -520,56 +519,5 @@ impl LLMProvider for MicrosoftProvider {
         }
 
         Ok(())
-    }
-}
-
-#[async_trait]
-impl LLMClient for MicrosoftProvider {
-    async fn generate(&mut self, prompt: &str) -> Result<llm_types::LLMResponse, LLMError> {
-        let request = LLMRequest {
-            messages: vec![Message {
-                role: MessageRole::User,
-                content: MessageContent::Text(prompt.to_string()),
-                reasoning: None,
-                reasoning_details: None,
-                tool_calls: None,
-                tool_call_id: None,
-                origin_tool: None,
-            }],
-            system_prompt: None,
-            tools: None,
-            model: self.model.clone(),
-            max_tokens: None,
-            temperature: None,
-            stream: false,
-            tool_choice: None,
-            parallel_tool_calls: None,
-            parallel_tool_config: None,
-            reasoning_effort: None,
-        };
-
-        let response = LLMProvider::generate(self, request).await?;
-
-        Ok(llm_types::LLMResponse {
-            content: response.content.unwrap_or_default(),
-            model: self.model.clone(),
-            usage: response.usage.map(|u| llm_types::Usage {
-                prompt_tokens: u.prompt_tokens as usize,
-                completion_tokens: u.completion_tokens as usize,
-                total_tokens: u.total_tokens as usize,
-                cached_prompt_tokens: None,
-                cache_creation_tokens: None,
-                cache_read_tokens: None,
-            }),
-            reasoning: response.reasoning,
-        })
-    }
-
-    fn backend_kind(&self) -> llm_types::BackendKind {
-        llm_types::BackendKind::Microsoft
-    }
-
-    fn model_id(&self) -> &str {
-        &self.model
     }
 }

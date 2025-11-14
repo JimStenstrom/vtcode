@@ -2,7 +2,6 @@ use super::common::resolve_model;
 use super::openai::OpenAIProvider;
 use crate::config::constants::{env_vars, models, urls};
 use crate::config::core::PromptCachingConfig;
-use crate::llm::client::LLMClient;
 use crate::llm::error_display;
 use crate::llm::provider::{LLMError, LLMProvider, LLMRequest, LLMResponse, LLMStream};
 use crate::llm::providers::common::override_base_url;
@@ -198,22 +197,6 @@ impl LLMProvider for LmStudioProvider {
         Ok(())
     }
 }
-
-#[async_trait]
-impl LLMClient for LmStudioProvider {
-    async fn generate(&mut self, prompt: &str) -> Result<llm_types::LLMResponse, LLMError> {
-        LLMClient::generate(&mut self.inner, prompt).await
-    }
-
-    fn backend_kind(&self) -> llm_types::BackendKind {
-        self.inner.backend_kind()
-    }
-
-    fn model_id(&self) -> &str {
-        self.inner.model_id()
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

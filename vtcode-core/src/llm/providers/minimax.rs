@@ -1,7 +1,6 @@
 use super::AnthropicProvider;
 use crate::config::constants::models;
 use crate::config::core::PromptCachingConfig;
-use crate::llm::client::LLMClient;
 use crate::llm::provider::{
     FinishReason, LLMError, LLMProvider, LLMRequest, LLMResponse, LLMStream, LLMStreamEvent,
     ToolCall, ToolDefinition,
@@ -108,22 +107,6 @@ impl LLMProvider for MinimaxProvider {
         self.inner.validate_request(request)
     }
 }
-
-#[async_trait]
-impl LLMClient for MinimaxProvider {
-    async fn generate(&mut self, prompt: &str) -> Result<crate::llm::types::LLMResponse, LLMError> {
-        LLMClient::generate(&mut self.inner, prompt).await
-    }
-
-    fn backend_kind(&self) -> crate::llm::types::BackendKind {
-        LLMClient::backend_kind(&self.inner)
-    }
-
-    fn model_id(&self) -> &str {
-        LLMClient::model_id(&self.inner)
-    }
-}
-
 fn post_process_response(
     mut response: LLMResponse,
     tools: Option<&[ToolDefinition]>,

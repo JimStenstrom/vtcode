@@ -3,7 +3,6 @@ use crate::config::core::{OpenAIPromptCacheSettings, PromptCachingConfig};
 use crate::config::models::Provider;
 use crate::config::types::ReasoningEffortLevel;
 use crate::impl_provider_constructors;
-use crate::llm::client::LLMClient;
 use crate::llm::error_display;
 use crate::llm::provider::{
     FinishReason, LLMError, LLMProvider, LLMRequest, LLMResponse, LLMStream, LLMStreamEvent,
@@ -2544,38 +2543,6 @@ impl LLMProvider for OpenAIProvider {
         Ok(())
     }
 }
-
-#[async_trait]
-impl LLMClient for OpenAIProvider {
-    async fn generate(&mut self, prompt: &str) -> Result<llm_types::LLMResponse, LLMError> {
-        let request = self.parse_client_prompt(prompt);
-        let request_model = request.model.clone();
-        let response = LLMProvider::generate(self, request).await?;
-
-        Ok(llm_types::LLMResponse {
-            content: response.content.unwrap_or_default(),
-            model: request_model,
-            usage: response.usage.map(|u| llm_types::Usage {
-                prompt_tokens: u.prompt_tokens as usize,
-                completion_tokens: u.completion_tokens as usize,
-                total_tokens: u.total_tokens as usize,
-                cached_prompt_tokens: u.cached_prompt_tokens.map(|v| v as usize),
-                cache_creation_tokens: u.cache_creation_tokens.map(|v| v as usize),
-                cache_read_tokens: u.cache_read_tokens.map(|v| v as usize),
-            }),
-            reasoning: response.reasoning,
-        })
-    }
-
-    fn backend_kind(&self) -> llm_types::BackendKind {
-        llm_types::BackendKind::OpenAI
-    }
-
-    fn model_id(&self) -> &str {
-        &self.model
-    }
-}
-
 #[cfg(test)]
 mod streaming_tests {
     use super::*;
