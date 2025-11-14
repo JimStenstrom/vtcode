@@ -15,14 +15,14 @@
 //!
 //! The provider can be configured using environment variables:
 //!
-//! - `DIRECTLINE_API_KEY` - DirectLine secret (required)
-//! - `DIRECTLINE_BASE_URL` - Custom DirectLine endpoint (optional)
+//! - `MICROSOFT_DIRECTLINE_SECRET` - DirectLine secret (required)
+//! - `MICROSOFT_DIRECTLINE_BASE_URL` - Custom DirectLine endpoint (optional)
 //!
 //! ## Usage
 //!
 //! ```rust,no_run
 //! use vtcode_llm_microsoft::DirectLineProvider;
-//! use vtcode_llm::LLMProvider;
+//! use vtcode_llm_types::LLMProvider;
 //!
 //! # async fn example() -> anyhow::Result<()> {
 //! // Create a DirectLine provider with API key
@@ -62,36 +62,18 @@
 //! - [Azure Bot Service](https://azure.microsoft.com/services/bot-services/)
 //! - [Bot Framework SDK](https://github.com/microsoft/botframework-sdk)
 
-// Re-export from vtcode-llm
-pub use vtcode_llm::{
-    config::ProviderConfig, AnyClient, BackendKind, DirectLineProvider, ErrorFormatter,
-    ErrorReporter, LLMError, LLMProvider, LLMRequest, LLMResponse, LLMStream, LLMStreamEvent,
-    Message, MessageRole, PathResolver, PathScope, TelemetrySink, Usage, WorkspacePaths,
-    create_provider_with_config, error_display, get_factory, make_client,
+// Re-export MicrosoftProvider from vtcode-core as DirectLineProvider
+// NOTE: This is a temporary solution. Eventually MicrosoftProvider should be extracted
+// from vtcode-core into this crate to complete Phase 3 of the architecture transformation.
+pub use vtcode_core::llm::providers::microsoft::MicrosoftProvider as DirectLineProvider;
+
+// Re-export core LLM types from vtcode_llm_types
+pub use vtcode_llm_types::{
+    BackendKind, FinishReason, LLMError, LLMProvider, LLMRequest, LLMResponse, LLMStream,
+    LLMStreamEvent, Message, MessageRole, ToolCall, ToolChoice, ToolDefinition, Usage,
 };
 
-#[cfg(feature = "mock")]
-pub use vtcode_llm::StaticResponseClient;
-
-#[cfg(feature = "telemetry")]
-pub use vtcode_llm::{NoopStreamTelemetry, StreamTelemetry};
-
-/// Configuration module for DirectLine provider
-pub mod config {
-    pub use vtcode_llm::config::*;
-
-    /// DirectLine-specific configuration helper
-    ///
-    /// Creates a DirectLine provider configuration from environment variables
-    /// or explicit values.
-    pub fn directline_config_from_env() -> Option<super::ProviderConfig> {
-        std::env::var("DIRECTLINE_API_KEY").ok().map(|api_key| {
-            super::ProviderConfig {
-                api_key: Some(api_key),
-                base_url: std::env::var("DIRECTLINE_BASE_URL").ok(),
-                model: Some("directline-gpt-4".to_string()),
-                prompt_cache: None,
-            }
-        })
-    }
-}
+// Re-export common utilities from vtcode_commons
+pub use vtcode_commons::{
+    ErrorFormatter, ErrorReporter, PathResolver, PathScope, TelemetrySink, WorkspacePaths,
+};

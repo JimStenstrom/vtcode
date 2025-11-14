@@ -12,13 +12,14 @@ keywords = ["vtcode", "llm", "microsoft", "directline", "azure"]
 [features]
 default = ["microsoft"]
 microsoft = []
-telemetry = ["vtcode-llm/telemetry"]
-mock = ["vtcode-llm/mock"]
+telemetry = []
+mock = []
 
 [dependencies]
 anyhow = "1.0"
 vtcode-commons = { path = "../vtcode-commons", version = "0.43.6" }
-vtcode-llm = { path = "../vtcode-llm", version = "0.43.6", features = ["microsoft"] }
+vtcode-llm-types = { path = "../vtcode-llm-types", version = "0.43.6" }
+vtcode-core = { path = "../vtcode-core", version = "0.43.6", default-features = false }
 
 [dev-dependencies]
 futures = "0.3"

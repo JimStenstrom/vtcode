@@ -1,5 +1,5 @@
-use vtcode_core::config::constants::{env_vars, models, urls};
-use vtcode_core::config::core::{GeminiPromptCacheMode, GeminiPromptCacheSettings, PromptCachingConfig};
+use vtcode_config::constants::{env_vars, models, urls};
+use vtcode_config::core::{GeminiPromptCacheMode, GeminiPromptCacheSettings, PromptCachingConfig};
 use crate::gemini::function_calling::{
     FunctionCall as GeminiFunctionCall, FunctionCallingConfig, FunctionResponse,
 };
@@ -11,13 +11,10 @@ use crate::gemini::{
     Candidate, Content, FunctionDeclaration, GenerateContentRequest, GenerateContentResponse, Part,
     Tool, ToolConfig,
 };
-use vtcode_core::llm::client::LLMClient;
-use vtcode_core::llm::error_display;
-use vtcode_core::llm::provider::{
+use vtcode_llm_types::{
     FinishReason, FunctionCall, LLMError, LLMProvider, LLMRequest, LLMResponse, LLMStream,
     LLMStreamEvent, Message, MessageContent, MessageRole, ToolCall, ToolChoice,
 };
-use vtcode_core::llm::types as llm_types;
 use async_stream::try_stream;
 use async_trait::async_trait;
 use reqwest::Client as HttpClient;

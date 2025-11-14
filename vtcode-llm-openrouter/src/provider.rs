@@ -2,14 +2,10 @@ use vtcode_config::constants::{env_vars, models, urls};
 use vtcode_config::core::{OpenRouterPromptCacheSettings, PromptCachingConfig};
 use vtcode_config::models::{ModelId, Provider};
 use vtcode_config::types::ReasoningEffortLevel;
-use vtcode_core::llm::client::LLMClient;
-use vtcode_core::llm::error_display;
-use vtcode_core::llm::provider::{
+use vtcode_llm_types::{
     FinishReason, LLMError, LLMProvider, LLMRequest, LLMResponse, LLMStream, LLMStreamEvent,
     Message, MessageContent, MessageRole, ToolCall, ToolChoice, ToolDefinition, Usage,
 };
-use vtcode_core::llm::rig_adapter::reasoning_parameters_for;
-use vtcode_core::llm::types as llm_types;
 use async_stream::try_stream;
 use async_trait::async_trait;
 use futures::StreamExt;

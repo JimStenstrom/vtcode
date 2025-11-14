@@ -16,7 +16,7 @@
 //! # Example
 //! ```no_run
 //! use vtcode_llm_gemini::GeminiProvider;
-//! use vtcode_core::llm::provider::LLMProvider;
+//! use vtcode_llm_types::LLMProvider;
 //!
 //! let provider = GeminiProvider::new("your-api-key".to_string());
 //! // Use the provider with LLMProvider trait methods

@@ -170,6 +170,7 @@ temp/
 
 # Lock Files
 *.lock
+!flake.lock
 yarn.lock
 package-lock.json
 Pipfile.lock
@@ -786,3 +787,7 @@ TODO2.md
 .vtcode/checkpoints/
 .vtcode/
 vtcode.toml
+
+# Nix direnv
+.direnv/
+result

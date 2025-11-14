@@ -17,7 +17,7 @@
 //!
 //! ```rust,no_run
 //! use vtcode_llm_openrouter::OpenRouterProvider;
-//! use vtcode_core::llm::provider::LLMProvider;
+//! use vtcode_llm_types::LLMProvider;
 //!
 //! #[tokio::main]
 //! async fn main() {
@@ -34,8 +34,8 @@ mod provider;
 
 pub use provider::OpenRouterProvider;
 
-// Re-export commonly used types from vtcode-core for convenience
-pub use vtcode_core::llm::provider::{
+// Re-export commonly used types from vtcode_llm_types for convenience
+pub use vtcode_llm_types::{
     LLMProvider, LLMRequest, LLMResponse, LLMStream, LLMStreamEvent,
     Message, MessageRole, ToolCall, ToolChoice, ToolDefinition,
 };
