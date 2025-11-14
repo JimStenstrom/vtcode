@@ -793,7 +793,7 @@ impl AgentRunner {
                 parallel_tool_calls: None,
                 parallel_tool_config,
                 reasoning_effort: if self.provider_client.supports_reasoning_effort(&self.model) {
-                    self.reasoning_effort
+                    self.reasoning_effort.map(crate::llm::provider::convert_reasoning_effort_to_llm_types)
                 } else {
                     None
                 },

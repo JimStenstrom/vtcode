@@ -744,7 +744,7 @@ impl OpenAIProvider {
             tool_choice,
             parallel_tool_calls,
             parallel_tool_config: None,
-            reasoning_effort,
+            reasoning_effort: reasoning_effort.map(crate::llm::provider::convert_reasoning_effort_to_llm_types),
         })
     }
 
@@ -899,7 +899,8 @@ impl OpenAIProvider {
 
         if let Some(effort) = request.reasoning_effort {
             if self.supports_reasoning_effort(&request.model) {
-                if let Some(payload) = reasoning_parameters_for(Provider::OpenAI, effort) {
+                let converted_effort = crate::llm::provider::convert_reasoning_effort(effort);
+                if let Some(payload) = reasoning_parameters_for(Provider::OpenAI, converted_effort) {
                     openai_request["reasoning"] = payload;
                 } else {
                     openai_request["reasoning"] = json!({ "effort": effort.as_str() });
@@ -971,7 +972,8 @@ impl OpenAIProvider {
 
         if let Some(effort) = request.reasoning_effort {
             if self.supports_reasoning_effort(&request.model) {
-                if let Some(payload) = reasoning_parameters_for(Provider::OpenAI, effort) {
+                let converted_effort = crate::llm::provider::convert_reasoning_effort(effort);
+                if let Some(payload) = reasoning_parameters_for(Provider::OpenAI, converted_effort) {
                     openai_request["reasoning"] = payload;
                 } else {
                     openai_request["reasoning"] = json!({ "effort": effort.as_str() });
