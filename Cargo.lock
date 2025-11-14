@@ -5910,6 +5910,8 @@ dependencies = [
  "vtcode-exec-events",
  "vtcode-execution",
  "vtcode-indexer",
+ "vtcode-llm-gemini",
+ "vtcode-llm-openrouter",
  "vtcode-markdown-store",
  "vtcode-mcp",
  "vtcode-prompts",
@@ -5977,7 +5979,104 @@ dependencies = [
  "futures",
  "tempfile",
  "vtcode-commons",
+ "vtcode-llm-anthropic",
+ "vtcode-llm-gemini",
+ "vtcode-llm-microsoft",
+ "vtcode-llm-openai",
+ "vtcode-llm-openrouter",
+ "vtcode-llm-types",
+]
+
+[[package]]
+name = "vtcode-llm-anthropic"
+version = "0.43.6"
+dependencies = [
+ "anyhow",
+ "assert_fs",
+ "async-stream",
+ "async-trait",
+ "futures",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.17",
+ "tokio",
+ "tokio-test",
+ "tracing",
+ "vtcode-commons",
+]
+
+[[package]]
+name = "vtcode-llm-gemini"
+version = "0.43.6"
+dependencies = [
+ "anyhow",
+ "assert_fs",
+ "async-stream",
+ "async-trait",
+ "futures",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.17",
+ "tokio",
+ "tokio-util",
+ "vtcode-commons",
+ "vtcode-config",
+ "vtcode-llm-types",
+]
+
+[[package]]
+name = "vtcode-llm-microsoft"
+version = "0.43.6"
+dependencies = [
+ "anyhow",
+ "assert_fs",
+ "futures",
+ "tempfile",
+ "vtcode-commons",
  "vtcode-core",
+ "vtcode-llm-types",
+]
+
+[[package]]
+name = "vtcode-llm-openai"
+version = "0.43.6"
+dependencies = [
+ "anyhow",
+ "assert_fs",
+ "async-stream",
+ "async-trait",
+ "futures",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "tokio-test",
+ "tracing",
+ "vtcode-commons",
+]
+
+[[package]]
+name = "vtcode-llm-openrouter"
+version = "0.43.6"
+dependencies = [
+ "anyhow",
+ "async-stream",
+ "async-trait",
+ "futures",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.17",
+ "tokio",
+ "tracing",
+ "vtcode-commons",
+ "vtcode-config",
+ "vtcode-llm-types",
 ]
 
 [[package]]

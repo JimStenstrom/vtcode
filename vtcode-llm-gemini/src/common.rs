@@ -1,4 +1,4 @@
-use vtcode_core::config::core::{PromptCachingConfig, ProviderPromptCachingConfig};
+use vtcode_config::core::{PromptCachingConfig, ProviderPromptCachingConfig};
 
 pub fn resolve_model(model: Option<String>, default_model: &str) -> String {
     model

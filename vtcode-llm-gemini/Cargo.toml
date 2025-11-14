@@ -12,7 +12,8 @@ keywords = ["vtcode", "llm", "ai", "gemini", "google"]
 [dependencies]
 # Core vtcode dependencies
 vtcode-commons = { path = "../vtcode-commons", version = "0.43.6" }
-vtcode-core = { path = "../vtcode-core", version = "0.43.6" }
+vtcode-config = { path = "../vtcode-config", version = "0.43.6" }
+vtcode-llm-types = { path = "../vtcode-llm-types", version = "0.43.6" }
 
 # Async runtime
 async-stream = "0.3"

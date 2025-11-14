@@ -18,59 +18,32 @@ pub use vtcode_commons::{
     ErrorFormatter, ErrorReporter, PathResolver, PathScope, TelemetrySink, WorkspacePaths,
 };
 
-pub use vtcode_core::llm::client::{AnyClient, make_client};
-pub use vtcode_core::llm::error_display;
-pub use vtcode_core::llm::factory::{
-    ProviderConfig as CoreProviderConfig, create_provider_with_config, get_factory,
-};
-pub use vtcode_core::llm::rig_adapter;
-pub use vtcode_core::llm::types::{BackendKind, LLMError, LLMResponse, Usage};
-
-pub mod provider {
-    //! Re-export the provider abstraction and shared request/response types.
-    pub use vtcode_core::llm::provider::{
-        LLMProvider, LLMRequest, LLMResponse, LLMStream, LLMStreamEvent, Message, MessageRole,
-        ParallelToolConfig,
-    };
-
-    #[cfg(feature = "functions")]
-    pub use vtcode_core::llm::provider::{
-        FunctionCall, FunctionDefinition, SpecificFunctionChoice, SpecificToolChoice, ToolCall,
-        ToolChoice, ToolDefinition,
-    };
-}
-
-pub use provider::{
-    LLMProvider, LLMRequest, LLMResponse as ProviderLLMResponse, LLMStream, LLMStreamEvent,
-    Message, MessageRole,
+// Re-export from vtcode_llm_types
+pub use vtcode_llm_types::{
+    BackendKind, LLMError, LLMProvider, LLMRequest, LLMResponse, LLMStream, LLMStreamEvent,
+    Message, MessageRole, Usage, FinishReason, ParallelToolConfig,
 };
 
 #[cfg(feature = "functions")]
-pub use provider::{
+pub use vtcode_llm_types::{
     FunctionCall, FunctionDefinition, SpecificFunctionChoice, SpecificToolChoice, ToolCall,
     ToolChoice, ToolDefinition,
 };
 
+// Re-export provider implementations
 #[cfg(feature = "anthropic")]
 pub use vtcode_llm_anthropic::AnthropicProvider;
-#[cfg(feature = "deepseek")]
-pub use vtcode_core::llm::providers::DeepSeekProvider;
 #[cfg(feature = "google")]
-pub use vtcode_core::llm::providers::GeminiProvider;
+pub use vtcode_llm_gemini::GeminiProvider;
 #[cfg(feature = "microsoft")]
-pub use vtcode_core::llm::providers::DirectLineProvider;
-#[cfg(feature = "moonshot")]
-pub use vtcode_core::llm::providers::MoonshotProvider;
-#[cfg(feature = "ollama")]
-pub use vtcode_core::llm::providers::OllamaProvider;
+pub use vtcode_llm_microsoft::DirectLineProvider;
 #[cfg(feature = "openai")]
-pub use vtcode_core::llm::providers::OpenAIProvider;
+pub use vtcode_llm_openai::OpenAIProvider;
 #[cfg(feature = "openrouter")]
 pub use vtcode_llm_openrouter::OpenRouterProvider;
-#[cfg(feature = "xai")]
-pub use vtcode_core::llm::providers::XAIProvider;
-#[cfg(feature = "zai")]
-pub use vtcode_core::llm::providers::ZAIProvider;
+
+// Note: DeepSeek, Moonshot, Ollama, XAI, ZAI providers still in vtcode-core
+// TODO: Extract these providers to standalone crates to complete Phase 3
 
 #[cfg(feature = "mock")]
 pub mod mock;

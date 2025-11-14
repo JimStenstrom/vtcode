@@ -1,5 +1,4 @@
-use vtcode_core::llm::error_display;
-use vtcode_core::llm::provider::{LLMError, ToolCall};
+use vtcode_llm_types::{LLMError, ToolCall};
 use crate::reasoning::{ReasoningBuffer, split_reasoning_from_text};
 use serde_json::{Map, Value};
 
@@ -13,9 +12,8 @@ pub enum StreamAssemblyError {
 
 impl StreamAssemblyError {
     pub fn into_llm_error(self, provider: &str) -> LLMError {
-        let message = self.to_string();
-        let formatted = error_display::format_llm_error(provider, &message);
-        LLMError::Provider(formatted)
+        let message = format!("{}: {}", provider, self);
+        LLMError::Provider(message)
     }
 }
 
