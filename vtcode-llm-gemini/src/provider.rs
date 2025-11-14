@@ -13,7 +13,7 @@ use crate::gemini::{
 };
 use vtcode_llm_types::{
     FinishReason, FunctionCall, LLMError, LLMProvider, LLMRequest, LLMResponse, LLMStream,
-    LLMStreamEvent, Message, MessageContent, MessageRole, ToolCall, ToolChoice,
+    LLMStreamEvent, MessageRole, ToolCall, ToolChoice,
 };
 use async_stream::try_stream;
 use async_trait::async_trait;
@@ -22,7 +22,6 @@ use serde_json::{Map, Value, json};
 use std::collections::HashMap;
 use tokio::sync::mpsc;
 
-use crate::common::{extract_prompt_cache_settings, override_base_url, resolve_model};
 
 pub struct GeminiProvider {
     api_key: String,
@@ -34,7 +33,8 @@ pub struct GeminiProvider {
 }
 
 impl GeminiProvider {
-    impl_provider_constructors!(default_model: models::google::GEMINI_2_5_FLASH, resolve_fn: resolve_model);
+    // Note: impl_provider_constructors! macro removed during Phase 3 refactoring
+    // Constructors are now defined in lib.rs
 
     fn with_model_internal(
         api_key: String,
@@ -42,27 +42,28 @@ impl GeminiProvider {
         prompt_cache: Option<PromptCachingConfig>,
         base_url: Option<String>,
     ) -> Self {
-        use super::common::ProviderBuilder;
+        // Determine base URL
+        let base_url = base_url
+            .filter(|s| !s.trim().is_empty())
+            .or_else(|| std::env::var(env_vars::GEMINI_BASE_URL).ok())
+            .unwrap_or_else(|| urls::GEMINI_API_BASE.to_string());
 
-        let builder = ProviderBuilder::new(api_key, model, urls::GEMINI_API_BASE)
-            .with_base_url(base_url, Some(env_vars::GEMINI_BASE_URL))
-            .with_prompt_cache(
-                prompt_cache,
-                |providers| &providers.gemini,
-                |cfg, provider_settings| {
-                    cfg.enabled
-                        && provider_settings.enabled
-                        && provider_settings.mode != GeminiPromptCacheMode::Off
-                },
-            );
+        // Extract prompt cache settings
+        let (prompt_cache_enabled, prompt_cache_settings) = if let Some(cfg) = prompt_cache {
+            let settings = cfg.providers.gemini.clone();
+            let enabled = cfg.enabled && settings.enabled && settings.mode != GeminiPromptCacheMode::Off;
+            (enabled, settings)
+        } else {
+            (false, GeminiPromptCacheSettings::default())
+        };
 
         Self {
-            api_key: builder.api_key,
-            http_client: builder.http_client,
-            base_url: builder.base_url,
-            model: builder.model,
-            prompt_cache_enabled: builder.prompt_cache_enabled,
-            prompt_cache_settings: builder.prompt_cache_settings,
+            api_key,
+            http_client: HttpClient::new(),
+            base_url,
+            model,
+            prompt_cache_enabled,
+            prompt_cache_settings,
         }
     }
 }
@@ -99,8 +100,8 @@ impl LLMProvider for GeminiProvider {
             .await
             .map_err(|e| {
                 let formatted_error =
-                    error_display::format_llm_error("Gemini", &format!("Network error: {}", e));
-                LLMError::Network(formatted_error)
+                    format!("Gemini: Network error: {}", e);
+                LLMError::NetworkError(formatted_error)
             })?;
 
         if !response.status().is_success() {
@@ -109,14 +110,11 @@ impl LLMProvider for GeminiProvider {
 
             // Handle authentication errors
             if status.as_u16() == 401 || status.as_u16() == 403 {
-                let formatted_error = error_display::format_llm_error(
-                    "Gemini",
-                    &format!(
-                        "Authentication failed: {}. Check your GOOGLE_API_KEY or GEMINI_API_KEY environment variable.",
-                        error_text
-                    ),
+                let formatted_error = format!(
+                    "Gemini: Authentication failed: {}. Check your GOOGLE_API_KEY or GEMINI_API_KEY environment variable.",
+                    error_text
                 );
-                return Err(LLMError::Authentication(formatted_error));
+                return Err(LLMError::AuthenticationError(formatted_error));
             }
 
             // Handle rate limit and quota errors
@@ -132,26 +130,17 @@ impl LLMProvider for GeminiProvider {
 
             // Handle invalid request errors
             if status.as_u16() == 400 {
-                let formatted_error = error_display::format_llm_error(
-                    "Gemini",
-                    &format!("Invalid request: {}", error_text),
-                );
+                let formatted_error = format!("Gemini: Invalid request: {}", error_text);
                 return Err(LLMError::InvalidRequest(formatted_error));
             }
 
             // Generic error for other cases
-            let formatted_error = error_display::format_llm_error(
-                "Gemini",
-                &format!("HTTP {}: {}", status, error_text),
-            );
+            let formatted_error = format!("Gemini: HTTP {}: {}", status, error_text);
             return Err(LLMError::Provider(formatted_error));
         }
 
         let gemini_response: GenerateContentResponse = response.json().await.map_err(|e| {
-            let formatted_error = error_display::format_llm_error(
-                "Gemini",
-                &format!("Failed to parse response: {}", e),
-            );
+            let formatted_error = format!("Gemini: Failed to parse response: {}", e);
             LLMError::Provider(formatted_error)
         })?;
 
@@ -174,8 +163,8 @@ impl LLMProvider for GeminiProvider {
             .await
             .map_err(|e| {
                 let formatted_error =
-                    error_display::format_llm_error("Gemini", &format!("Network error: {}", e));
-                LLMError::Network(formatted_error)
+                    format!("Gemini: Network error: {}", e);
+                LLMError::NetworkError(formatted_error)
             })?;
 
         if !response.status().is_success() {
@@ -184,14 +173,11 @@ impl LLMProvider for GeminiProvider {
 
             // Handle authentication errors
             if status.as_u16() == 401 || status.as_u16() == 403 {
-                let formatted_error = error_display::format_llm_error(
-                    "Gemini",
-                    &format!(
-                        "Authentication failed: {}. Check your GOOGLE_API_KEY or GEMINI_API_KEY environment variable.",
-                        error_text
-                    ),
+                let formatted_error = format!(
+                    "Gemini: Authentication failed: {}. Check your GOOGLE_API_KEY or GEMINI_API_KEY environment variable.",
+                    error_text
                 );
-                return Err(LLMError::Authentication(formatted_error));
+                return Err(LLMError::AuthenticationError(formatted_error));
             }
 
             // Handle rate limit and quota errors
@@ -207,18 +193,12 @@ impl LLMProvider for GeminiProvider {
 
             // Handle invalid request errors
             if status.as_u16() == 400 {
-                let formatted_error = error_display::format_llm_error(
-                    "Gemini",
-                    &format!("Invalid request: {}", error_text),
-                );
+                let formatted_error = format!("Gemini: Invalid request: {}", error_text);
                 return Err(LLMError::InvalidRequest(formatted_error));
             }
 
             // Generic error for other cases
-            let formatted_error = error_display::format_llm_error(
-                "Gemini",
-                &format!("HTTP {}: {}", status, error_text),
-            );
+            let formatted_error = format!("Gemini: HTTP {}: {}", status, error_text);
             return Err(LLMError::Provider(formatted_error));
         }
 
@@ -307,10 +287,7 @@ impl LLMProvider for GeminiProvider {
 
     fn validate_request(&self, request: &LLMRequest) -> Result<(), LLMError> {
         if !self.supported_models().contains(&request.model) {
-            let formatted_error = error_display::format_llm_error(
-                "Gemini",
-                &format!("Unsupported model: {}", request.model),
-            );
+            let formatted_error = format!("Gemini: Unsupported model: {}", request.model);
             return Err(LLMError::InvalidRequest(formatted_error));
         }
 
@@ -326,12 +303,9 @@ impl LLMProvider for GeminiProvider {
             };
 
             if max_tokens > max_output_tokens {
-                let formatted_error = error_display::format_llm_error(
-                    "Gemini",
-                    &format!(
-                        "Requested max_tokens ({}) exceeds model limit ({}) for {}",
-                        max_tokens, max_output_tokens, model
-                    ),
+                let formatted_error = format!(
+                    "Gemini: Requested max_tokens ({}) exceeds model limit ({}) for {}",
+                    max_tokens, max_output_tokens, model
                 );
                 return Err(LLMError::InvalidRequest(formatted_error));
             }
@@ -565,7 +539,7 @@ impl GeminiProvider {
         let mut candidates = response.candidates.into_iter();
         let candidate = candidates.next().ok_or_else(|| {
             let formatted_error =
-                error_display::format_llm_error("Gemini", "No candidate in response");
+                format!("Gemini: No candidate in response");
             LLMError::Provider(formatted_error)
         })?;
 
@@ -666,11 +640,8 @@ impl GeminiProvider {
     fn map_streaming_error(error: StreamingError) -> LLMError {
         match error {
             StreamingError::NetworkError { message, .. } => {
-                let formatted = error_display::format_llm_error(
-                    "Gemini",
-                    &format!("Network error: {}", message),
-                );
-                LLMError::Network(formatted)
+                let formatted = format!("Gemini: Network error: {}", message);
+                LLMError::NetworkError(formatted)
             }
             StreamingError::ApiError {
                 status_code,
@@ -678,51 +649,36 @@ impl GeminiProvider {
                 ..
             } => {
                 if status_code == 401 || status_code == 403 {
-                    let formatted = error_display::format_llm_error(
-                        "Gemini",
-                        &format!("HTTP {}: {}", status_code, message),
-                    );
-                    LLMError::Authentication(formatted)
+                    let formatted = format!("Gemini: HTTP {}: {}", status_code, message);
+                    LLMError::AuthenticationError(formatted)
                 } else if status_code == 429 {
                     LLMError::RateLimit
                 } else {
-                    let formatted = error_display::format_llm_error(
-                        "Gemini",
-                        &format!("API error ({}): {}", status_code, message),
-                    );
+                    let formatted = format!("Gemini: API error ({}): {}", status_code, message);
                     LLMError::Provider(formatted)
                 }
             }
             StreamingError::ParseError { message, .. } => {
                 let formatted =
-                    error_display::format_llm_error("Gemini", &format!("Parse error: {}", message));
+                    format!("Gemini: Parse error: {}", message);
                 LLMError::Provider(formatted)
             }
             StreamingError::TimeoutError {
                 operation,
                 duration,
             } => {
-                let formatted = error_display::format_llm_error(
-                    "Gemini",
-                    &format!(
-                        "Streaming timeout during {} after {:?}",
-                        operation, duration
-                    ),
+                let formatted = format!(
+                    "Gemini: Streaming timeout during {} after {:?}",
+                    operation, duration
                 );
-                LLMError::Network(formatted)
+                LLMError::NetworkError(formatted)
             }
             StreamingError::ContentError { message } => {
-                let formatted = error_display::format_llm_error(
-                    "Gemini",
-                    &format!("Content error: {}", message),
-                );
+                let formatted = format!("Gemini: Content error: {}", message);
                 LLMError::Provider(formatted)
             }
             StreamingError::StreamingError { message, .. } => {
-                let formatted = error_display::format_llm_error(
-                    "Gemini",
-                    &format!("Streaming error: {}", message),
-                );
+                let formatted = format!("Gemini: Streaming error: {}", message);
                 LLMError::Provider(formatted)
             }
         }
@@ -781,214 +737,214 @@ pub fn sanitize_function_parameters(parameters: Value) -> Value {
 }
 
 #[async_trait]
-impl LLMClient for GeminiProvider {
-    async fn generate(&mut self, prompt: &str) -> Result<llm_types::LLMResponse, LLMError> {
-        // Check if the prompt is a serialized GenerateContentRequest
-        let request = if prompt.starts_with('{') && prompt.contains("\"contents\"") {
-            // Try to parse as JSON GenerateContentRequest
-            match serde_json::from_str::<GenerateContentRequest>(prompt) {
-                Ok(gemini_request) => {
-                    // Convert GenerateContentRequest to LLMRequest
-                    let mut messages = Vec::new();
-                    let mut system_prompt = None;
-
-                    // Convert contents to messages
-                    for content in &gemini_request.contents {
-                        let role = match content.role.as_str() {
-                            vtcode_core::config::constants::message_roles::USER => MessageRole::User,
-                            "model" => MessageRole::Assistant,
-                            vtcode_core::config::constants::message_roles::SYSTEM => {
-                                // Extract system message
-                                let text = content
-                                    .parts
-                                    .iter()
-                                    .filter_map(|part| part.as_text())
-                                    .collect::<Vec<_>>()
-                                    .join("");
-                                system_prompt = Some(text);
-                                continue;
-                            }
-                            _ => MessageRole::User, // Default to user
-                        };
-
-                        let content_text = content
-                            .parts
-                            .iter()
-                            .filter_map(|part| part.as_text())
-                            .collect::<Vec<_>>()
-                            .join("");
-
-                        messages.push(Message {
-                            role,
-                            content: MessageContent::from(content_text),
-                            reasoning: None,
-                            reasoning_details: None,
-                            tool_calls: None,
-                            tool_call_id: None,
-                            origin_tool: None,
-                        });
-                    }
-
-                    // Convert tools if present
-                    let tools = gemini_request.tools.as_ref().map(|gemini_tools| {
-                        gemini_tools
-                            .iter()
-                            .flat_map(|tool| &tool.function_declarations)
-                            .map(|decl| vtcode_core::llm::provider::ToolDefinition {
-                                tool_type: "function".to_string(),
-                                function: vtcode_core::llm::provider::FunctionDefinition {
-                                    name: decl.name.clone(),
-                                    description: decl.description.clone(),
-                                    parameters: decl.parameters.clone(),
-                                },
-                            })
-                            .collect::<Vec<_>>()
-                    });
-
-                    let llm_request = LLMRequest {
-                        messages,
-                        system_prompt,
-                        tools,
-                        model: self.model.clone(),
-                        max_tokens: gemini_request
-                            .generation_config
-                            .as_ref()
-                            .and_then(|config| config.get("maxOutputTokens"))
-                            .and_then(|v| v.as_u64())
-                            .map(|v| v as u32),
-                        temperature: gemini_request
-                            .generation_config
-                            .as_ref()
-                            .and_then(|config| config.get("temperature"))
-                            .and_then(|v| v.as_f64())
-                            .map(|v| v as f32),
-                        stream: false,
-                        tool_choice: None,
-                        parallel_tool_calls: None,
-                        parallel_tool_config: None,
-                        reasoning_effort: None,
-                    };
-
-                    // Use the standard LLMProvider generate method
-                    let response = LLMProvider::generate(self, llm_request).await?;
-
-                    // If there are tool calls, include them in the response content as JSON
-                    let content = if let Some(tool_calls) = &response.tool_calls {
-                        if !tool_calls.is_empty() {
-                            // Create a JSON structure that the agent can parse
-                            let tool_call_json = json!({
-                                "tool_calls": tool_calls.iter().map(|tc| {
-                                    json!({
-                                        "function": {
-                                            "name": tc.function.name,
-                                            "arguments": tc.function.arguments
-                                        }
-                                    })
-                                }).collect::<Vec<_>>()
-                            });
-                            tool_call_json.to_string()
-                        } else {
-                            response.content.unwrap_or("".to_string())
-                        }
-                    } else {
-                        response.content.unwrap_or("".to_string())
-                    };
-
-                    return Ok(llm_types::LLMResponse {
-                        content,
-                        model: self.model.clone(),
-                        usage: response.usage.map(|u| llm_types::Usage {
-                            prompt_tokens: u.prompt_tokens as usize,
-                            completion_tokens: u.completion_tokens as usize,
-                            total_tokens: u.total_tokens as usize,
-                            cached_prompt_tokens: u.cached_prompt_tokens.map(|v| v as usize),
-                            cache_creation_tokens: u.cache_creation_tokens.map(|v| v as usize),
-                            cache_read_tokens: u.cache_read_tokens.map(|v| v as usize),
-                        }),
-                        reasoning: response.reasoning,
-                    });
-                }
-                Err(_) => {
-                    // Fallback: treat as regular prompt
-                    LLMRequest {
-                        messages: vec![Message {
-                            role: MessageRole::User,
-                            content: MessageContent::Text(prompt.to_string()),
-                            reasoning: None,
-                            reasoning_details: None,
-                            tool_calls: None,
-                            tool_call_id: None,
-                            origin_tool: None,
-                        }],
-                        system_prompt: None,
-                        tools: None,
-                        model: self.model.clone(),
-                        max_tokens: None,
-                        temperature: None,
-                        stream: false,
-                        tool_choice: None,
-                        parallel_tool_calls: None,
-                        parallel_tool_config: None,
-                        reasoning_effort: None,
-                    }
-                }
-            }
-        } else {
-            // Fallback: treat as regular prompt
-            LLMRequest {
-                messages: vec![Message {
-                    role: MessageRole::User,
-                    content: MessageContent::Text(prompt.to_string()),
-                    reasoning: None,
-                    reasoning_details: None,
-                    tool_calls: None,
-                    tool_call_id: None,
-                    origin_tool: None,
-                }],
-                system_prompt: None,
-                tools: None,
-                model: self.model.clone(),
-                max_tokens: None,
-                temperature: None,
-                stream: false,
-                tool_choice: None,
-                parallel_tool_calls: None,
-                parallel_tool_config: None,
-                reasoning_effort: None,
-            }
-        };
-
-        let response = LLMProvider::generate(self, request).await?;
-
-        Ok(llm_types::LLMResponse {
-            content: response.content.unwrap_or("".to_string()),
-            model: self.model.clone(),
-            usage: response.usage.map(|u| llm_types::Usage {
-                prompt_tokens: u.prompt_tokens as usize,
-                completion_tokens: u.completion_tokens as usize,
-                total_tokens: u.total_tokens as usize,
-                cached_prompt_tokens: u.cached_prompt_tokens.map(|v| v as usize),
-                cache_creation_tokens: u.cache_creation_tokens.map(|v| v as usize),
-                cache_read_tokens: u.cache_read_tokens.map(|v| v as usize),
-            }),
-            reasoning: response.reasoning,
-        })
-    }
-
-    fn backend_kind(&self) -> llm_types::BackendKind {
-        llm_types::BackendKind::Gemini
-    }
-
-    fn model_id(&self) -> &str {
-        &self.model
-    }
-}
+// DEPRECATED: impl LLMClient for GeminiProvider {
+// DEPRECATED:     async fn generate(&mut self, prompt: &str) -> Result<vtcode_llm_types::LLMResponse, LLMError> {
+// DEPRECATED:         // Check if the prompt is a serialized GenerateContentRequest
+// DEPRECATED:         let request = if prompt.starts_with('{') && prompt.contains("\"contents\"") {
+// DEPRECATED:             // Try to parse as JSON GenerateContentRequest
+// DEPRECATED:             match serde_json::from_str::<GenerateContentRequest>(prompt) {
+// DEPRECATED:                 Ok(gemini_request) => {
+// DEPRECATED:                     // Convert GenerateContentRequest to LLMRequest
+// DEPRECATED:                     let mut messages = Vec::new();
+// DEPRECATED:                     let mut system_prompt = None;
+// DEPRECATED: 
+// DEPRECATED:                     // Convert contents to messages
+// DEPRECATED:                     for content in &gemini_request.contents {
+// DEPRECATED:                         let role = match content.role.as_str() {
+// DEPRECATED:                             vtcode_config::constants::message_roles::USER => MessageRole::User,
+// DEPRECATED:                             "model" => MessageRole::Assistant,
+// DEPRECATED:                             vtcode_config::constants::message_roles::SYSTEM => {
+// DEPRECATED:                                 // Extract system message
+// DEPRECATED:                                 let text = content
+// DEPRECATED:                                     .parts
+// DEPRECATED:                                     .iter()
+// DEPRECATED:                                     .filter_map(|part| part.as_text())
+// DEPRECATED:                                     .collect::<Vec<_>>()
+// DEPRECATED:                                     .join("");
+// DEPRECATED:                                 system_prompt = Some(text);
+// DEPRECATED:                                 continue;
+// DEPRECATED:                             }
+// DEPRECATED:                             _ => MessageRole::User, // Default to user
+// DEPRECATED:                         };
+// DEPRECATED: 
+// DEPRECATED:                         let content_text = content
+// DEPRECATED:                             .parts
+// DEPRECATED:                             .iter()
+// DEPRECATED:                             .filter_map(|part| part.as_text())
+// DEPRECATED:                             .collect::<Vec<_>>()
+// DEPRECATED:                             .join("");
+// DEPRECATED: 
+// DEPRECATED:                         messages.push(Message {
+// DEPRECATED:                             role,
+// DEPRECATED:                             content: MessageContent::from(content_text),
+// DEPRECATED:                             reasoning: None,
+// DEPRECATED:                             reasoning_details: None,
+// DEPRECATED:                             tool_calls: None,
+// DEPRECATED:                             tool_call_id: None,
+// DEPRECATED:                             origin_tool: None,
+// DEPRECATED:                         });
+// DEPRECATED:                     }
+// DEPRECATED: 
+// DEPRECATED:                     // Convert tools if present
+// DEPRECATED:                     let tools = gemini_request.tools.as_ref().map(|gemini_tools| {
+// DEPRECATED:                         gemini_tools
+// DEPRECATED:                             .iter()
+// DEPRECATED:                             .flat_map(|tool| &tool.function_declarations)
+// DEPRECATED:                             .map(|decl| vtcode_llm_types::ToolDefinition {
+// DEPRECATED:                                 tool_type: "function".to_string(),
+// DEPRECATED:                                 function: vtcode_llm_types::FunctionDefinition {
+// DEPRECATED:                                     name: decl.name.clone(),
+// DEPRECATED:                                     description: decl.description.clone(),
+// DEPRECATED:                                     parameters: decl.parameters.clone(),
+// DEPRECATED:                                 },
+// DEPRECATED:                             })
+// DEPRECATED:                             .collect::<Vec<_>>()
+// DEPRECATED:                     });
+// DEPRECATED: 
+// DEPRECATED:                     let llm_request = LLMRequest {
+// DEPRECATED:                         messages,
+// DEPRECATED:                         system_prompt,
+// DEPRECATED:                         tools,
+// DEPRECATED:                         model: self.model.clone(),
+// DEPRECATED:                         max_tokens: gemini_request
+// DEPRECATED:                             .generation_config
+// DEPRECATED:                             .as_ref()
+// DEPRECATED:                             .and_then(|config| config.get("maxOutputTokens"))
+// DEPRECATED:                             .and_then(|v| v.as_u64())
+// DEPRECATED:                             .map(|v| v as u32),
+// DEPRECATED:                         temperature: gemini_request
+// DEPRECATED:                             .generation_config
+// DEPRECATED:                             .as_ref()
+// DEPRECATED:                             .and_then(|config| config.get("temperature"))
+// DEPRECATED:                             .and_then(|v| v.as_f64())
+// DEPRECATED:                             .map(|v| v as f32),
+// DEPRECATED:                         stream: false,
+// DEPRECATED:                         tool_choice: None,
+// DEPRECATED:                         parallel_tool_calls: None,
+// DEPRECATED:                         parallel_tool_config: None,
+// DEPRECATED:                         reasoning_effort: None,
+// DEPRECATED:                     };
+// DEPRECATED: 
+// DEPRECATED:                     // Use the standard LLMProvider generate method
+// DEPRECATED:                     let response = LLMProvider::generate(self, llm_request).await?;
+// DEPRECATED: 
+// DEPRECATED:                     // If there are tool calls, include them in the response content as JSON
+// DEPRECATED:                     let content = if let Some(tool_calls) = &response.tool_calls {
+// DEPRECATED:                         if !tool_calls.is_empty() {
+// DEPRECATED:                             // Create a JSON structure that the agent can parse
+// DEPRECATED:                             let tool_call_json = json!({
+// DEPRECATED:                                 "tool_calls": tool_calls.iter().map(|tc| {
+// DEPRECATED:                                     json!({
+// DEPRECATED:                                         "function": {
+// DEPRECATED:                                             "name": tc.function.name,
+// DEPRECATED:                                             "arguments": tc.function.arguments
+// DEPRECATED:                                         }
+// DEPRECATED:                                     })
+// DEPRECATED:                                 }).collect::<Vec<_>>()
+// DEPRECATED:                             });
+// DEPRECATED:                             tool_call_json.to_string()
+// DEPRECATED:                         } else {
+// DEPRECATED:                             response.content.unwrap_or("".to_string())
+// DEPRECATED:                         }
+// DEPRECATED:                     } else {
+// DEPRECATED:                         response.content.unwrap_or("".to_string())
+// DEPRECATED:                     };
+// DEPRECATED: 
+// DEPRECATED:                     return Ok(vtcode_llm_types::LLMResponse {
+// DEPRECATED:                         content,
+// DEPRECATED:                         model: self.model.clone(),
+// DEPRECATED:                         usage: response.usage.map(|u| vtcode_llm_types::Usage {
+// DEPRECATED:                             prompt_tokens: u.prompt_tokens as usize,
+// DEPRECATED:                             completion_tokens: u.completion_tokens as usize,
+// DEPRECATED:                             total_tokens: u.total_tokens as usize,
+// DEPRECATED:                             cached_prompt_tokens: u.cached_prompt_tokens.map(|v| v as usize),
+// DEPRECATED:                             cache_creation_tokens: u.cache_creation_tokens.map(|v| v as usize),
+// DEPRECATED:                             cache_read_tokens: u.cache_read_tokens.map(|v| v as usize),
+// DEPRECATED:                         }),
+// DEPRECATED:                         reasoning: response.reasoning,
+// DEPRECATED:                     });
+// DEPRECATED:                 }
+// DEPRECATED:                 Err(_) => {
+// DEPRECATED:                     // Fallback: treat as regular prompt
+// DEPRECATED:                     LLMRequest {
+// DEPRECATED:                         messages: vec![Message {
+// DEPRECATED:                             role: MessageRole::User,
+// DEPRECATED:                             content: MessageContent::Text(prompt.to_string()),
+// DEPRECATED:                             reasoning: None,
+// DEPRECATED:                             reasoning_details: None,
+// DEPRECATED:                             tool_calls: None,
+// DEPRECATED:                             tool_call_id: None,
+// DEPRECATED:                             origin_tool: None,
+// DEPRECATED:                         }],
+// DEPRECATED:                         system_prompt: None,
+// DEPRECATED:                         tools: None,
+// DEPRECATED:                         model: self.model.clone(),
+// DEPRECATED:                         max_tokens: None,
+// DEPRECATED:                         temperature: None,
+// DEPRECATED:                         stream: false,
+// DEPRECATED:                         tool_choice: None,
+// DEPRECATED:                         parallel_tool_calls: None,
+// DEPRECATED:                         parallel_tool_config: None,
+// DEPRECATED:                         reasoning_effort: None,
+// DEPRECATED:                     }
+// DEPRECATED:                 }
+// DEPRECATED:             }
+// DEPRECATED:         } else {
+// DEPRECATED:             // Fallback: treat as regular prompt
+// DEPRECATED:             LLMRequest {
+// DEPRECATED:                 messages: vec![Message {
+// DEPRECATED:                     role: MessageRole::User,
+// DEPRECATED:                     content: MessageContent::Text(prompt.to_string()),
+// DEPRECATED:                     reasoning: None,
+// DEPRECATED:                     reasoning_details: None,
+// DEPRECATED:                     tool_calls: None,
+// DEPRECATED:                     tool_call_id: None,
+// DEPRECATED:                     origin_tool: None,
+// DEPRECATED:                 }],
+// DEPRECATED:                 system_prompt: None,
+// DEPRECATED:                 tools: None,
+// DEPRECATED:                 model: self.model.clone(),
+// DEPRECATED:                 max_tokens: None,
+// DEPRECATED:                 temperature: None,
+// DEPRECATED:                 stream: false,
+// DEPRECATED:                 tool_choice: None,
+// DEPRECATED:                 parallel_tool_calls: None,
+// DEPRECATED:                 parallel_tool_config: None,
+// DEPRECATED:                 reasoning_effort: None,
+// DEPRECATED:             }
+// DEPRECATED:         };
+// DEPRECATED: 
+// DEPRECATED:         let response = LLMProvider::generate(self, request).await?;
+// DEPRECATED: 
+// DEPRECATED:         Ok(vtcode_llm_types::LLMResponse {
+// DEPRECATED:             content: response.content.unwrap_or("".to_string()),
+// DEPRECATED:             model: self.model.clone(),
+// DEPRECATED:             usage: response.usage.map(|u| vtcode_llm_types::Usage {
+// DEPRECATED:                 prompt_tokens: u.prompt_tokens as usize,
+// DEPRECATED:                 completion_tokens: u.completion_tokens as usize,
+// DEPRECATED:                 total_tokens: u.total_tokens as usize,
+// DEPRECATED:                 cached_prompt_tokens: u.cached_prompt_tokens.map(|v| v as usize),
+// DEPRECATED:                 cache_creation_tokens: u.cache_creation_tokens.map(|v| v as usize),
+// DEPRECATED:                 cache_read_tokens: u.cache_read_tokens.map(|v| v as usize),
+// DEPRECATED:             }),
+// DEPRECATED:             reasoning: response.reasoning,
+// DEPRECATED:         })
+// DEPRECATED:     }
+// DEPRECATED: 
+// DEPRECATED:     fn backend_kind(&self) -> vtcode_llm_types::BackendKind {
+// DEPRECATED:         vtcode_llm_types::BackendKind::Gemini
+// DEPRECATED:     }
+// DEPRECATED: 
+// DEPRECATED:     fn model_id(&self) -> &str {
+// DEPRECATED:         &self.model
+// DEPRECATED:     }
+// DEPRECATED: }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use vtcode_core::config::constants::models;
-    use vtcode_core::llm::provider::{SpecificFunctionChoice, SpecificToolChoice, ToolDefinition};
+    use vtcode_config::constants::models;
+    use vtcode_llm_types::{SpecificFunctionChoice, SpecificToolChoice, ToolDefinition};
 
     #[test]
     fn convert_to_gemini_request_maps_history_and_system_prompt() {
@@ -1341,7 +1297,7 @@ mod tests {
     fn backend_kind_is_gemini() {
         use crate::llm::client::LLMClient;
         let provider = GeminiProvider::new("test_key".to_string());
-        assert_eq!(provider.backend_kind(), llm_types::BackendKind::Gemini);
+        assert_eq!(provider.backend_kind(), vtcode_llm_types::BackendKind::Gemini);
     }
 
     #[test]
