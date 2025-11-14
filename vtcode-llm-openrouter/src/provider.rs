@@ -660,11 +660,15 @@ impl OpenRouterProvider {
 
     /// Create a new OpenRouter provider from config
     pub fn from_config(
-        api_key: String,
-        model: String,
+        api_key: Option<String>,
+        model: Option<String>,
         base_url: Option<String>,
         prompt_cache: Option<PromptCachingConfig>,
     ) -> Self {
+        let api_key = api_key.unwrap_or_else(|| {
+            std::env::var("OPENROUTER_API_KEY").unwrap_or_default()
+        });
+        let model = model.unwrap_or_else(|| models::openrouter::DEFAULT_MODEL.to_string());
         Self::with_model_internal(api_key, model, prompt_cache, base_url)
     }
 
