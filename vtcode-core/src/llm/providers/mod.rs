@@ -36,3 +36,8 @@ pub use vtcode_llm_gemini::GeminiProvider;
 
 // Re-export OpenRouter provider from the modularized crate
 pub use vtcode_llm_openrouter::OpenRouterProvider;
+
+// Gemini-specific utilities module
+pub mod gemini {
+    pub use vtcode_llm_gemini::sanitize_function_parameters;
+}

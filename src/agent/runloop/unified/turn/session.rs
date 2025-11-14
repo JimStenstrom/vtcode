@@ -1077,7 +1077,7 @@ pub(crate) async fn run_single_agent_loop_unified(
                     } else {
                         None
                     },
-                    reasoning_effort,
+                    reasoning_effort: reasoning_effort.map(vtcode_core::llm::provider::convert_reasoning_effort_to_llm_types),
                 };
 
                 let thinking_spinner = PlaceholderSpinner::new(
@@ -2138,7 +2138,7 @@ pub(crate) async fn run_single_agent_loop_unified(
                                 parallel_tool_config: None,
                                 reasoning_effort: vt_cfg.as_ref().and_then(|cfg| {
                                     if provider_client.supports_reasoning_effort(&active_model) {
-                                        Some(cfg.agent.reasoning_effort)
+                                        Some(vtcode_core::llm::provider::convert_reasoning_effort_to_llm_types(cfg.agent.reasoning_effort))
                                     } else {
                                         None
                                     }
