@@ -16,7 +16,6 @@ use vtcode_llm_gemini::{Content, Part, Tool, sanitize_function_parameters};
 use crate::llm::factory::create_provider_for_model;
 use crate::llm::provider as uni_provider;
 use crate::llm::provider::{FunctionDefinition, LLMRequest, Message, ToolCall, ToolDefinition};
-use crate::llm::{AnyClient, make_client};
 use vtcode_mcp::McpClient;
 use crate::prompts::system::compose_system_instruction_text;
 use crate::tools::{ToolRegistry, build_function_declarations};
@@ -276,8 +275,6 @@ mod tests {
 pub struct AgentRunner {
     /// Agent type and configuration
     agent_type: AgentType,
-    /// LLM client for this agent
-    client: AnyClient,
     /// Unified provider client (OpenAI/Anthropic/Gemini) for tool-calling
     provider_client: Box<dyn uni_provider::LLMProvider>,
     /// Tool registry with restricted access
@@ -347,7 +344,7 @@ impl AgentRunner {
     fn create_progress_message(&self, operation: &str, details: Option<&str>) -> String {
         match operation {
             "thinking" => "Analyzing request and planning approach...".to_string(),
-            "processing" => format!("Processing turn with {} model", self.client.model_id()),
+            "processing" => format!("Processing turn with {} model", &self.model),
             "tool_call" => {
                 if let Some(tool) = details {
                     format!("Executing {} tool for task completion", tool)
@@ -557,9 +554,6 @@ impl AgentRunner {
         session_id: String,
         reasoning_effort: Option<ReasoningEffortLevel>,
     ) -> Result<Self> {
-        // Create client based on model
-        let client: AnyClient = make_client(api_key.clone(), model.clone());
-
         // Create unified provider client for tool calling
         let provider_client = create_provider_for_model(model.as_str(), api_key.clone(), None)
             .map_err(|e| anyhow!("Failed to create provider client: {}", e))?;
@@ -577,7 +571,6 @@ impl AgentRunner {
 
         Ok(Self {
             agent_type,
-            client,
             provider_client,
             tool_registry: ToolRegistry::new(workspace.clone()).await,
             system_prompt,
@@ -2048,7 +2041,7 @@ impl AgentRunner {
 
         summary.push(format!(
             "Model: {} (provider: {}, reasoning: {})",
-            self.client.model_id(),
+            &self.model,
             self.provider_client.name(),
             reasoning_label
         ));

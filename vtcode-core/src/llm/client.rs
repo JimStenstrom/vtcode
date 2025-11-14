@@ -1,65 +1,14 @@
-use super::provider::LLMError;
-use super::providers::{
-    AnthropicProvider, DeepSeekProvider, GeminiProvider, LmStudioProvider, MinimaxProvider,
-    MoonshotProvider, OllamaProvider, OpenAIProvider, OpenRouterProvider, XAIProvider, ZAIProvider,
-};
-use super::types::{BackendKind, LLMResponse};
-use crate::config::models::{ModelId, Provider};
-use async_trait::async_trait;
+use super::provider::{LLMError, LLMProvider};
+use super::factory::create_provider_for_model;
+use crate::config::models::ModelId;
 
-/// Unified LLM client trait
-#[async_trait]
-pub trait LLMClient: Send + Sync {
-    async fn generate(&mut self, prompt: &str) -> Result<LLMResponse, LLMError>;
-    fn backend_kind(&self) -> BackendKind;
-    fn model_id(&self) -> &str;
-}
+/// Type-erased LLM provider (Phase 3 architecture)
+pub type AnyClient = Box<dyn LLMProvider>;
 
-/// Type-erased LLM client
-pub type AnyClient = Box<dyn LLMClient>;
-
-/// Create a client based on the model ID
+/// Create a provider based on the model ID
+///
+/// This function now returns the Phase 3 LLMProvider trait instead of the deprecated LLMClient.
 pub fn make_client(api_key: String, model: ModelId) -> AnyClient {
-    match model.provider() {
-        Provider::Gemini => Box::new(GeminiProvider::with_model(
-            api_key,
-            model.as_str().to_string(),
-        )),
-        Provider::OpenAI => Box::new(OpenAIProvider::with_model(
-            api_key,
-            model.as_str().to_string(),
-        )),
-        Provider::Anthropic => Box::new(AnthropicProvider::new(api_key)),
-        Provider::Minimax => Box::new(MinimaxProvider::from_config(
-            Some(api_key),
-            Some(model.as_str().to_string()),
-            None,
-            None,
-        )),
-        Provider::DeepSeek => Box::new(DeepSeekProvider::with_model(
-            api_key,
-            model.as_str().to_string(),
-        )),
-        Provider::OpenRouter => Box::new(OpenRouterProvider::with_model(
-            api_key,
-            model.as_str().to_string(),
-        )),
-        Provider::Ollama => Box::new(OllamaProvider::with_model(
-            api_key,
-            model.as_str().to_string(),
-        )),
-        Provider::LmStudio => Box::new(LmStudioProvider::with_model(
-            api_key,
-            model.as_str().to_string(),
-        )),
-        Provider::Moonshot => Box::new(MoonshotProvider::with_model(
-            api_key,
-            model.as_str().to_string(),
-        )),
-        Provider::XAI => Box::new(XAIProvider::with_model(
-            api_key.clone(),
-            model.as_str().to_string(),
-        )),
-        Provider::ZAI => Box::new(ZAIProvider::with_model(api_key, model.as_str().to_string())),
-    }
+    create_provider_for_model(model.as_str(), api_key, None)
+        .unwrap_or_else(|e| panic!("Failed to create provider for model {}: {}", model.as_str(), e))
 }
