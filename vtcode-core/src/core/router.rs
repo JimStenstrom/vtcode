@@ -112,7 +112,7 @@ impl Router {
                     tool_choice: Some(uni::ToolChoice::none()),
                     parallel_tool_calls: None,
                     parallel_tool_config: None,
-                    reasoning_effort: reasoning_effort.map(crate::llm::provider::convert_reasoning_effort_to_llm_types),
+                    reasoning_effort: reasoning_effort,
                 };
                 if let Ok(resp) = provider.generate(req).await {
                     if let Some(text) = resp.content {

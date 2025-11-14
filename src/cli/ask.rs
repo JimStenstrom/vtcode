@@ -105,7 +105,7 @@ pub async fn handle_ask_command(
         tool_choice: Some(ToolChoice::none()),
         parallel_tool_calls: None,
         parallel_tool_config: None,
-        reasoning_effort: reasoning_effort.map(vtcode_core::llm::provider::convert_reasoning_effort_to_llm_types),
+        reasoning_effort: reasoning_effort,
     };
 
     match request_mode {

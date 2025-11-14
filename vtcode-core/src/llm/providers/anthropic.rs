@@ -392,7 +392,7 @@ impl AnthropicProvider {
             tool_choice,
             parallel_tool_calls,
             parallel_tool_config,
-            reasoning_effort: reasoning_effort.map(crate::llm::provider::convert_reasoning_effort_to_llm_types),
+            reasoning_effort: reasoning_effort,
         })
     }
 
@@ -650,7 +650,7 @@ impl AnthropicProvider {
 
         if let Some(effort) = request.reasoning_effort {
             if self.supports_reasoning_effort(&request.model) {
-                let converted_effort = crate::llm::provider::convert_reasoning_effort(effort);
+                let converted_effort = effort;
                 if let Some(payload) = reasoning_parameters_for(Provider::Anthropic, converted_effort) {
                     anthropic_request["reasoning"] = payload;
                 } else {

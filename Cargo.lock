@@ -5822,6 +5822,7 @@ dependencies = [
  "toml_edit 0.23.7",
  "tracing",
  "vtcode-commons",
+ "vtcode-llm-types",
 ]
 
 [[package]]

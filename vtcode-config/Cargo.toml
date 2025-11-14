@@ -25,6 +25,7 @@ toml = "0.9.8"
 toml_edit = "0.23.7"
 tracing = "0.1"
 vtcode-commons = { path = "../vtcode-commons", version = "0.43.6" }
+vtcode-llm-types = { path = "../vtcode-llm-types", version = "0.43.6" }
 dotenvy = "0.15"
 schemars = { version = "1.0.4", optional = true, features = ["indexmap2"] }
 

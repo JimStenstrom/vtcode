@@ -1788,7 +1788,7 @@ impl acp::Agent for ZedAgent {
                 tool_choice: self.tool_choice(tools_allowed),
                 parallel_tool_calls: None,
                 parallel_tool_config: None,
-                reasoning_effort: reasoning_effort.map(vtcode_core::llm::provider::convert_reasoning_effort_to_llm_types),
+                reasoning_effort: reasoning_effort,
             };
 
             let mut stream = provider
@@ -1879,7 +1879,7 @@ impl acp::Agent for ZedAgent {
                     tool_choice: self.tool_choice(tools_allowed),
                     parallel_tool_calls: None,
                     parallel_tool_config: None,
-                    reasoning_effort: reasoning_effort.map(vtcode_core::llm::provider::convert_reasoning_effort_to_llm_types),
+                    reasoning_effort: reasoning_effort,
                 };
 
                 let response = provider

@@ -119,9 +119,8 @@ impl MoonshotProvider {
         if let Some(effort) = request.reasoning_effort {
             if self.supports_reasoning_effort(&request.model) {
                 // Use the configured reasoning parameters
-                let converted_effort = crate::llm::provider::convert_reasoning_effort(effort);
                 if let Some(reasoning_payload) =
-                    reasoning_parameters_for(ModelProvider::Moonshot, converted_effort)
+                    reasoning_parameters_for(ModelProvider::Moonshot, effort)
                 {
                     // Add the reasoning parameters to the payload
                     if let Some(obj) = reasoning_payload.as_object() {

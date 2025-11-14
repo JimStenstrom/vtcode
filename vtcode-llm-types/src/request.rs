@@ -1,10 +1,12 @@
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::{json, Value};
+use std::fmt;
 
 use crate::message::Message;
 
 /// Reasoning effort level for models that support configurable reasoning intensity
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum ReasoningEffortLevel {
     Low,
@@ -13,11 +15,58 @@ pub enum ReasoningEffortLevel {
 }
 
 impl ReasoningEffortLevel {
+    /// Return the textual representation expected by downstream APIs
     pub fn as_str(&self) -> &'static str {
         match self {
             Self::Low => "low",
             Self::Medium => "medium",
             Self::High => "high",
+        }
+    }
+
+    /// Attempt to parse an effort level from user configuration input
+    pub fn parse(value: &str) -> Option<Self> {
+        let normalized = value.trim();
+        if normalized.eq_ignore_ascii_case("low") {
+            Some(Self::Low)
+        } else if normalized.eq_ignore_ascii_case("medium") {
+            Some(Self::Medium)
+        } else if normalized.eq_ignore_ascii_case("high") {
+            Some(Self::High)
+        } else {
+            None
+        }
+    }
+
+    /// Enumerate the allowed configuration values for validation and messaging
+    pub fn allowed_values() -> &'static [&'static str] {
+        &["low", "medium", "high"]
+    }
+}
+
+impl Default for ReasoningEffortLevel {
+    fn default() -> Self {
+        Self::Medium
+    }
+}
+
+impl fmt::Display for ReasoningEffortLevel {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+impl<'de> Deserialize<'de> for ReasoningEffortLevel {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let raw = String::deserialize(deserializer)?;
+        if let Some(parsed) = Self::parse(&raw) {
+            Ok(parsed)
+        } else {
+            // Fallback to default if invalid value provided
+            Ok(Self::default())
         }
     }
 }

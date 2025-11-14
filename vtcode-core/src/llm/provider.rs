@@ -70,31 +70,6 @@ pub use vtcode_llm_types::{
     ParallelToolConfig,
 };
 
-// Re-export ReasoningEffortLevel from config (not in vtcode-llm-types to avoid circular dependency)
-pub use crate::config::types::ReasoningEffortLevel;
-
-// Helper to convert from vtcode-llm-types ReasoningEffortLevel to vtcode-config ReasoningEffortLevel
-pub fn convert_reasoning_effort(
-    effort: vtcode_llm_types::ReasoningEffortLevel,
-) -> crate::config::types::ReasoningEffortLevel {
-    match effort {
-        vtcode_llm_types::ReasoningEffortLevel::Low => crate::config::types::ReasoningEffortLevel::Low,
-        vtcode_llm_types::ReasoningEffortLevel::Medium => crate::config::types::ReasoningEffortLevel::Medium,
-        vtcode_llm_types::ReasoningEffortLevel::High => crate::config::types::ReasoningEffortLevel::High,
-    }
-}
-
-// Helper to convert from vtcode-config ReasoningEffortLevel to vtcode-llm-types ReasoningEffortLevel
-pub fn convert_reasoning_effort_to_llm_types(
-    effort: crate::config::types::ReasoningEffortLevel,
-) -> vtcode_llm_types::ReasoningEffortLevel {
-    match effort {
-        crate::config::types::ReasoningEffortLevel::Low => vtcode_llm_types::ReasoningEffortLevel::Low,
-        crate::config::types::ReasoningEffortLevel::Medium => vtcode_llm_types::ReasoningEffortLevel::Medium,
-        crate::config::types::ReasoningEffortLevel::High => vtcode_llm_types::ReasoningEffortLevel::High,
-    }
-}
-
 // Type alias for backward compatibility
 pub type LLMError = LLMProviderError;
 
