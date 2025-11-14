@@ -259,6 +259,18 @@ pub enum ModelId {
     /// Kimi Latest 128K - Vision-enabled flagship tier with maximum context
     MoonshotKimiLatest128k,
 
+    // Microsoft DirectLine models
+    /// DirectLine GPT-4 - Azure Bot Service / M365 Copilot powered by GPT-4
+    MicrosoftDirectLineGpt4,
+    /// DirectLine GPT-3.5 Turbo - Azure Bot Service / M365 Copilot powered by GPT-3.5 Turbo
+    MicrosoftDirectLineGpt35Turbo,
+    /// DirectLine Custom - Custom Azure Bot Framework deployment
+    MicrosoftDirectLineCustom,
+    /// M365 Copilot - Microsoft 365 Copilot integration
+    MicrosoftCopilotM365,
+    /// Bot Framework - Generic Bot Framework endpoint
+    MicrosoftBotFramework,
+
     // Ollama models
     /// GPT-OSS 20B - Open-weight GPT-OSS 20B model served via Ollama locally
     OllamaGptOss20b,
@@ -529,6 +541,12 @@ impl ModelId {
             ModelId::MoonshotKimiLatest8k => models::MOONSHOT_KIMI_LATEST_8K,
             ModelId::MoonshotKimiLatest32k => models::MOONSHOT_KIMI_LATEST_32K,
             ModelId::MoonshotKimiLatest128k => models::MOONSHOT_KIMI_LATEST_128K,
+            // Microsoft DirectLine models
+            ModelId::MicrosoftDirectLineGpt4 => models::microsoft::DIRECTLINE_GPT_4,
+            ModelId::MicrosoftDirectLineGpt35Turbo => models::microsoft::DIRECTLINE_GPT_35_TURBO,
+            ModelId::MicrosoftDirectLineCustom => models::microsoft::DIRECTLINE_CUSTOM,
+            ModelId::MicrosoftCopilotM365 => models::microsoft::COPILOT_M365,
+            ModelId::MicrosoftBotFramework => models::microsoft::BOT_FRAMEWORK,
             // Ollama models
             ModelId::OllamaGptOss20b => models::ollama::GPT_OSS_20B,
             ModelId::OllamaGptOss20bCloud => models::ollama::GPT_OSS_20B_CLOUD,
@@ -594,6 +612,11 @@ impl ModelId {
             | ModelId::MoonshotKimiLatest8k
             | ModelId::MoonshotKimiLatest32k
             | ModelId::MoonshotKimiLatest128k => Provider::Moonshot,
+            ModelId::MicrosoftDirectLineGpt4
+            | ModelId::MicrosoftDirectLineGpt35Turbo
+            | ModelId::MicrosoftDirectLineCustom
+            | ModelId::MicrosoftCopilotM365
+            | ModelId::MicrosoftBotFramework => Provider::Microsoft,
             ModelId::OllamaGptOss20b
             | ModelId::OllamaGptOss20bCloud
             | ModelId::OllamaGptOss120bCloud
@@ -666,6 +689,12 @@ impl ModelId {
             ModelId::MoonshotKimiLatest8k => "Kimi Latest 8K",
             ModelId::MoonshotKimiLatest32k => "Kimi Latest 32K",
             ModelId::MoonshotKimiLatest128k => "Kimi Latest 128K",
+            // Microsoft DirectLine models
+            ModelId::MicrosoftDirectLineGpt4 => "DirectLine GPT-4",
+            ModelId::MicrosoftDirectLineGpt35Turbo => "DirectLine GPT-3.5 Turbo",
+            ModelId::MicrosoftDirectLineCustom => "DirectLine Custom",
+            ModelId::MicrosoftCopilotM365 => "Microsoft 365 Copilot",
+            ModelId::MicrosoftBotFramework => "Bot Framework",
             // Ollama models
             ModelId::OllamaGptOss20b => "GPT-OSS 20B (local)",
             ModelId::OllamaGptOss20bCloud => "GPT-OSS 20B (cloud)",
@@ -826,6 +855,22 @@ impl ModelId {
             ModelId::LmStudioPhi31Mini4kInstruct => {
                 "Phi-3.1 Mini 4K hosted in LM Studio for compact reasoning and experimentation"
             }
+            // Microsoft DirectLine models
+            ModelId::MicrosoftDirectLineGpt4 => {
+                "Azure Bot Service / M365 Copilot integration powered by GPT-4 through DirectLine API v3"
+            }
+            ModelId::MicrosoftDirectLineGpt35Turbo => {
+                "Azure Bot Service / M365 Copilot integration powered by GPT-3.5 Turbo through DirectLine API v3"
+            }
+            ModelId::MicrosoftDirectLineCustom => {
+                "Custom Azure Bot Framework deployment accessible through DirectLine API v3 protocol"
+            }
+            ModelId::MicrosoftCopilotM365 => {
+                "Microsoft 365 Copilot integration with organizational context and M365 data access"
+            }
+            ModelId::MicrosoftBotFramework => {
+                "Generic Bot Framework endpoint for custom bot implementations and integrations"
+            }
             _ => unreachable!(),
         }
     }
@@ -897,6 +942,12 @@ impl ModelId {
             ModelId::LmStudioGemma22BIt,
             ModelId::LmStudioGemma29BIt,
             ModelId::LmStudioPhi31Mini4kInstruct,
+            // Microsoft DirectLine models
+            ModelId::MicrosoftDirectLineGpt4,
+            ModelId::MicrosoftDirectLineGpt35Turbo,
+            ModelId::MicrosoftDirectLineCustom,
+            ModelId::MicrosoftCopilotM365,
+            ModelId::MicrosoftBotFramework,
         ];
         models.extend(Self::openrouter_models());
         models
@@ -950,6 +1001,7 @@ impl ModelId {
             Provider::Ollama => ModelId::OllamaGptOss20b,
             Provider::LmStudio => ModelId::LmStudioMetaLlama318BInstruct,
             Provider::ZAI => ModelId::ZaiGlm46,
+            Provider::Microsoft => ModelId::MicrosoftDirectLineGpt4,
         }
     }
 
@@ -966,6 +1018,7 @@ impl ModelId {
             Provider::Ollama => ModelId::OllamaQwen317b,
             Provider::LmStudio => ModelId::LmStudioQwen257BInstruct,
             Provider::ZAI => ModelId::ZaiGlm45Flash,
+            Provider::Microsoft => ModelId::MicrosoftDirectLineGpt35Turbo,
         }
     }
 
@@ -982,6 +1035,7 @@ impl ModelId {
             Provider::Ollama => ModelId::OllamaGptOss20b,
             Provider::LmStudio => ModelId::LmStudioMetaLlama318BInstruct,
             Provider::ZAI => ModelId::ZaiGlm46,
+            Provider::Microsoft => ModelId::MicrosoftDirectLineGpt4,
         }
     }
 
@@ -1141,6 +1195,12 @@ impl ModelId {
             ModelId::LmStudioGemma22BIt => "gemma-2",
             ModelId::LmStudioGemma29BIt => "gemma-2",
             ModelId::LmStudioPhi31Mini4kInstruct => "phi-3.1",
+            // Microsoft DirectLine generations
+            ModelId::MicrosoftDirectLineGpt4 => "directline-v3",
+            ModelId::MicrosoftDirectLineGpt35Turbo => "directline-v3",
+            ModelId::MicrosoftDirectLineCustom => "directline-v3",
+            ModelId::MicrosoftCopilotM365 => "m365-copilot",
+            ModelId::MicrosoftBotFramework => "bot-framework",
             _ => unreachable!(),
         }
     }
@@ -1234,6 +1294,14 @@ impl FromStr for ModelId {
             s if s == models::lmstudio::PHI_31_MINI_4K_INSTRUCT => {
                 Ok(ModelId::LmStudioPhi31Mini4kInstruct)
             }
+            // Microsoft DirectLine models
+            s if s == models::microsoft::DIRECTLINE_GPT_4 => Ok(ModelId::MicrosoftDirectLineGpt4),
+            s if s == models::microsoft::DIRECTLINE_GPT_35_TURBO => {
+                Ok(ModelId::MicrosoftDirectLineGpt35Turbo)
+            }
+            s if s == models::microsoft::DIRECTLINE_CUSTOM => Ok(ModelId::MicrosoftDirectLineCustom),
+            s if s == models::microsoft::COPILOT_M365 => Ok(ModelId::MicrosoftCopilotM365),
+            s if s == models::microsoft::BOT_FRAMEWORK => Ok(ModelId::MicrosoftBotFramework),
             _ => {
                 if let Some(model) = Self::parse_openrouter_model(s) {
                     Ok(model)

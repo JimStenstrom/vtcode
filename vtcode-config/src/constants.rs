@@ -133,12 +133,18 @@ pub mod models {
 
     // Microsoft Direct Line v3 models (Bot Framework / M365 Copilot)
     pub mod microsoft {
-        pub const DEFAULT_MODEL: &str = "copilot-m365";
+        pub const DEFAULT_MODEL: &str = "directline-gpt-4";
         pub const SUPPORTED_MODELS: &[&str] = &[
+            "directline-gpt-4",
+            "directline-gpt-35-turbo",
+            "directline-custom",
             "copilot-m365",
             "bot-framework",
         ];
 
+        pub const DIRECTLINE_GPT_4: &str = "directline-gpt-4";
+        pub const DIRECTLINE_GPT_35_TURBO: &str = "directline-gpt-35-turbo";
+        pub const DIRECTLINE_CUSTOM: &str = "directline-custom";
         pub const COPILOT_M365: &str = "copilot-m365";
         pub const BOT_FRAMEWORK: &str = "bot-framework";
     }
@@ -299,19 +305,6 @@ pub mod models {
         pub const MINIMAX_M2: &str = "MiniMax-M2";
     }
 
-    // Microsoft DirectLine models
-    pub mod microsoft {
-        pub const DEFAULT_MODEL: &str = "directline-gpt-4";
-        pub const SUPPORTED_MODELS: &[&str] = &[
-            "directline-gpt-4",
-            "directline-gpt-35-turbo",
-            "directline-custom",
-        ];
-
-        pub const DIRECTLINE_GPT_4: &str = "directline-gpt-4";
-        pub const DIRECTLINE_GPT_35_TURBO: &str = "directline-gpt-35-turbo";
-        pub const DIRECTLINE_CUSTOM: &str = "directline-custom";
-    }
 
     // xAI models
     pub mod xai {
