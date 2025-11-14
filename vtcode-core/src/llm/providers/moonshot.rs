@@ -398,7 +398,7 @@ impl LLMProvider for MoonshotProvider {
                     PROVIDER_NAME,
                     &format!("Network error: {}", e),
                 );
-                LLMError::Network(formatted_error)
+                LLMError::NetworkError(formatted_error)
             })?;
 
         if !response.status().is_success() {
@@ -410,7 +410,7 @@ impl LLMProvider for MoonshotProvider {
                     PROVIDER_NAME,
                     "Authentication failed (check MOONSHOT_API_KEY)",
                 );
-                return Err(LLMError::Authentication(formatted_error));
+                return Err(LLMError::AuthenticationError(formatted_error));
             }
 
             if status.as_u16() == 429 || error_text.contains("quota") {

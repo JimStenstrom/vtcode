@@ -132,7 +132,7 @@ impl MicrosoftProvider {
             .header("Authorization", format!("Bearer {}", self.secret))
             .send()
             .await
-            .map_err(|e| LLMError::Network(format!("Failed to start conversation: {}", e)))?;
+            .map_err(|e| LLMError::NetworkError(format!("Failed to start conversation: {}", e)))?;
 
         if !response.status().is_success() {
             let status = response.status();
@@ -193,7 +193,7 @@ impl MicrosoftProvider {
             .json(&activity)
             .send()
             .await
-            .map_err(|e| LLMError::Network(format!("Failed to send activity: {}", e)))?;
+            .map_err(|e| LLMError::NetworkError(format!("Failed to send activity: {}", e)))?;
 
         if !response.status().is_success() {
             let status = response.status();
@@ -238,7 +238,7 @@ impl MicrosoftProvider {
             .header("Authorization", format!("Bearer {}", self.secret))
             .send()
             .await
-            .map_err(|e| LLMError::Network(format!("Failed to get activities: {}", e)))?;
+            .map_err(|e| LLMError::NetworkError(format!("Failed to get activities: {}", e)))?;
 
         if !response.status().is_success() {
             let status = response.status();

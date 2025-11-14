@@ -1377,7 +1377,7 @@ impl OpenAIProvider {
                         server_url, e
                     ),
                 );
-                LLMError::Network(formatted_error)
+                LLMError::NetworkError(formatted_error)
             })?;
 
         // Check response status
@@ -2119,7 +2119,7 @@ impl LLMProvider for OpenAIProvider {
             .map_err(|e| {
                 let formatted_error =
                     error_display::format_llm_error("OpenAI", &format!("Network error: {}", e));
-                LLMError::Network(formatted_error)
+                LLMError::NetworkError(formatted_error)
             })?;
 
         if !response.status().is_success() {
@@ -2187,7 +2187,7 @@ impl LLMProvider for OpenAIProvider {
                         "OpenAI",
                         &format!("Streaming error: {}", err),
                     );
-                    LLMError::Network(formatted_error)
+                    LLMError::NetworkError(formatted_error)
                 })?;
 
                 buffer.push_str(&String::from_utf8_lossy(&chunk));
@@ -2388,7 +2388,7 @@ impl LLMProvider for OpenAIProvider {
                 .map_err(|e| {
                     let formatted_error =
                         error_display::format_llm_error("OpenAI", &format!("Network error: {}", e));
-                    LLMError::Network(formatted_error)
+                    LLMError::NetworkError(formatted_error)
                 })?;
 
             if !response.status().is_success() {
@@ -2463,7 +2463,7 @@ impl LLMProvider for OpenAIProvider {
             .map_err(|e| {
                 let formatted_error =
                     error_display::format_llm_error("OpenAI", &format!("Network error: {}", e));
-                LLMError::Network(formatted_error)
+                LLMError::NetworkError(formatted_error)
             })?;
 
         if !response.status().is_success() {

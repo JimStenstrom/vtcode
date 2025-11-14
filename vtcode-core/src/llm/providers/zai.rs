@@ -506,7 +506,7 @@ impl LLMProvider for ZAIProvider {
                     PROVIDER_NAME,
                     &format!("Network error: {}", err),
                 );
-                LLMError::Network(formatted)
+                LLMError::NetworkError(formatted)
             })?;
 
         if !response.status().is_success() {

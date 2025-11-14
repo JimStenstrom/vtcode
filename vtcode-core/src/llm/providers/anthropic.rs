@@ -843,7 +843,7 @@ impl LLMProvider for AnthropicProvider {
             .map_err(|e| {
                 let formatted_error =
                     error_display::format_llm_error("Anthropic", &format!("Network error: {}", e));
-                LLMError::Network(formatted_error)
+                LLMError::NetworkError(formatted_error)
             })?;
 
         if !response.status().is_success() {

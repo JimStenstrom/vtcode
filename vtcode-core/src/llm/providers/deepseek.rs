@@ -474,7 +474,7 @@ impl LLMProvider for DeepSeekProvider {
                     PROVIDER_NAME,
                     &format!("Network error: {}", e),
                 );
-                LLMError::Network(formatted_error)
+                LLMError::NetworkError(formatted_error)
             })?;
 
         if !response.status().is_success() {

@@ -612,7 +612,7 @@ struct OllamaErrorResponse {
 
 fn map_reqwest_error(err: reqwest::Error) -> LLMError {
     if err.is_timeout() || err.is_connect() {
-        LLMError::Network(err.to_string())
+        LLMError::NetworkError(err.to_string())
     } else {
         LLMError::Provider(err.to_string())
     }
