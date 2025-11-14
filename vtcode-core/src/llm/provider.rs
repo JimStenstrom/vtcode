@@ -72,21 +72,3 @@ pub use vtcode_llm_types::{
 
 // Type alias for backward compatibility
 pub type LLMError = LLMProviderError;
-
-// Implement conversion from provider::LLMError to llm::types::LLMError
-impl From<LLMError> for crate::llm::types::LLMError {
-    fn from(err: LLMError) -> crate::llm::types::LLMError {
-        match err {
-            LLMError::AuthenticationError(msg) => crate::llm::types::LLMError::ApiError(msg),
-            LLMError::RateLimit => crate::llm::types::LLMError::RateLimit,
-            LLMError::InvalidRequest(msg) => crate::llm::types::LLMError::InvalidRequest(msg),
-            LLMError::NetworkError(msg) => crate::llm::types::LLMError::NetworkError(msg),
-            LLMError::Provider(msg) => crate::llm::types::LLMError::ApiError(msg),
-            LLMError::ApiError(msg) => crate::llm::types::LLMError::ApiError(msg),
-            LLMError::SerializationError(msg) => crate::llm::types::LLMError::ApiError(format!("Serialization error: {}", msg)),
-            LLMError::ModelNotFound(msg) => crate::llm::types::LLMError::ApiError(format!("Model not found: {}", msg)),
-            LLMError::Timeout(msg) => crate::llm::types::LLMError::NetworkError(format!("Timeout: {}", msg)),
-            LLMError::Other(msg) => crate::llm::types::LLMError::ApiError(msg),
-        }
-    }
-}

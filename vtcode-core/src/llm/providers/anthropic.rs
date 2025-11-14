@@ -9,7 +9,6 @@ use crate::llm::provider::{
     ParallelToolConfig, ToolCall, ToolChoice, ToolDefinition,
 };
 use crate::llm::rig_adapter::reasoning_parameters_for;
-use crate::llm::types as llm_types;
 use async_trait::async_trait;
 use reqwest::Client as HttpClient;
 use serde_json::{Value, json};

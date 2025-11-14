@@ -172,7 +172,6 @@ pub mod providers;
 pub mod rig_adapter;
 
 pub mod token_metrics;
-pub mod types;
 
 #[cfg(test)]
 mod error_display_test;
@@ -187,4 +186,6 @@ pub use providers::{
 };
 
 pub use token_metrics::{TokenCounter, TokenMetrics, TokenTypeMetrics};
-pub use types::{BackendKind, LLMError, LLMResponse};
+
+// Re-export types from vtcode-llm-types for backward compatibility
+pub use vtcode_llm_types::{BackendKind, LLMError, LLMResponse};

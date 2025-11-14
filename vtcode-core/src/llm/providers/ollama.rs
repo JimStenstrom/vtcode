@@ -4,7 +4,6 @@ use crate::llm::provider::{
     FinishReason, LLMError, LLMProvider, LLMRequest, LLMResponse, LLMStream, LLMStreamEvent,
     Message, MessageRole, ToolCall, ToolChoice, ToolDefinition, Usage,
 };
-use crate::llm::types as llm_types;
 use anyhow::Result;
 use async_stream::try_stream;
 use async_trait::async_trait;

@@ -795,7 +795,7 @@ impl AgentRunner {
             // Use provider-specific client for OpenAI/Anthropic (and generic support for others)
             // Prepare for provider-specific vs Gemini handling
             #[allow(unused_assignments)]
-            let mut response_opt: Option<crate::llm::types::LLMResponse> = None;
+            let mut response_opt: Option<vtcode_llm_types::LLMResponse> = None;
 
             if matches!(
                 provider_kind,
@@ -1184,12 +1184,12 @@ impl AgentRunner {
             );
 
             // Use response content directly
-            if !response.content.is_empty() {
+            if let Some(content) = &response.content {
                 // Try to parse the response as JSON to check for tool calls
                 let mut had_tool_call = false;
 
                 // Try to parse as a tool call response
-                if let Ok(tool_call_response) = serde_json::from_str::<Value>(&response.content) {
+                if let Ok(tool_call_response) = serde_json::from_str::<Value>(content) {
                     // Check for standard tool_calls format
                     if let Some(tool_calls) = tool_call_response
                         .get("tool_calls")
@@ -1609,14 +1609,14 @@ impl AgentRunner {
                         // Regular content response
                         Self::print_compact_response(
                             self.agent_type,
-                            response.content.trim(),
+                            response.content.as_deref().unwrap_or("").trim(),
                             self.quiet,
                         );
-                        event_recorder.agent_message(response.content.trim());
+                        event_recorder.agent_message(response.content.as_deref().unwrap_or("").trim());
                         task_state.conversation.push(Content {
                             role: "model".to_string(),
                             parts: vec![Part::Text {
-                                text: response.content.clone(),
+                                text: response.content.clone().unwrap_or_default(),
                             }],
                         });
                     }
@@ -1624,21 +1624,21 @@ impl AgentRunner {
                     // Regular text response
                     Self::print_compact_response(
                         self.agent_type,
-                        response.content.trim(),
+                        response.content.as_deref().unwrap_or("").trim(),
                         self.quiet,
                     );
-                    event_recorder.agent_message(response.content.trim());
+                    event_recorder.agent_message(response.content.as_deref().unwrap_or("").trim());
                     task_state.conversation.push(Content {
                         role: "model".to_string(),
                         parts: vec![Part::Text {
-                            text: response.content.clone(),
+                            text: response.content.clone().unwrap_or_default(),
                         }],
                     });
                 }
 
                 // Check for task completion indicators in the response
                 if !task_state.has_completed {
-                    let response_lower = response.content.to_lowercase();
+                    let response_lower = response.content.as_deref().unwrap_or("").to_lowercase();
 
                     // More comprehensive completion detection
                     let completion_indicators = [

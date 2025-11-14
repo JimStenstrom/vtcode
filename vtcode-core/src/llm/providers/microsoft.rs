@@ -5,7 +5,6 @@ use crate::llm::provider::{
     ContentPart, FinishReason, LLMError, LLMProvider, LLMRequest, LLMResponse, Message,
     MessageContent, MessageRole,
 };
-use crate::llm::types as llm_types;
 use async_trait::async_trait;
 use reqwest::Client as HttpClient;
 use serde::{Deserialize, Serialize};

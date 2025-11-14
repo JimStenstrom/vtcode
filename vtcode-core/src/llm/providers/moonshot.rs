@@ -9,7 +9,6 @@ use crate::llm::providers::common::{
     forward_prompt_cache_with_state, resolve_model,
 };
 use crate::llm::rig_adapter::reasoning_parameters_for;
-use crate::llm::types as llm_types;
 use async_trait::async_trait;
 use reqwest::Client;
 use serde_json::{Map, Value, json};

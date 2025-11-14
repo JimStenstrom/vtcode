@@ -5,7 +5,6 @@ use crate::config::core::PromptCachingConfig;
 use crate::llm::error_display;
 use crate::llm::provider::{LLMError, LLMProvider, LLMRequest, LLMResponse, LLMStream};
 use crate::llm::providers::common::override_base_url;
-use crate::llm::types as llm_types;
 use anyhow::Result;
 use async_trait::async_trait;
 

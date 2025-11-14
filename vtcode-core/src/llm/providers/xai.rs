@@ -3,7 +3,6 @@ use crate::config::core::PromptCachingConfig;
 use crate::llm::error_display;
 use crate::llm::provider::{LLMError, LLMProvider, LLMRequest, LLMResponse};
 use crate::llm::providers::openai::OpenAIProvider;
-use crate::llm::types as llm_types;
 use async_trait::async_trait;
 
 use super::common::{forward_prompt_cache_with_state, override_base_url, resolve_model};
