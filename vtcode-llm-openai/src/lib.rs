@@ -29,6 +29,7 @@
 //!         stream: false,
 //!         tool_choice: None,
 //!         parallel_tool_calls: None,
+//!         parallel_tool_config: None,
 //!         reasoning_effort: None,
 //!     };
 //!
@@ -39,9 +40,9 @@
 //! }
 //! ```
 
-pub mod types;
-pub mod openai;
 pub mod codex_prompt;
+pub mod openai;
+pub mod types;
 
 // Re-export universal LLM types from vtcode_llm_types
 pub use vtcode_llm_types::{
@@ -51,7 +52,7 @@ pub use vtcode_llm_types::{
     SpecificToolChoice, ToolCall, ToolChoice, ToolDefinition, Usage,
 };
 
-// Re-export the provider implementation
+// Re-export the provider implementation from the refactored module
 pub use openai::OpenAIProvider;
 
 // Re-export GPT-5 Codex utilities
