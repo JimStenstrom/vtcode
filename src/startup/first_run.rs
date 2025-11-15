@@ -10,7 +10,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use vtcode_core::cli::args::{Cli, Commands};
 use vtcode_core::config::constants::{model_helpers, models};
 use vtcode_core::config::loader::{ConfigManager, VTCodeConfig};
-use vtcode_core::config::models::{ModelId, Provider};
+use vtcode_core::config::models::ModelId;
+use vtcode_core::config::Provider;
 use vtcode_core::utils::ansi::{AnsiRenderer, MessageStyle};
 
 use vtcode_core::utils::dot_config::{WorkspaceTrustLevel, WorkspaceTrustRecord, get_dot_manager};
@@ -207,8 +208,10 @@ async fn run_first_run_setup(
 
 fn resolve_initial_provider(config: &VTCodeConfig) -> Provider {
     // Provider is now an enum, so it's never "empty" - always has a value
-    // Just return the configured provider
-    config.agent.provider
+    // Convert from vtcode_config::models::Provider to vtcode_core::config::Provider via string
+    use std::str::FromStr as _;
+    FromStr::from_str(&config.agent.provider.to_string())
+        .expect("Provider conversion should never fail")
 }
 
 fn prompt_provider(renderer: &mut AnsiRenderer, default: Provider) -> Result<Provider> {
@@ -590,7 +593,11 @@ fn default_model_for_provider(provider: Provider) -> &'static str {
 }
 
 fn apply_selection(config: &mut VTCodeConfig, provider: Provider, model: &str) {
-    config.agent.provider = provider;
+    // Convert from vtcode_core Provider to vtcode_config Provider via string
+    // The type of config.agent.provider is vtcode_config::models::Provider
+    use std::str::FromStr as _;
+    config.agent.provider = FromStr::from_str(&provider.to_string())
+        .expect("Provider conversion should never fail");
     config.agent.api_key_env = provider.default_api_key_env().to_string();
     config.agent.default_model = model.to_string();
     config.router.models.simple = model.to_string();

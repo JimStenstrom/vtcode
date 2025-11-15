@@ -12,7 +12,7 @@ use vtcode_core::cli::args::Cli;
 use vtcode_core::config::api_keys::{ApiKeySources, get_api_key};
 use vtcode_core::config::constants::defaults;
 use vtcode_core::config::loader::{ConfigManager, VTCodeConfig};
-use vtcode_core::config::models::Provider;
+use vtcode_core::config::{Provider};
 use vtcode_core::config::types::{AgentConfig as CoreAgentConfig, ModelSelectionSource};
 use vtcode_core::config::validator::ConfigValidator;
 use vtcode_core::ui::theme::{self as ui_theme, DEFAULT_THEME_ID};
@@ -131,10 +131,14 @@ impl StartupContext {
             );
         }
 
-        let provider = args
-            .provider
-            .clone()
-            .unwrap_or_else(|| config.agent.provider.clone());
+        let provider = if let Some(provider_str) = &args.provider {
+            Provider::from_str(provider_str)
+                .with_context(|| format!("Invalid provider: {}", provider_str))?
+        } else {
+            // Convert from vtcode_config::models::Provider to vtcode_core::config::Provider
+            Provider::from_str(&config.agent.provider.to_string())
+                .expect("Provider conversion should never fail")
+        };
 
         let (model, model_source) = match args.model.clone() {
             Some(value) => (value, ModelSelectionSource::CliOverride),
@@ -149,10 +153,9 @@ impl StartupContext {
 
         update_theme_preference(&theme_selection).await.ok();
 
-        let api_key = get_api_key(&provider, &ApiKeySources::default())
+        let provider_str = provider.to_string();
+        let api_key = get_api_key(&provider_str, &ApiKeySources::default())
             .with_context(|| format!("API key not found for provider '{}'", provider))?;
-
-        let provider_enum = Provider::from_str(&provider).unwrap_or(Provider::Gemini);
         let cli_api_key_env = args.api_key_env.trim();
         let api_key_env_override = if cli_api_key_env.is_empty()
             || cli_api_key_env.eq_ignore_ascii_case(defaults::DEFAULT_API_KEY_ENV)
@@ -166,7 +169,7 @@ impl StartupContext {
         let resolved_api_key_env = if configured_api_key_env.is_empty()
             || configured_api_key_env.eq_ignore_ascii_case(defaults::DEFAULT_API_KEY_ENV)
         {
-            provider_enum.default_api_key_env().to_string()
+            provider.default_api_key_env().to_string()
         } else {
             configured_api_key_env.to_string()
         };
@@ -183,10 +186,15 @@ impl StartupContext {
                 }
             });
 
+        // Convert provider from vtcode_core to vtcode_config for CoreAgentConfig
+        use std::str::FromStr as _;
+        let config_provider = FromStr::from_str(&provider.to_string())
+            .expect("Provider conversion should never fail");
+
         let agent_config = CoreAgentConfig {
             model,
             api_key,
-            provider,
+            provider: config_provider,
             api_key_env,
             workspace: workspace.clone(),
             verbose: args.verbose,
