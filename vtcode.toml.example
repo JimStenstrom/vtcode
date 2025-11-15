@@ -498,10 +498,11 @@ enabled = true
 
 # Directories to scan for SOPs (relative to workspace root)
 # SOPs are markdown files that guide LLM behavior on common workflows
-paths = [".vtcode/sops"]
+# Default: docs/sops (project SOPs) and .vtcode/sops (user SOPs)
+paths = ["docs/sops", ".vtcode/sops"]
 
-# Optional: Add project-specific SOP directories
-# paths = [".vtcode/sops", "docs/procedures"]
+# Optional: Add additional directories
+# paths = ["docs/sops", ".vtcode/sops", "docs/procedures"]
 
 # Vector Database Configuration - Semantic search foundation
 [vectordb]

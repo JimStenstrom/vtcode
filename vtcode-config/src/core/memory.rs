@@ -195,7 +195,10 @@ impl Default for SopConfig {
     fn default() -> Self {
         Self {
             enabled: true,
-            paths: vec![".vtcode/sops".to_string()],
+            paths: vec![
+                "docs/sops".to_string(),      // Project-level SOPs (version controlled)
+                ".vtcode/sops".to_string(),   // User-specific SOPs (gitignored)
+            ],
         }
     }
 }
