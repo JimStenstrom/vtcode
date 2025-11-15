@@ -220,42 +220,38 @@ pub fn create_provider_with_config(
     factory.create_provider(provider_name, config)
 }
 
-impl BuiltinProvider for GeminiProvider {
-    fn build_from_config(config: ProviderConfig) -> Box<dyn LLMProvider> {
-        let ProviderConfig {
-            api_key,
-            base_url,
-            model,
-            prompt_cache,
-        } = config;
+/// Macro to eliminate boilerplate for standard provider implementations
+macro_rules! impl_builtin_provider {
+    ($provider:ty) => {
+        impl BuiltinProvider for $provider {
+            fn build_from_config(config: ProviderConfig) -> Box<dyn LLMProvider> {
+                let ProviderConfig {
+                    api_key,
+                    base_url,
+                    model,
+                    prompt_cache,
+                } = config;
 
-        Box::new(GeminiProvider::from_config(
-            api_key,
-            model,
-            base_url,
-            prompt_cache,
-        ))
-    }
+                Box::new(<$provider>::from_config(api_key, model, base_url, prompt_cache))
+            }
+        }
+    };
 }
 
-impl BuiltinProvider for OpenAIProvider {
-    fn build_from_config(config: ProviderConfig) -> Box<dyn LLMProvider> {
-        let ProviderConfig {
-            api_key,
-            base_url,
-            model,
-            prompt_cache,
-        } = config;
+// Standard provider implementations using the macro
+impl_builtin_provider!(GeminiProvider);
+impl_builtin_provider!(OpenAIProvider);
+impl_builtin_provider!(MinimaxProvider);
+impl_builtin_provider!(DeepSeekProvider);
+impl_builtin_provider!(OpenRouterProvider);
+impl_builtin_provider!(MoonshotProvider);
+impl_builtin_provider!(OllamaProvider);
+impl_builtin_provider!(LmStudioProvider);
+impl_builtin_provider!(XAIProvider);
+impl_builtin_provider!(ZAIProvider);
+impl_builtin_provider!(MicrosoftProvider);
 
-        Box::new(OpenAIProvider::from_config(
-            api_key,
-            model,
-            base_url,
-            prompt_cache,
-        ))
-    }
-}
-
+// AnthropicProvider has custom logic (unwrap_or_default) so it's implemented separately
 impl BuiltinProvider for AnthropicProvider {
     fn build_from_config(config: ProviderConfig) -> Box<dyn LLMProvider> {
         let ProviderConfig {
@@ -268,168 +264,6 @@ impl BuiltinProvider for AnthropicProvider {
         Box::new(AnthropicProvider::from_config(
             api_key.unwrap_or_default(),
             model.unwrap_or_default(),
-            base_url,
-            prompt_cache,
-        ))
-    }
-}
-
-impl BuiltinProvider for MinimaxProvider {
-    fn build_from_config(config: ProviderConfig) -> Box<dyn LLMProvider> {
-        let ProviderConfig {
-            api_key,
-            base_url,
-            model,
-            prompt_cache,
-        } = config;
-
-        Box::new(MinimaxProvider::from_config(
-            api_key,
-            model,
-            base_url,
-            prompt_cache,
-        ))
-    }
-}
-
-impl BuiltinProvider for DeepSeekProvider {
-    fn build_from_config(config: ProviderConfig) -> Box<dyn LLMProvider> {
-        let ProviderConfig {
-            api_key,
-            base_url,
-            model,
-            prompt_cache,
-        } = config;
-
-        Box::new(DeepSeekProvider::from_config(
-            api_key,
-            model,
-            base_url,
-            prompt_cache,
-        ))
-    }
-}
-
-impl BuiltinProvider for OpenRouterProvider {
-    fn build_from_config(config: ProviderConfig) -> Box<dyn LLMProvider> {
-        let ProviderConfig {
-            api_key,
-            base_url,
-            model,
-            prompt_cache,
-        } = config;
-
-        Box::new(OpenRouterProvider::from_config(
-            api_key,
-            model,
-            base_url,
-            prompt_cache,
-        ))
-    }
-}
-
-impl BuiltinProvider for MoonshotProvider {
-    fn build_from_config(config: ProviderConfig) -> Box<dyn LLMProvider> {
-        let ProviderConfig {
-            api_key,
-            base_url,
-            model,
-            prompt_cache,
-        } = config;
-
-        Box::new(MoonshotProvider::from_config(
-            api_key,
-            model,
-            base_url,
-            prompt_cache,
-        ))
-    }
-}
-
-impl BuiltinProvider for OllamaProvider {
-    fn build_from_config(config: ProviderConfig) -> Box<dyn LLMProvider> {
-        let ProviderConfig {
-            api_key,
-            base_url,
-            model,
-            prompt_cache,
-        } = config;
-
-        Box::new(OllamaProvider::from_config(
-            api_key,
-            model,
-            base_url,
-            prompt_cache,
-        ))
-    }
-}
-
-impl BuiltinProvider for LmStudioProvider {
-    fn build_from_config(config: ProviderConfig) -> Box<dyn LLMProvider> {
-        let ProviderConfig {
-            api_key,
-            base_url,
-            model,
-            prompt_cache,
-        } = config;
-
-        Box::new(LmStudioProvider::from_config(
-            api_key,
-            model,
-            base_url,
-            prompt_cache,
-        ))
-    }
-}
-
-impl BuiltinProvider for XAIProvider {
-    fn build_from_config(config: ProviderConfig) -> Box<dyn LLMProvider> {
-        let ProviderConfig {
-            api_key,
-            base_url,
-            model,
-            prompt_cache,
-        } = config;
-
-        Box::new(XAIProvider::from_config(
-            api_key,
-            model,
-            base_url,
-            prompt_cache,
-        ))
-    }
-}
-
-impl BuiltinProvider for ZAIProvider {
-    fn build_from_config(config: ProviderConfig) -> Box<dyn LLMProvider> {
-        let ProviderConfig {
-            api_key,
-            base_url,
-            model,
-            prompt_cache,
-        } = config;
-
-        Box::new(ZAIProvider::from_config(
-            api_key,
-            model,
-            base_url,
-            prompt_cache,
-        ))
-    }
-}
-
-impl BuiltinProvider for MicrosoftProvider {
-    fn build_from_config(config: ProviderConfig) -> Box<dyn LLMProvider> {
-        let ProviderConfig {
-            api_key,
-            base_url,
-            model,
-            prompt_cache,
-        } = config;
-
-        Box::new(MicrosoftProvider::from_config(
-            api_key,
-            model,
             base_url,
             prompt_cache,
         ))
