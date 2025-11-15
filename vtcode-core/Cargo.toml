@@ -121,6 +121,8 @@ vtcode-ui = { path = "../vtcode-ui", version = "0.43.6" }
 vtcode-llm-types = { path = "../vtcode-llm-types", version = "0.43.6" }
 vtcode-llm-gemini = { path = "../vtcode-llm-gemini", version = "0.43.6" }
 vtcode-llm-openrouter = { path = "../vtcode-llm-openrouter", version = "0.43.6" }
+# Note: vtcode-llm-anthropic, vtcode-llm-openai, vtcode-llm-microsoft not included yet
+# They have their own LLMProvider trait definitions instead of using vtcode_llm_types (Phase 3 incomplete)
 
 # Token counting for attention budget management
 tokenizers = { version = "0.22", features = ["http"] }
