@@ -77,6 +77,141 @@ VTCode works with any VS Code-compatible editor through the Open VSX registry:
 3. The extension behavior should be identical to VS Code
 4. Configuration settings may be located in different places depending on the editor
 
+## Memory System
+
+### Session Logs Not Saving
+
+**Issue**: No files appearing in `~/.vtcode/sessions/`
+
+**Solution**:
+1. Check that `log_directory` is writable:
+   ```bash
+   ls -la ~/.vtcode/
+   mkdir -p ~/.vtcode/sessions
+   ```
+2. Ensure memory system is enabled:
+   ```toml
+   [memory]
+   enabled = true
+   auto_checkpoint = true
+   ```
+3. Check logs for write errors:
+   ```bash
+   RUST_LOG=vtcode_memory=debug vtcode
+   ```
+4. Try manual save on exit if auto-checkpoint isn't working
+
+### Out of Memory Errors
+
+**Issue**: VTCode crashes with OOM (Out of Memory) errors.
+
+**Solution**:
+Reduce memory limits in `vtcode.toml`:
+```toml
+[memory]
+working_memory_limit = 10  # Reduce from default 20
+summary_limit = 50         # Reduce from default 100
+```
+
+For very resource-constrained environments:
+```toml
+[memory]
+working_memory_limit = 5
+summary_limit = 20
+enable_background_summarization = false  # Disable async processing
+```
+
+### Historical Queries Not Working
+
+**Issue**: "Remember when..." queries don't retrieve past context.
+
+**Diagnosis**:
+1. Check if memory system is enabled:
+   ```bash
+   # In vtcode.toml
+   [memory]
+   enabled = true
+   ```
+2. Verify summaries exist:
+   ```bash
+   ls ~/.vtcode/sessions/
+   # Should show .json files
+   ```
+3. Enable debug logging to see query processing:
+   ```bash
+   RUST_LOG=vtcode_memory=debug vtcode
+   ```
+
+**Solution**:
+Ensure background summarization is enabled:
+```toml
+[memory]
+enable_background_summarization = true
+summary_limit = 100  # Must be > 0
+```
+
+### Slow Turn Completion
+
+**Issue**: Long delay after each message.
+
+**Diagnosis**:
+Check if synchronous summarization is enabled (blocking).
+
+**Solution**:
+Enable background summarization to eliminate delays:
+```toml
+[memory]
+enable_background_summarization = true  # Must be true!
+```
+
+If performance is still slow:
+```toml
+[memory]
+working_memory_limit = 10  # Reduce to speed up context building
+```
+
+### Session Files Too Large
+
+**Issue**: Session JSON files consuming too much disk space.
+
+**Solution**:
+1. Reduce retention limits:
+   ```toml
+   [memory]
+   working_memory_limit = 15
+   summary_limit = 75
+   ```
+
+2. Clean old sessions periodically:
+   ```bash
+   # Remove sessions older than 30 days
+   find ~/.vtcode/sessions -name "*.json" -mtime +30 -delete
+   ```
+
+3. Archive important sessions:
+   ```bash
+   # Move to archive
+   mkdir -p ~/.vtcode/archives
+   mv ~/.vtcode/sessions/202411*.json ~/.vtcode/archives/
+   ```
+
+### Memory Not Restoring Between Sessions
+
+**Issue**: New sessions don't have context from previous work.
+
+**Note**: This is expected behavior in Phase 1. Cross-session context restoration is planned for Phase 5.
+
+**Current Workaround**:
+Search past sessions manually:
+```bash
+# Find relevant sessions
+grep -r "authentication" ~/.vtcode/sessions/
+
+# Extract specific content
+jq '.messages[] | select(.content | contains("JWT"))' \
+   ~/.vtcode/sessions/20251115_*.json
+```
+
 ## Need More Help?
 
 If you're still experiencing issues:
