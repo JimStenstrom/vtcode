@@ -43,6 +43,7 @@ mod queue;
 mod scroll;
 mod slash;
 mod slash_palette;
+mod state;
 mod transcript;
 
 use self::file_palette::{FilePalette, extract_file_reference};
@@ -58,6 +59,7 @@ use self::prompt_palette::{PromptPalette, extract_prompt_reference};
 use self::queue::QueueOverlay;
 use self::scroll::ScrollManager;
 use self::slash_palette::SlashPalette;
+use self::state::{DisplayState, PromptState, UIState, PaletteState, RenderState};
 use self::transcript::{CachedMessage, TranscriptReflowCache};
 #[cfg(test)]
 use super::types::InlineHeaderHighlight;
@@ -75,66 +77,28 @@ const LEGACY_PROMPT_INVOKE_PREFIX: &str = "prompts:";
 const PROMPT_COMMAND_PREFIX: &str = "/prompt:";
 
 pub struct Session {
-    // --- Managers (Phase 2) ---
+    // --- Managers ---
     /// Manages user input, cursor, and command history
     input_manager: InputManager,
     /// Manages scroll state and viewport metrics
     scroll_manager: ScrollManager,
 
-    // --- Message Management ---
-    lines: Vec<MessageLine>,
-    theme: InlineTheme,
-    header_context: InlineHeaderContext,
-    header_rows: u16,
-    labels: MessageLabels,
-
-    // --- Prompt/Input Display ---
-    prompt_prefix: String,
-    prompt_style: InlineTextStyle,
-    placeholder: Option<String>,
-    placeholder_style: Option<InlineTextStyle>,
-    input_status_left: Option<String>,
-    input_status_right: Option<String>,
-
-    // --- UI State ---
-    slash_palette: SlashPalette,
-    navigation_state: ListState,
-    input_enabled: bool,
-    cursor_visible: bool,
-    needs_redraw: bool,
-    needs_full_clear: bool,
-    should_exit: bool,
-    view_rows: u16,
-    input_height: u16,
-    transcript_rows: u16,
-    transcript_width: u16,
-    transcript_view_top: usize,
-
-    // --- Rendering ---
-    transcript_cache: Option<TranscriptReflowCache>,
-    queued_inputs: Vec<String>,
-    queue_overlay_cache: Option<QueueOverlay>,
-    queue_overlay_version: u64,
-    modal: Option<ModalState>,
-    show_timeline_pane: bool,
-    plan: TaskPlan,
-    line_revision_counter: u64,
-    in_tool_code_fence: bool,
-
-    // --- Palette Management ---
-    custom_prompts: Option<CustomPromptRegistry>,
-    file_palette: Option<FilePalette>,
-    file_palette_active: bool,
-    deferred_file_browser_trigger: bool,
-    prompt_palette: Option<PromptPalette>,
-    prompt_palette_active: bool,
-    deferred_prompt_browser_trigger: bool,
+    // --- State Modules (Refactored from individual fields) ---
+    /// Display state: theme, messages, labels, revision tracking
+    display: DisplayState,
+    /// Prompt state: prompt display configuration
+    prompt: PromptState,
+    /// UI state: flags, dimensions, layout
+    ui: UIState,
+    /// Palette state: file/prompt/slash palette management
+    palette: PaletteState,
+    /// Render state: caches, overlays, modal
+    render: RenderState,
 }
 
 impl Session {
     fn next_revision(&mut self) -> u64 {
-        self.line_revision_counter = self.line_revision_counter.wrapping_add(1);
-        self.line_revision_counter
+        self.display.next_revision()
     }
 
     pub fn new(
@@ -149,74 +113,29 @@ impl Session {
         let initial_transcript_rows = resolved_rows.saturating_sub(reserved_rows).max(1);
 
         let mut session = Self {
-            // --- Managers (Phase 2) ---
             input_manager: InputManager::new(),
             scroll_manager: ScrollManager::new(initial_transcript_rows),
-
-            // --- Message Management ---
-            lines: Vec::new(),
-            theme,
-            header_context: InlineHeaderContext::default(),
-            labels: MessageLabels::default(),
-
-            // --- Prompt/Input Display ---
-            prompt_prefix: USER_PREFIX.to_string(),
-            prompt_style: InlineTextStyle::default(),
-            placeholder,
-            placeholder_style: None,
-            input_status_left: None,
-            input_status_right: None,
-
-            // --- UI State ---
-            slash_palette: SlashPalette::new(),
-            navigation_state: ListState::default(),
-            input_enabled: true,
-            cursor_visible: true,
-            needs_redraw: true,
-            needs_full_clear: false,
-            should_exit: false,
-            view_rows: resolved_rows,
-            input_height: Self::input_block_height_for_lines(1),
-            transcript_rows: initial_transcript_rows,
-            transcript_width: 0,
-            transcript_view_top: 0,
-
-            // --- Rendering ---
-            transcript_cache: None,
-            queued_inputs: Vec::new(),
-            queue_overlay_cache: None,
-            queue_overlay_version: 0,
-            modal: None,
-            show_timeline_pane,
-            plan: TaskPlan::default(),
-            header_rows: initial_header_rows,
-            line_revision_counter: 0,
-            in_tool_code_fence: false,
-
-            // --- Palette Management ---
-            custom_prompts: None,
-            file_palette: None,
-            file_palette_active: false,
-            deferred_file_browser_trigger: false,
-            prompt_palette: None,
-            prompt_palette_active: false,
-            deferred_prompt_browser_trigger: false,
+            display: DisplayState::new(theme),
+            prompt: PromptState::new(placeholder, USER_PREFIX.to_string(), InlineTextStyle::default()),
+            ui: UIState::new(resolved_rows, Self::input_block_height_for_lines(1), initial_transcript_rows, show_timeline_pane),
+            palette: PaletteState::new(SlashPalette::new()),
+            render: RenderState::new(InlineHeaderContext::default(), initial_header_rows),
         };
         session.ensure_prompt_style_color();
         session
     }
 
     pub fn should_exit(&self) -> bool {
-        self.should_exit
+        self.ui.should_exit
     }
 
     pub fn request_exit(&mut self) {
-        self.should_exit = true;
+        self.ui.should_exit = true;
     }
 
     pub fn take_redraw(&mut self) -> bool {
-        if self.needs_redraw {
-            self.needs_redraw = false;
+        if self.ui.needs_redraw {
+            self.ui.needs_redraw = false;
             true
         } else {
             false
