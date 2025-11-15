@@ -100,7 +100,9 @@ For full configuration options, see [Configuration](./docs/config/CONFIGURATION_
 
 -   **Security First**: Multi-layered security model with execution policy, sandbox integration, and argument injection protection
 -   **Multi-Provider AI**: OpenAI, Anthropic, xAI, DeepSeek, Gemini, Z.AI, Moonshot AI, OpenRouter, MiniMax, Ollama (local)
+-   **Three-Tier Memory System**: Non-destructive conversation memory with working memory, compressed summaries, and persistent session logs - maintains context across long conversations and enables cross-session learning ([docs](./docs/architecture/memory-system.md))
 -   **Code Intelligence**: Tree-sitter parsers for Rust, Python, JavaScript/TypeScript, Go, Java, Swift
+-   **Semantic Search & RAG**: Vector database abstraction (vtcode-vectordb) and document retrieval pipeline (vtcode-rag) for semantic code search and knowledge retrieval
 -   **Smart Tools**: Built-in code analysis, file operations, terminal commands, and refactoring
 -   **Editor Integration**: Native support for Zed IDE via Agent Client Protocol (ACP)
 -   **Lifecycle Hooks**: Execute custom shell commands in response to agent events for context enrichment, policy enforcement, and automation ([docs](./docs/guides/lifecycle-hooks.md))

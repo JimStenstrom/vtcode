@@ -1,0 +1,30 @@
+[package]
+name = "vtcode-vectordb"
+version = "0.43.6"
+edition = "2024"
+authors = ["vinhnx <vinhnx@users.noreply.github.com>"]
+description = "Vector database abstraction for VTCode"
+license = "MIT"
+readme = "README.md"
+homepage = "https://github.com/vinhnx/vtcode"
+repository = "https://github.com/vinhnx/vtcode"
+documentation = "https://docs.rs/vtcode-vectordb"
+keywords = ["vector", "database", "embeddings", "search"]
+categories = ["database"]
+
+[dependencies]
+# Core dependencies
+anyhow = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tokio = { version = "1.48", features = ["full"] }
+thiserror = "2.0"
+async-trait = "0.1.89"
+tracing = "0.1"
+
+# Workspace dependencies
+vtcode-commons = { path = "../vtcode-commons", version = "0.43.6" }
+
+[dev-dependencies]
+tempfile = "3.0"
+tokio = { version = "1.48", features = ["macros", "rt-multi-thread"] }

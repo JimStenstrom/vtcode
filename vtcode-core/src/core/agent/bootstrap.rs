@@ -18,6 +18,7 @@ use crate::core::decision_tracker::DecisionTracker;
 use crate::core::error_recovery::ErrorRecoveryManager;
 use crate::llm::{AnyClient, make_client};
 use crate::tools::ToolRegistry;
+use vtcode_procedures::ProcedureManager;
 use crate::tools::tree_sitter::TreeSitterAnalyzer;
 
 /// Collection of dependencies required by the [`Agent`](super::core::Agent).
@@ -32,6 +33,7 @@ pub struct AgentComponentSet {
     pub error_recovery: ErrorRecoveryManager,
 
     pub tree_sitter_analyzer: TreeSitterAnalyzer,
+    pub procedure_manager: Option<Arc<ProcedureManager>>,
 
     pub session_info: SessionInfo,
 }
@@ -48,6 +50,7 @@ pub struct AgentComponentBuilder<'config> {
     error_recovery: Option<ErrorRecoveryManager>,
 
     tree_sitter_analyzer: Option<TreeSitterAnalyzer>,
+    procedure_manager: Option<Arc<ProcedureManager>>,
     session_info: Option<SessionInfo>,
 }
 
@@ -61,6 +64,7 @@ impl<'config> AgentComponentBuilder<'config> {
             decision_tracker: None,
             error_recovery: None,
             tree_sitter_analyzer: None,
+            procedure_manager: None,
             session_info: None,
         }
     }
@@ -92,6 +96,12 @@ impl<'config> AgentComponentBuilder<'config> {
     /// Override the tree-sitter analyzer instance.
     pub fn with_tree_sitter_analyzer(mut self, analyzer: TreeSitterAnalyzer) -> Self {
         self.tree_sitter_analyzer = Some(analyzer);
+        self
+    }
+
+    /// Override the procedure manager instance.
+    pub fn with_procedure_manager(mut self, manager: Arc<ProcedureManager>) -> Self {
+        self.procedure_manager = Some(manager);
         self
     }
 
@@ -131,12 +141,29 @@ impl<'config> AgentComponentBuilder<'config> {
                 .context("Failed to initialize agent session metadata for bootstrap")?,
         };
 
+        // Initialize procedure manager if not provided
+        let procedure_manager = match self.procedure_manager {
+            Some(manager) => Some(manager),
+            None => {
+                // Try to create procedure manager with default config
+                // Only log errors, don't fail if procedure initialization fails
+                match create_procedure_manager().await {
+                    Ok(manager) => Some(Arc::new(manager)),
+                    Err(e) => {
+                        tracing::warn!("Failed to initialize procedure manager: {}", e);
+                        None
+                    }
+                }
+            }
+        };
+
         Ok(AgentComponentSet {
             client,
             tool_registry,
             decision_tracker,
             error_recovery,
             tree_sitter_analyzer,
+            procedure_manager,
 
             session_info,
         })
@@ -164,6 +191,17 @@ fn create_session_info() -> Result<SessionInfo> {
         total_decisions: 0,
         error_count: 0,
     })
+}
+
+async fn create_procedure_manager() -> Result<ProcedureManager> {
+    use vtcode_config::ProceduresConfig;
+
+    // Use default procedure configuration
+    let procedure_config = ProceduresConfig::default();
+
+    ProcedureManager::new(procedure_config)
+        .await
+        .context("Failed to create procedure manager")
 }
 
 #[cfg(test)]

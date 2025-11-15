@@ -8,6 +8,7 @@ VTCode uses a configuration file named `vtcode.toml` that can be placed at the r
 
 -   [Feature flags](#feature-flags)
 -   [Model selection](#model-selection)
+-   [Memory configuration](#memory-configuration)
 -   [Execution environment](#execution-environment)
 -   [MCP integration](#mcp-integration)
 -   [Security and approvals](#security-and-approvals)
@@ -151,6 +152,86 @@ simple = "gemini-2.5-flash-lite"
 standard = "gemini-2.5-flash"
 complex = "gemini-2.5-pro"
 ```
+
+## Memory configuration
+
+VTCode uses a three-tier memory system to maintain conversation context across long sessions and even across different sessions in the same workspace. For detailed architecture information, see the **[Memory System Architecture Guide](architecture/memory-system.md)**.
+
+### Basic settings
+
+Control how VTCode manages conversation memory:
+
+```toml
+[memory]
+enabled = true                          # Enable memory system
+working_memory_limit = 20               # Recent turns in full fidelity
+summary_limit = 100                     # Max compressed summaries
+enable_background_summarization = true  # Async summarization
+```
+
+### Advanced settings
+
+Fine-tune memory persistence and checkpointing:
+
+```toml
+[memory]
+auto_checkpoint = true                  # Save periodically
+checkpoint_interval_seconds = 300       # Every 5 minutes
+log_directory = "~/.vtcode/sessions"    # Where to save sessions
+summarization_model = ""                # Optional: specific model
+```
+
+### Vector database configuration
+
+Configure the vector database backend for semantic search:
+
+```toml
+[vectordb]
+backend = "memory"                      # memory or qdrant (future)
+collection_prefix = "vtcode"            # Namespace
+embedding_dimensions = 384              # Model-specific
+```
+
+### Use cases
+
+**Long conversations**:
+```toml
+[memory]
+working_memory_limit = 30  # More recent context
+summary_limit = 200        # More history
+```
+
+**Resource constrained**:
+```toml
+[memory]
+working_memory_limit = 10
+summary_limit = 50
+enable_background_summarization = false  # Save CPU
+```
+
+**Disable memory**:
+```toml
+[memory]
+enabled = false  # Fall back to old behavior
+```
+
+### Memory configuration options
+
+| Key | Type | Default | Description |
+| --- | ---- | ------- | ----------- |
+| `memory.enabled` | boolean | true | Enable the memory system |
+| `memory.working_memory_limit` | number | 20 | Recent turns to keep in full fidelity |
+| `memory.summary_limit` | number | 100 | Maximum compressed summaries to retain |
+| `memory.enable_background_summarization` | boolean | true | Process summarization asynchronously |
+| `memory.auto_checkpoint` | boolean | true | Enable periodic session saves |
+| `memory.checkpoint_interval_seconds` | number | 300 | Interval between checkpoints (5 minutes) |
+| `memory.log_directory` | string | ~/.vtcode/sessions | Directory for session logs |
+| `memory.summarization_model` | string | (optional) | Specific model for summarization |
+| `vectordb.backend` | string | memory | Vector database backend (memory, qdrant) |
+| `vectordb.collection_prefix` | string | vtcode | Namespace for collections |
+| `vectordb.embedding_dimensions` | number | 384 | Embedding vector dimensions |
+
+For a quick start guide, see **[Memory Quick Start](guides/memory-quick-start.md)**.
 
 ## Execution environment
 

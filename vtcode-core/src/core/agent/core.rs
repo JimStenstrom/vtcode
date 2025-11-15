@@ -13,6 +13,7 @@ use crate::core::decision_tracker::DecisionTracker;
 use crate::core::error_recovery::{ErrorRecoveryManager, ErrorType};
 use crate::llm::AnyClient;
 use crate::tools::ToolRegistry;
+use vtcode_procedures::ProcedureManager;
 use crate::tools::tree_sitter::{CodeAnalysis, TreeSitterAnalyzer};
 use crate::utils::colors::style;
 use anyhow::{Result, anyhow};
@@ -28,6 +29,7 @@ pub struct Agent {
     error_recovery: ErrorRecoveryManager,
 
     tree_sitter_analyzer: TreeSitterAnalyzer,
+    procedure_manager: Option<Arc<ProcedureManager>>,
     session_info: SessionInfo,
     start_time: std::time::Instant,
 }
@@ -52,6 +54,7 @@ impl Agent {
             decision_tracker: components.decision_tracker,
             error_recovery: components.error_recovery,
             tree_sitter_analyzer: components.tree_sitter_analyzer,
+            procedure_manager: components.procedure_manager,
             session_info: components.session_info,
             start_time: std::time::Instant::now(),
         }
@@ -164,6 +167,26 @@ impl Agent {
     /// Get mutable tree-sitter analyzer reference
     pub fn tree_sitter_analyzer_mut(&mut self) -> &mut TreeSitterAnalyzer {
         &mut self.tree_sitter_analyzer
+    }
+
+    /// Get procedure manager reference
+    pub fn procedure_manager(&self) -> Option<Arc<ProcedureManager>> {
+        self.procedure_manager.as_ref().map(Arc::clone)
+    }
+
+    /// Retrieve relevant procedures for a given query
+    ///
+    /// # Arguments
+    /// * `query` - The search query (e.g., "how to edit files")
+    /// * `top_k` - Number of top results to return
+    ///
+    /// # Returns
+    /// A vector of relevant procedure content chunks, or empty if procedure manager is not available
+    pub async fn get_relevant_procedures(&self, query: &str, top_k: usize) -> Result<Vec<String>> {
+        match &self.procedure_manager {
+            Some(manager) => manager.get_relevant_procedures(query, top_k).await,
+            None => Ok(Vec::new()),
+        }
     }
 
     /// Analyze a file using tree-sitter

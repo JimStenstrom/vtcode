@@ -33,6 +33,7 @@ pub mod defaults;
 pub mod hooks;
 pub mod loader;
 pub mod mcp;
+pub mod memory;
 pub mod models;
 pub mod root;
 pub mod router;
@@ -52,8 +53,9 @@ pub use api_keys::ApiKeySources;
 pub use context::{ContextFeaturesConfig, LedgerConfig};
 pub use core::{
     AgentConfig, AgentCustomPromptsConfig, AgentOnboardingConfig, AutomationConfig, CommandsConfig,
-    FullAutoConfig, ModelConfig, PromptCachingConfig, ProviderPromptCachingConfig, SecurityConfig,
-    ToolPolicy, ToolsConfig, WebFetchConfig,
+    FullAutoConfig, MemoryConfig, ModelConfig, PromptCachingConfig, ProviderPromptCachingConfig,
+    ProceduresConfig, QdrantConfig, SecurityConfig, ToolPolicy, ToolsConfig, VectorDbConfig,
+    WebFetchConfig,
 };
 pub use debug::{DebugConfig, TraceLevel};
 pub use defaults::{

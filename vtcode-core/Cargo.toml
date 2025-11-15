@@ -131,6 +131,10 @@ vtcode-llm-openai = { path = "../vtcode-llm-openai", version = "0.43.6" }
 vtcode-llm-openrouter = { path = "../vtcode-llm-openrouter", version = "0.43.6" }
 vtcode-llm-xai = { path = "../vtcode-llm-xai", version = "0.43.6" }
 vtcode-llm-zai = { path = "../vtcode-llm-zai", version = "0.43.6" }
+vtcode-memory = { path = "../vtcode-memory", version = "0.43.6" }
+vtcode-rag = { path = "../vtcode-rag", version = "0.43.6" }
+vtcode-vectordb = { path = "../vtcode-vectordb", version = "0.43.6" }
+vtcode-procedures = { path = "../vtcode-procedures", version = "0.43.6" }
 
 # Token counting for attention budget management
 tokenizers = { version = "0.22", features = ["http"] }

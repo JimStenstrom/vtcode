@@ -4,8 +4,8 @@ pub mod bootstrap;
 use crate::acp::AgentClientProtocolConfig;
 use crate::context::ContextFeaturesConfig;
 use crate::core::{
-    AgentConfig, AutomationConfig, CommandsConfig, ModelConfig, PermissionsConfig,
-    PromptCachingConfig, SecurityConfig, ToolsConfig,
+    AgentConfig, AutomationConfig, CommandsConfig, MemoryConfig, ModelConfig, PermissionsConfig,
+    PromptCachingConfig, SecurityConfig, ToolsConfig, VectorDbConfig,
 };
 use crate::debug::DebugConfig;
 use crate::defaults::{self, ConfigDefaultsProvider, SyntaxHighlightingDefaults};
@@ -175,6 +175,14 @@ pub struct VTCodeConfig {
     /// Model-specific behavior configuration
     #[serde(default)]
     pub model: ModelConfig,
+
+    /// Memory system configuration
+    #[serde(default)]
+    pub memory: MemoryConfig,
+
+    /// VectorDB configuration
+    #[serde(default)]
+    pub vectordb: VectorDbConfig,
 }
 
 impl VTCodeConfig {
@@ -198,6 +206,14 @@ impl VTCodeConfig {
         self.timeouts
             .validate()
             .context("Invalid timeouts configuration")?;
+
+        self.memory
+            .validate()
+            .context("Invalid memory configuration")?;
+
+        self.vectordb
+            .validate()
+            .context("Invalid vectordb configuration")?;
 
         Ok(())
     }

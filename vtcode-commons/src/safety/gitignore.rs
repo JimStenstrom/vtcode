@@ -164,7 +164,7 @@ impl VTCodeGitignore {
                     return Err(anyhow!(
                         "Invalid pattern on line {}: '{}': {}",
                         line_num + 1,
-                        pattern_str.to_string(),
+                        pattern_str,
                         e
                     ));
                 }

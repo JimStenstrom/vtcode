@@ -1,5 +1,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::path::PathBuf;
+use tokio::sync::Mutex;
 
 use anyhow::Result;
 use tracing::{debug, warn};
@@ -15,6 +17,9 @@ use vtcode_core::core::{ContextEfficiency, ContextPruner, MessageMetrics, Retent
 use vtcode_core::llm::provider as uni;
 use vtcode_core::tools::tree_sitter::TreeSitterAnalyzer;
 
+// Memory system integration
+use vtcode_memory::{SimpleMemory, MemoryConfig};
+
 pub(crate) struct ContextManager {
     trim_config: ContextTrimConfig,
     token_budget: Arc<TokenBudgetManager>,
@@ -25,6 +30,9 @@ pub(crate) struct ContextManager {
     semantic_score_cache: Option<HashMap<u64, u8>>,
     context_pruner: ContextPruner,
     last_efficiency: Option<ContextEfficiency>,
+    // Memory system for non-destructive pruning
+    memory: Option<Arc<Mutex<SimpleMemory>>>,
+    turn_counter: usize,
 }
 
 impl ContextManager {
@@ -33,6 +41,22 @@ impl ContextManager {
         trim_config: ContextTrimConfig,
         token_budget: Arc<TokenBudgetManager>,
         token_budget_enabled: bool,
+    ) -> Self {
+        Self::new_with_workspace(
+            base_system_prompt,
+            trim_config,
+            token_budget,
+            token_budget_enabled,
+            None,
+        )
+    }
+
+    pub(crate) fn new_with_workspace(
+        base_system_prompt: String,
+        trim_config: ContextTrimConfig,
+        token_budget: Arc<TokenBudgetManager>,
+        token_budget_enabled: bool,
+        workspace: Option<PathBuf>,
     ) -> Self {
         let (semantic_analyzer, semantic_score_cache) = if trim_config.semantic_compression {
             match TreeSitterAnalyzer::new() {
@@ -49,7 +73,25 @@ impl ContextManager {
             (None, None)
         };
 
-        let context_pruner = ContextPruner::new(trim_config.max_tokens);
+        // Initialize memory system
+        let memory_config = MemoryConfig {
+            working_memory_limit: 20,
+            summary_limit: 100,
+            enable_background_summarization: true,
+            auto_checkpoint: true,
+            checkpoint_interval: std::time::Duration::from_secs(300), // 5 minutes
+            log_directory: dirs::home_dir()
+                .unwrap_or_else(|| PathBuf::from("."))
+                .join(".vtcode")
+                .join("sessions"),
+            summarization_model: None, // Use default model
+        };
+
+        let memory = Arc::new(Mutex::new(SimpleMemory::new(memory_config, workspace)));
+
+        // Inject memory into pruner
+        let context_pruner = ContextPruner::new(trim_config.max_tokens)
+            .with_memory(Arc::clone(&memory));
 
         Self {
             trim_config,
@@ -60,6 +102,8 @@ impl ContextManager {
             semantic_score_cache,
             context_pruner,
             last_efficiency: None,
+            memory: Some(memory),
+            turn_counter: 0,
         }
     }
 
@@ -105,7 +149,8 @@ impl ContextManager {
     }
 
     /// Apply ContextPruner recommendations to remove low-priority messages with decision tracking
-    pub(crate) fn prune_with_semantic_priority(
+    /// Now supports non-destructive pruning via memory system
+    pub(crate) async fn prune_with_semantic_priority(
         &mut self,
         history: &mut Vec<uni::Message>,
         mut pruning_ledger: Option<&mut PruningDecisionLedger>,
@@ -160,18 +205,16 @@ impl ContextManager {
 
             // Get decisions from ContextPruner in batch
             let metrics_only: Vec<_> = metrics_list.iter().map(|(_, m)| m.clone()).collect();
-            let decisions = self.context_pruner.prune_messages(&metrics_only);
 
-            // Record decisions and collect indices to remove
-            let mut indices_to_remove = Vec::new();
+            // Record decisions in ledger if available
+            let decisions = self.context_pruner.prune_messages(&metrics_only);
             for (idx, metrics) in &metrics_list {
                 if let Some(decision) = decisions.get(idx) {
-                    // Record the decision in the ledger if available
                     if let Some(ledger) = pruning_ledger.as_mut() {
                         let retention_choice = match decision {
                             RetentionDecision::Keep => RetentionChoice::Keep,
                             RetentionDecision::Remove => RetentionChoice::Remove,
-                            RetentionDecision::Summarizable => RetentionChoice::Keep, // Keep for now
+                            RetentionDecision::Summarizable => RetentionChoice::Keep,
                         };
 
                         let reason = format!(
@@ -191,23 +234,34 @@ impl ContextManager {
                             &reason,
                         );
                     }
-
-                    if matches!(decision, RetentionDecision::Remove) {
-                        indices_to_remove.push(*idx);
-                    }
                 }
             }
 
-            // Remove in reverse order to preserve indices
-            for idx in indices_to_remove.iter().rev() {
-                history.remove(*idx);
-                debug!("Pruned message at index {} for low semantic priority", idx);
+            // Use memory-backed pruning (non-destructive)
+            match self.context_pruner.prune_with_memory(history, &metrics_only, turn_number).await {
+                Ok(pruned_count) => {
+                    if pruned_count > 0 {
+                        debug!(
+                            "Pruned {} messages with memory preservation (turn {})",
+                            pruned_count, turn_number
+                        );
+                    }
+                }
+                Err(e) => {
+                    warn!(
+                        error = %e,
+                        "Failed to prune with memory, context may be incomplete"
+                    );
+                }
             }
 
             // Record pruning round completion
             if let Some(ledger) = pruning_ledger.as_mut() {
                 ledger.record_pruning_round();
             }
+
+            // Increment turn counter
+            self.turn_counter += 1;
         }
     }
 
