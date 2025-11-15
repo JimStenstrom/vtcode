@@ -22,9 +22,6 @@ thiserror = "2.0"
 async-trait = "0.1.89"
 tracing = "0.1"
 
-# Workspace dependencies
-vtcode-commons = { path = "../vtcode-commons", version = "0.43.6" }
-
 [dev-dependencies]
 tempfile = "3.0"
 tokio = { version = "1.48", features = ["macros", "rt-multi-thread"] }

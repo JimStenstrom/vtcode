@@ -271,10 +271,10 @@ fn apply_filter(point: &VectorPoint, filter: &Option<Filter>) -> bool {
     }
 
     // Check SHOULD conditions (OR)
-    if !filter.should.is_empty() {
-        if !filter.should.iter().any(|c| matches_condition(point, c)) {
-            return false;
-        }
+    if !filter.should.is_empty()
+        && !filter.should.iter().any(|c| matches_condition(point, c))
+    {
+        return false;
     }
 
     true
