@@ -20,6 +20,10 @@ pub mod languages;
 pub mod navigation;
 pub mod refactoring;
 
+// Language-specific parser implementations (internal modules, but pub for use within tree_sitter module)
+pub(crate) mod parsers;
+pub(crate) mod queries;
+
 pub use analysis::*;
 pub use analyzer::*;
 pub use cache::*;

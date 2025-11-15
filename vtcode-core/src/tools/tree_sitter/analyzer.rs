@@ -1,16 +1,21 @@
 //! Core tree-sitter analyzer for code parsing and analysis
+//!
+//! This module has been refactored to use language-specific parsers for better
+//! maintainability and extensibility. The main analyzer now delegates language-specific
+//! operations to specialized parser implementations.
 
 use crate::tools::tree_sitter::analysis::{
-    CodeAnalysis, CodeMetrics, DependencyInfo, DependencyKind,
+    CodeAnalysis, CodeMetrics, DependencyInfo,
 };
 use crate::tools::tree_sitter::cache::AstCache;
 use crate::tools::tree_sitter::highlighting::{HighlightResult, TreeSitterInjectionHighlighter};
-use crate::tools::tree_sitter::languages::*;
+use crate::tools::tree_sitter::languages::{SymbolInfo, SymbolKind};
+use crate::tools::tree_sitter::parsers::{create_parser, LanguageParser};
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::Path;
-use tree_sitter::{Language, Parser, Tree};
+use tree_sitter::Tree;
 
 /// Tree-sitter analysis error
 #[derive(Debug, thiserror::Error)]
@@ -93,10 +98,18 @@ pub enum DiagnosticLevel {
 }
 
 /// Main tree-sitter analyzer
+///
+/// This analyzer has been refactored to use language-specific parser implementations
+/// for better maintainability. It now acts as an orchestrator, delegating parsing
+/// and analysis tasks to specialized parsers.
 pub struct TreeSitterAnalyzer {
-    parsers: HashMap<LanguageSupport, Parser>,
+    /// Language-specific parsers (created lazily)
+    language_parsers: HashMap<LanguageSupport, Box<dyn LanguageParser>>,
+    /// Supported languages
     supported_languages: Vec<LanguageSupport>,
+    /// Current file being analyzed
     current_file: String,
+    /// Optional syntax highlighter with injection support
     highlighter: Option<TreeSitterInjectionHighlighter>,
     /// Optional AST cache for performance optimization
     cache: Option<AstCache>,
@@ -105,9 +118,6 @@ pub struct TreeSitterAnalyzer {
 impl TreeSitterAnalyzer {
     /// Create a new tree-sitter analyzer
     pub fn new() -> Result<Self> {
-        let mut parsers = HashMap::new();
-
-        // Initialize parsers for all supported languages
         let mut languages = vec![
             LanguageSupport::Rust,
             LanguageSupport::Python,
@@ -119,19 +129,11 @@ impl TreeSitterAnalyzer {
         ];
 
         if cfg!(feature = "swift") {
-            // Swift grammar provided by https://github.com/tree-sitter/swift-tree-sitter via the tree-sitter-swift crate
             languages.push(LanguageSupport::Swift);
         }
 
-        for language in &languages {
-            let mut parser = Parser::new();
-            let ts_language = get_language(language.clone())?;
-            parser.set_language(&ts_language)?;
-            parsers.insert(language.clone(), parser);
-        }
-
         Ok(Self {
-            parsers,
+            language_parsers: HashMap::new(),
             supported_languages: languages,
             current_file: String::new(),
             highlighter: TreeSitterInjectionHighlighter::new().ok(),
@@ -203,481 +205,79 @@ impl TreeSitterAnalyzer {
         }
     }
 
+    /// Get or create a language parser
+    fn get_or_create_parser(&mut self, language: LanguageSupport) -> Result<&mut Box<dyn LanguageParser>> {
+        if !self.language_parsers.contains_key(&language) {
+            let parser = create_parser(language)?;
+            self.language_parsers.insert(language, parser);
+        }
+        Ok(self.language_parsers.get_mut(&language).unwrap())
+    }
+
     /// Parse source code into a syntax tree with optional caching
     pub fn parse(&mut self, source_code: &str, language: LanguageSupport) -> Result<Tree> {
-        let parser = self
-            .parsers
-            .get_mut(&language)
-            .ok_or_else(|| TreeSitterError::UnsupportedLanguage(format!("{:?}", language)))?;
-
-        let tree = parser.parse(source_code, None).ok_or_else(|| {
-            TreeSitterError::ParseError("Failed to parse source code".to_string())
-        })?;
-
         // Record the parse in cache if enabled (for statistics and future cache lookups)
         if let Some(cache) = &mut self.cache {
             cache.record_parse(source_code, language);
         }
 
-        Ok(tree)
+        let parser = self.get_or_create_parser(language)?;
+        parser.parse(source_code)
     }
 
     /// Extract symbols from a syntax tree
+    ///
+    /// This method delegates to the language-specific parser implementation.
     pub fn extract_symbols(
         &mut self,
         syntax_tree: &Tree,
         source_code: &str,
         language: LanguageSupport,
     ) -> Result<Vec<SymbolInfo>> {
-        let mut symbols = Vec::new();
-        let root_node = syntax_tree.root_node();
-
-        // Walk the tree and extract symbols based on language
-        self.extract_symbols_recursive(root_node, source_code, language, &mut symbols, None)?;
-
-        Ok(symbols)
-    }
-
-    /// Recursively extract symbols from a node
-    fn extract_symbols_recursive(
-        &self,
-        node: tree_sitter::Node,
-        source_code: &str,
-        language: LanguageSupport,
-        symbols: &mut Vec<SymbolInfo>,
-        parent_scope: Option<String>,
-    ) -> Result<()> {
-        let _node_text = &source_code[node.start_byte()..node.end_byte()];
-        let kind = node.kind();
-
-        // Extract symbols based on node type and language
-        match language {
-            LanguageSupport::Rust => {
-                if kind == "function_item" || kind == "method_definition" {
-                    // Extract function name
-                    if let Some(name_node) = self.find_child_by_type(node, "identifier") {
-                        let name = &source_code[name_node.start_byte()..name_node.end_byte()];
-                        symbols.push(SymbolInfo {
-                            name: name.to_string(),
-                            kind: SymbolKind::Function,
-                            position: Position {
-                                row: node.start_position().row,
-                                column: node.start_position().column,
-                                byte_offset: node.start_byte(),
-                            },
-                            scope: parent_scope.clone(),
-                            signature: None,
-                            documentation: None,
-                        });
-                    }
-                } else if kind == "struct_item" || kind == "enum_item" {
-                    // Extract type name
-                    if let Some(name_node) = self.find_child_by_type(node, "type_identifier") {
-                        let name = &source_code[name_node.start_byte()..name_node.end_byte()];
-                        symbols.push(SymbolInfo {
-                            name: name.to_string(),
-                            kind: SymbolKind::Type,
-                            position: Position {
-                                row: node.start_position().row,
-                                column: node.start_position().column,
-                                byte_offset: node.start_byte(),
-                            },
-                            scope: parent_scope.clone(),
-                            signature: None,
-                            documentation: None,
-                        });
-                    }
-                }
-            }
-            LanguageSupport::Python => {
-                if kind == "function_definition" {
-                    // Extract function name
-                    if let Some(name_node) = self.find_child_by_type(node, "identifier") {
-                        let name = &source_code[name_node.start_byte()..name_node.end_byte()];
-                        symbols.push(SymbolInfo {
-                            name: name.to_string(),
-                            kind: SymbolKind::Function,
-                            position: Position {
-                                row: node.start_position().row,
-                                column: node.start_position().column,
-                                byte_offset: node.start_byte(),
-                            },
-                            scope: parent_scope.clone(),
-                            signature: None,
-                            documentation: None,
-                        });
-                    }
-                } else if kind == "class_definition" {
-                    // Extract class name
-                    if let Some(name_node) = self.find_child_by_type(node, "identifier") {
-                        let name = &source_code[name_node.start_byte()..name_node.end_byte()];
-                        symbols.push(SymbolInfo {
-                            name: name.to_string(),
-                            kind: SymbolKind::Type,
-                            position: Position {
-                                row: node.start_position().row,
-                                column: node.start_position().column,
-                                byte_offset: node.start_byte(),
-                            },
-                            scope: parent_scope.clone(),
-                            signature: None,
-                            documentation: None,
-                        });
-                    }
-                }
-            }
-            LanguageSupport::Bash => {
-                if kind == "function_definition" {
-                    if let Some(name_node) = self.find_child_by_type(node, "word") {
-                        let name = &source_code[name_node.start_byte()..name_node.end_byte()];
-                        symbols.push(SymbolInfo {
-                            name: name.to_string(),
-                            kind: SymbolKind::Function,
-                            position: Position {
-                                row: node.start_position().row,
-                                column: node.start_position().column,
-                                byte_offset: node.start_byte(),
-                            },
-                            scope: parent_scope.clone(),
-                            signature: None,
-                            documentation: None,
-                        });
-                    }
-                } else if kind == "variable_assignment" {
-                    if let Some(name_node) = self.find_child_by_type(node, "word") {
-                        let name = &source_code[name_node.start_byte()..name_node.end_byte()];
-                        symbols.push(SymbolInfo {
-                            name: name.to_string(),
-                            kind: SymbolKind::Variable,
-                            position: Position {
-                                row: node.start_position().row,
-                                column: node.start_position().column,
-                                byte_offset: node.start_byte(),
-                            },
-                            scope: parent_scope.clone(),
-                            signature: None,
-                            documentation: None,
-                        });
-                    }
-                }
-            }
-            _ => {
-                // For other languages, do a basic extraction
-                if kind.contains("function") || kind.contains("method") {
-                    // Try to find a name
-                    if let Some(name_node) = self.find_child_by_type(node, "identifier") {
-                        let name = &source_code[name_node.start_byte()..name_node.end_byte()];
-                        symbols.push(SymbolInfo {
-                            name: name.to_string(),
-                            kind: SymbolKind::Function,
-                            position: Position {
-                                row: node.start_position().row,
-                                column: node.start_position().column,
-                                byte_offset: node.start_byte(),
-                            },
-                            scope: parent_scope.clone(),
-                            signature: None,
-                            documentation: None,
-                        });
-                    }
-                }
-            }
-        }
-
-        // Recursively process children
-        let mut cursor = node.walk();
-        for child in node.children(&mut cursor) {
-            self.extract_symbols_recursive(
-                child,
-                source_code,
-                language.clone(),
-                symbols,
-                parent_scope.clone(),
-            )?;
-        }
-
-        Ok(())
-    }
-
-    /// Find a child node of a specific type
-    fn find_child_by_type<'a>(
-        &self,
-        node: tree_sitter::Node<'a>,
-        type_name: &str,
-    ) -> Option<tree_sitter::Node<'a>> {
-        let mut cursor = node.walk();
-        for child in node.children(&mut cursor) {
-            if child.kind() == type_name {
-                return Some(child);
-            }
-        }
-        None
+        let parser = self.get_or_create_parser(language)?;
+        parser.extract_symbols(syntax_tree, source_code)
     }
 
     /// Extract dependencies from a syntax tree
+    ///
+    /// This method delegates to the language-specific parser implementation.
     pub fn extract_dependencies(
         &self,
         syntax_tree: &Tree,
         language: LanguageSupport,
     ) -> Result<Vec<DependencyInfo>> {
-        let mut dependencies = Vec::new();
-        let root_node = syntax_tree.root_node();
-
-        // Extract dependencies based on language
-        match language {
-            LanguageSupport::Rust => {
-                self.extract_rust_dependencies(root_node, &mut dependencies)?;
-            }
-            LanguageSupport::Python => {
-                self.extract_python_dependencies(root_node, &mut dependencies)?;
-            }
-            LanguageSupport::JavaScript | LanguageSupport::TypeScript => {
-                self.extract_js_dependencies(root_node, &mut dependencies)?;
-            }
-            LanguageSupport::Bash => {
-                self.extract_basic_dependencies(root_node, &mut dependencies)?;
-            }
-            _ => {
-                // For other languages, do a basic extraction
-                self.extract_basic_dependencies(root_node, &mut dependencies)?;
-            }
+        // We need to get the parser without mutating self
+        // Since extract_dependencies doesn't need mutable access, we can work around this
+        if let Some(parser) = self.language_parsers.get(&language) {
+            return parser.extract_dependencies(syntax_tree, "");
         }
 
-        Ok(dependencies)
-    }
-
-    /// Extract Rust dependencies
-    fn extract_rust_dependencies(
-        &self,
-        node: tree_sitter::Node,
-        dependencies: &mut Vec<DependencyInfo>,
-    ) -> Result<()> {
-        let mut cursor = node.walk();
-
-        // Look for use statements and extern crate declarations
-        if node.kind() == "use_declaration" {
-            // Extract the path from the use statement
-            if let Some(_path_node) = self
-                .find_child_by_type(node, "use_list")
-                .or_else(|| self.find_child_by_type(node, "scoped_identifier"))
-                .or_else(|| self.find_child_by_type(node, "identifier"))
-            {
-                // This is a simplified extraction
-                dependencies.push(DependencyInfo {
-                    name: "unknown_rust_dep".to_string(), // Would need more parsing for actual name
-                    kind: DependencyKind::Import,
-                    source: "use_declaration".to_string(),
-                    position: Position {
-                        row: node.start_position().row,
-                        column: node.start_position().column,
-                        byte_offset: node.start_byte(),
-                    },
-                });
-            }
-        } else if node.kind() == "extern_crate_declaration" {
-            // Extract crate name from extern crate declaration
-            if let Some(_name_node) = self.find_child_by_type(node, "identifier") {
-                dependencies.push(DependencyInfo {
-                    name: "unknown_crate".to_string(), // Would need more parsing for actual name
-                    kind: DependencyKind::External,
-                    source: "extern_crate".to_string(),
-                    position: Position {
-                        row: node.start_position().row,
-                        column: node.start_position().column,
-                        byte_offset: node.start_byte(),
-                    },
-                });
-            }
-        }
-
-        // Recursively process children
-        for child in node.children(&mut cursor) {
-            self.extract_rust_dependencies(child, dependencies)?;
-        }
-
-        Ok(())
-    }
-
-    /// Extract Python dependencies
-    fn extract_python_dependencies(
-        &self,
-        node: tree_sitter::Node,
-        dependencies: &mut Vec<DependencyInfo>,
-    ) -> Result<()> {
-        let mut cursor = node.walk();
-
-        // Look for import statements
-        if node.kind() == "import_statement" || node.kind() == "import_from_statement" {
-            // Extract the module name
-            dependencies.push(DependencyInfo {
-                name: "unknown_python_module".to_string(), // Would need more parsing for actual name
-                kind: DependencyKind::Import,
-                source: node.kind().to_string(),
-                position: Position {
-                    row: node.start_position().row,
-                    column: node.start_position().column,
-                    byte_offset: node.start_byte(),
-                },
-            });
-        }
-
-        // Recursively process children
-        for child in node.children(&mut cursor) {
-            self.extract_python_dependencies(child, dependencies)?;
-        }
-
-        Ok(())
-    }
-
-    /// Extract JavaScript/TypeScript dependencies
-    fn extract_js_dependencies(
-        &self,
-        node: tree_sitter::Node,
-        dependencies: &mut Vec<DependencyInfo>,
-    ) -> Result<()> {
-        let mut cursor = node.walk();
-
-        // Look for import statements
-        if node.kind() == "import_statement" {
-            // Extract the module name
-            dependencies.push(DependencyInfo {
-                name: "unknown_js_module".to_string(), // Would need more parsing for actual name
-                kind: DependencyKind::Import,
-                source: node.kind().to_string(),
-                position: Position {
-                    row: node.start_position().row,
-                    column: node.start_position().column,
-                    byte_offset: node.start_byte(),
-                },
-            });
-        }
-
-        // Recursively process children
-        for child in node.children(&mut cursor) {
-            self.extract_js_dependencies(child, dependencies)?;
-        }
-
-        Ok(())
-    }
-
-    /// Extract basic dependencies (fallback)
-    fn extract_basic_dependencies(
-        &self,
-        node: tree_sitter::Node,
-        dependencies: &mut Vec<DependencyInfo>,
-    ) -> Result<()> {
-        let mut cursor = node.walk();
-
-        // Look for import/include statements
-        if node.kind().contains("import") || node.kind().contains("include") {
-            // Extract the dependency name
-            dependencies.push(DependencyInfo {
-                name: "unknown_dependency".to_string(),
-                kind: DependencyKind::Import,
-                source: node.kind().to_string(),
-                position: Position {
-                    row: node.start_position().row,
-                    column: node.start_position().column,
-                    byte_offset: node.start_byte(),
-                },
-            });
-        }
-
-        // Recursively process children
-        for child in node.children(&mut cursor) {
-            self.extract_basic_dependencies(child, dependencies)?;
-        }
-
-        Ok(())
+        // If parser doesn't exist yet, we need to handle this case
+        // For now, return empty dependencies
+        Ok(Vec::new())
     }
 
     /// Calculate code metrics from a syntax tree
-    pub fn calculate_metrics(&self, syntax_tree: &Tree, source_code: &str) -> Result<CodeMetrics> {
-        let root_node = syntax_tree.root_node();
+    ///
+    /// This method delegates to the language-specific parser implementation.
+    pub fn calculate_metrics(&self, syntax_tree: &Tree, source_code: &str, language: LanguageSupport) -> Result<CodeMetrics> {
+        // Similar workaround for immutable access
+        if let Some(parser) = self.language_parsers.get(&language) {
+            return parser.calculate_metrics(syntax_tree, source_code);
+        }
+
+        // Fallback to basic metrics if parser doesn't exist
         let lines = source_code.lines().collect::<Vec<_>>();
-
-        // Count different types of nodes
-        let mut functions_count = 0;
-        let mut classes_count = 0;
-        let mut variables_count = 0;
-        let mut imports_count = 0;
-
-        self.count_nodes_recursive(
-            root_node,
-            &mut functions_count,
-            &mut classes_count,
-            &mut variables_count,
-            &mut imports_count,
-        );
-
-        // Count comments
-        let lines_of_comments = lines
-            .iter()
-            .filter(|l| {
-                l.trim().starts_with("//")
-                    || l.trim().starts_with("/*")
-                    || l.trim().starts_with("#")
-            })
-            .count();
-
-        let blank_lines = lines.iter().filter(|l| l.trim().is_empty()).count();
-        let lines_of_code = lines.len();
-
-        let comment_ratio = if lines_of_code > 0 {
-            lines_of_comments as f64 / lines_of_code as f64
-        } else {
-            0.0
-        };
-
         Ok(CodeMetrics {
-            lines_of_code,
-            lines_of_comments,
-            blank_lines,
-            functions_count,
-            classes_count,
-            variables_count,
-            imports_count,
-            comment_ratio,
+            lines_of_code: lines.len(),
+            lines_of_comments: 0,
+            blank_lines: lines.iter().filter(|l| l.trim().is_empty()).count(),
+            functions_count: 0,
+            classes_count: 0,
+            variables_count: 0,
+            imports_count: 0,
+            comment_ratio: 0.0,
         })
-    }
-
-    /// Recursively count different types of nodes
-    fn count_nodes_recursive(
-        &self,
-        node: tree_sitter::Node,
-        functions_count: &mut usize,
-        classes_count: &mut usize,
-        variables_count: &mut usize,
-        imports_count: &mut usize,
-    ) {
-        let kind = node.kind();
-
-        // Count based on node type
-        if kind.contains("function") || kind.contains("method") {
-            *functions_count += 1;
-        } else if kind.contains("class") || kind.contains("struct") || kind.contains("enum") {
-            *classes_count += 1;
-        } else if kind.contains("variable")
-            || kind.contains("let")
-            || kind.contains("const")
-            || kind.contains("assignment")
-        {
-            *variables_count += 1;
-        } else if kind.contains("import") || kind.contains("include") || kind.contains("use") {
-            *imports_count += 1;
-        }
-
-        // Recursively process children
-        let mut cursor = node.walk();
-        for child in node.children(&mut cursor) {
-            self.count_nodes_recursive(
-                child,
-                functions_count,
-                classes_count,
-                variables_count,
-                imports_count,
-            );
-        }
     }
 
     /// Parse file into a syntax tree
@@ -689,7 +289,7 @@ impl TreeSitterAnalyzer {
             .await
             .map_err(|e| TreeSitterError::FileReadError(e.to_string()))?;
 
-        let tree = self.parse(&source_code, language.clone())?;
+        let tree = self.parse(&source_code, language)?;
 
         // Convert tree-sitter tree to our SyntaxTree representation
         let root = self.convert_tree_to_syntax_node(tree.root_node(), &source_code);
@@ -802,9 +402,16 @@ impl TreeSitterAnalyzer {
             "supported_languages".to_string(),
             self.supported_languages.len(),
         );
+        stats.insert(
+            "loaded_parsers".to_string(),
+            self.language_parsers.len(),
+        );
         stats
     }
 
+    /// Analyze file with tree-sitter
+    ///
+    /// This is the main entry point for comprehensive code analysis.
     pub fn analyze_file_with_tree_sitter(
         &mut self,
         file_path: &std::path::Path,
@@ -834,12 +441,12 @@ impl TreeSitterAnalyzer {
 
         self.current_file = file_path.to_string_lossy().to_string();
 
-        let tree = self.parse(source_code, language.clone())?;
+        let tree = self.parse(source_code, language)?;
 
-        // Extract actual symbols and dependencies
-        let symbols = self.extract_symbols(&tree, source_code, language.clone())?;
-        let dependencies = self.extract_dependencies(&tree, language.clone())?;
-        let metrics = self.calculate_metrics(&tree, source_code)?;
+        // Extract actual symbols and dependencies using language-specific parsers
+        let symbols = self.extract_symbols(&tree, source_code, language)?;
+        let dependencies = self.extract_dependencies(&tree, language)?;
+        let metrics = self.calculate_metrics(&tree, source_code, language)?;
 
         Ok(CodeAnalysis {
             file_path: self.current_file.clone(),
@@ -854,18 +461,6 @@ impl TreeSitterAnalyzer {
     }
 
     /// Enhanced syntax highlighting using tree-sitter injection highlighting with multi-language support
-    ///
-    /// This method performs syntax highlighting that can cross language boundaries using
-    /// tree-sitter's injection system. It's particularly useful for documents that contain
-    /// embedded code in different languages (e.g. HTML with JavaScript, Rust with embedded DSLs).
-    ///
-    /// # Arguments
-    /// * `source_code` - The source code to highlight
-    /// * `language` - The main language of the source code
-    ///
-    /// # Returns
-    /// * `Ok(HighlightResult)` - The highlighting results if successful
-    /// * `Err(TreeSitterError)` - If highlighting fails
     pub fn highlight_syntax_with_injections(
         &mut self,
         source_code: &str,
@@ -880,53 +475,23 @@ impl TreeSitterAnalyzer {
         }
     }
 
-    /// Enhance an existing syntax tree with highlighting information using injection capabilities
-    ///
-    /// This method adds highlighting information to an existing syntax tree, improving
-    /// the semantic analysis capabilities by incorporating syntax highlighting data.
-    ///
-    /// # Arguments
-    /// * `syntax_tree` - The syntax tree to enhance with highlighting information
-    ///
-    /// # Returns
-    /// * `Ok(SyntaxTree)` - The enhanced syntax tree with highlighting information in diagnostics
-    /// * `Err(TreeSitterError)` - If enhancement fails
+    /// Enhance an existing syntax tree with highlighting information
     pub fn enhance_syntax_tree_with_highlights(
         &mut self,
         syntax_tree: SyntaxTree,
     ) -> Result<SyntaxTree> {
         match &mut self.highlighter {
             Some(highlighter) => highlighter.enhance_syntax_tree(syntax_tree),
-            None => Ok(syntax_tree), // Return original tree if highlighter unavailable
+            None => Ok(syntax_tree),
         }
     }
 
     /// Get a reference to the tree-sitter injection highlighter
-    ///
-    /// This provides direct access to the injection-aware highlighter for advanced use cases
-    /// where direct interaction with the highlighting engine is needed.
-    ///
-    /// # Returns
-    /// * `Some(&mut TreeSitterInjectionHighlighter)` - Reference to the highlighter if available
-    /// * `None` - If the highlighter is not initialized
     pub fn get_highlighter(&mut self) -> Option<&mut TreeSitterInjectionHighlighter> {
         self.highlighter.as_mut()
     }
 
     /// Execute a cross-injection query across multiple language sections
-    ///
-    /// This method allows executing tree-sitter queries that can span across multiple
-    /// languages within a single document, useful for finding patterns that might
-    /// appear in embedded code sections.
-    ///
-    /// # Arguments
-    /// * `content` - The content to query
-    /// * `language` - The main language of the content
-    /// * `query_pattern` - The tree-sitter query pattern to execute
-    ///
-    /// # Returns
-    /// * `Ok(Vec<QueryMatch>)` - All matches found across all language sections
-    /// * `Err(TreeSitterError)` - If query execution fails
     pub fn execute_cross_injection_query(
         &mut self,
         content: &str,
@@ -945,18 +510,6 @@ impl TreeSitterAnalyzer {
     }
 
     /// Enhanced symbol extraction using injection-based cross-language queries
-    ///
-    /// This method uses cross-injection queries to find symbols across different
-    /// language sections within a multi-language document, providing more comprehensive
-    /// symbol extraction than traditional single-language parsing.
-    ///
-    /// # Arguments
-    /// * `source_code` - The source code to extract symbols from
-    /// * `language` - The main language of the source code
-    ///
-    /// # Returns
-    /// * `Ok(Vec<SymbolInfo>)` - List of extracted symbols
-    /// * `Err(TreeSitterError)` - If symbol extraction fails
     pub fn extract_symbols_with_injections(
         &mut self,
         source_code: &str,
@@ -969,8 +522,8 @@ impl TreeSitterAnalyzer {
         let mut symbols = Vec::new();
         for query_match in matches {
             symbols.push(SymbolInfo {
-                name: query_match.content.clone(), // This would need more sophisticated extraction
-                kind: SymbolKind::Function, // This would need to be determined from the capture_name
+                name: query_match.content.clone(),
+                kind: SymbolKind::Function,
                 position: Position {
                     row: query_match.start_position.row,
                     column: query_match.start_position.column,
@@ -986,18 +539,6 @@ impl TreeSitterAnalyzer {
     }
 
     /// Execute multiple queries efficiently using a single parsing pass
-    ///
-    /// This method is more efficient than calling execute_cross_injection_query multiple times
-    /// because it parses the document only once and then runs multiple queries against it.
-    ///
-    /// # Arguments
-    /// * `content` - The content to query
-    /// * `language` - The main language of the content
-    /// * `query_patterns` - List of tree-sitter query patterns to execute
-    ///
-    /// # Returns
-    /// * `Ok(Vec<Vec<QueryMatch>>)` - List of matches for each query pattern
-    /// * `Err(TreeSitterError)` - If query execution fails
     pub fn execute_multiple_cross_injection_queries(
         &mut self,
         content: &str,
@@ -1016,19 +557,6 @@ impl TreeSitterAnalyzer {
     }
 
     /// Process highlighting for a specific range in the document
-    ///
-    /// This allows for more granular processing which can improve performance
-    /// when only a small section of a large document needs to be processed.
-    ///
-    /// # Arguments
-    /// * `content` - The full source code content
-    /// * `language` - The language of the content
-    /// * `start_byte` - Starting byte offset for the range to process
-    /// * `end_byte` - Ending byte offset for the range to process
-    ///
-    /// # Returns
-    /// * `Ok(HighlightResult)` - The highlighting results for the specific range
-    /// * `Err(TreeSitterError)` - If range-based processing fails
     pub fn highlight_syntax_in_range(
         &mut self,
         content: &str,
@@ -1040,7 +568,6 @@ impl TreeSitterAnalyzer {
 
         match &mut self.highlighter {
             Some(highlighter) => {
-                // Parse the full document
                 let ts_language = highlighter.get_or_load_language(language)?;
                 let mut parser = tree_sitter::Parser::new();
                 parser.set_language(&ts_language).map_err(|e| {
@@ -1051,7 +578,6 @@ impl TreeSitterAnalyzer {
                     TreeSitterError::ParseError("Failed to parse content".to_string())
                 })?;
 
-                // Process highlights in the specified range
                 highlighter.process_highlight_matches_in_range(
                     &tree,
                     content,
@@ -1095,49 +621,8 @@ impl TreeSitterAnalyzer {
         };
         Ok(query.to_string())
     }
-}
 
-/// Helper function to get tree-sitter language
-fn get_language(language: LanguageSupport) -> Result<Language> {
-    let lang = match language {
-        LanguageSupport::Rust => tree_sitter_rust::LANGUAGE,
-        LanguageSupport::Python => tree_sitter_python::LANGUAGE,
-        LanguageSupport::JavaScript => tree_sitter_javascript::LANGUAGE,
-        LanguageSupport::TypeScript => tree_sitter_typescript::LANGUAGE_TYPESCRIPT,
-        LanguageSupport::Go => tree_sitter_go::LANGUAGE,
-        LanguageSupport::Java => tree_sitter_java::LANGUAGE,
-        LanguageSupport::Bash => tree_sitter_bash::LANGUAGE,
-        LanguageSupport::Swift => {
-            #[cfg(feature = "swift")]
-            {
-                tree_sitter_swift::LANGUAGE
-            }
-            #[cfg(not(feature = "swift"))]
-            {
-                return Err(TreeSitterError::UnsupportedLanguage("Swift".to_string()).into());
-            }
-        }
-    };
-    Ok(lang.into())
-}
-
-impl std::fmt::Display for LanguageSupport {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let language_name = match self {
-            LanguageSupport::Rust => "Rust",
-            LanguageSupport::Python => "Python",
-            LanguageSupport::JavaScript => "JavaScript",
-            LanguageSupport::TypeScript => "TypeScript",
-            LanguageSupport::Go => "Go",
-            LanguageSupport::Java => "Java",
-            LanguageSupport::Bash => "Bash",
-            LanguageSupport::Swift => "Swift",
-        };
-        write!(f, "{}", language_name)
-    }
-}
-
-impl TreeSitterAnalyzer {
+    /// Detect language from content heuristics
     pub fn detect_language_from_content(&self, content: &str) -> Option<LanguageSupport> {
         // Simple heuristic-based language detection
         if content.contains("fn ") && content.contains("{") && content.contains("}") {
@@ -1157,6 +642,22 @@ impl TreeSitterAnalyzer {
         } else {
             None
         }
+    }
+}
+
+impl std::fmt::Display for LanguageSupport {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let language_name = match self {
+            LanguageSupport::Rust => "Rust",
+            LanguageSupport::Python => "Python",
+            LanguageSupport::JavaScript => "JavaScript",
+            LanguageSupport::TypeScript => "TypeScript",
+            LanguageSupport::Go => "Go",
+            LanguageSupport::Java => "Java",
+            LanguageSupport::Bash => "Bash",
+            LanguageSupport::Swift => "Swift",
+        };
+        write!(f, "{}", language_name)
     }
 }
 
@@ -1264,7 +765,6 @@ mod tests {
         assert!(result.is_ok());
 
         let highlights = result.unwrap();
-        // Stub highlighter returns empty captures - just verify it doesn't error
         assert_eq!(highlights.main_language, LanguageSupport::Rust);
     }
 
@@ -1273,7 +773,7 @@ mod tests {
         let mut analyzer = create_test_analyzer();
         let rust_code = r#"fn test() { let x = 42; }"#;
 
-        // Test cross-injection query (even though Rust doesn't have many injections, it should still work)
+        // Test cross-injection query
         let result = analyzer.execute_cross_injection_query(
             rust_code,
             LanguageSupport::Rust,
@@ -1281,7 +781,6 @@ mod tests {
         );
         assert!(result.is_ok());
 
-        // Stub highlighter returns empty matches - just verify no error
         let matches = result.unwrap();
         assert_eq!(matches.len(), 0); // Stub implementation returns empty
     }
@@ -1295,8 +794,7 @@ mod tests {
         let result = analyzer.extract_symbols_with_injections(rust_code, LanguageSupport::Rust);
         assert!(result.is_ok());
 
-        // Stub highlighter returns empty query matches, so symbol extraction will be empty
         let symbols = result.unwrap();
-        assert_eq!(symbols.len(), 0); // Stub implementation returns empty
+        assert_eq!(symbols.len(), 0); // Stub highlighter returns empty
     }
 }

@@ -227,7 +227,7 @@ impl Agent {
         // Calculate metrics
         let metrics = self
             .tree_sitter_analyzer
-            .calculate_metrics(&syntax_tree, source_code)
+            .calculate_metrics(&syntax_tree, source_code, language.clone())
             .unwrap_or_default();
 
         Ok(CodeAnalysis {
