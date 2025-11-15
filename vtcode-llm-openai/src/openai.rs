@@ -7,6 +7,9 @@ use reqwest::Client as HttpClient;
 use serde_json::{Value, json};
 use std::time::Duration;
 use tracing::debug;
+use vtcode_config::models::{
+    get_context_window, is_reasoning_model, model_supports_prompt_caching, model_supports_tools,
+};
 use vtcode_llm_types::{
     FinishReason, FunctionCall, LLMError, LLMProvider, LLMRequest, LLMResponse, LLMStream,
     LLMStreamEvent, Message, MessageRole, ToolCall, ToolChoice, ToolDefinition, Usage,
@@ -307,33 +310,19 @@ impl LLMProvider for OpenAIProvider {
     }
 
     fn supports_reasoning(&self, model: &str) -> bool {
-        model.contains("o1") || model.contains("o3")
+        is_reasoning_model(model)
     }
 
     fn supports_tools(&self, model: &str) -> bool {
-        // Most OpenAI models support tools except o1-preview and o1-mini
-        !model.contains("o1-preview") && !model.contains("o1-mini")
+        model_supports_tools(model)
     }
 
     fn supports_context_caching(&self, model: &str) -> bool {
-        // OpenAI supports prompt caching for certain models
-        model.starts_with("gpt-4") || model.starts_with("gpt-3.5")
+        model_supports_prompt_caching(model)
     }
 
     fn effective_context_size(&self, model: &str) -> usize {
-        if model.contains("gpt-4o") {
-            128_000
-        } else if model.contains("gpt-4-turbo") {
-            128_000
-        } else if model.contains("gpt-4") {
-            8_192
-        } else if model.contains("gpt-3.5-turbo-16k") {
-            16_385
-        } else if model.contains("gpt-3.5") {
-            4_096
-        } else {
-            128_000 // Default for newer models
-        }
+        get_context_window(model).unwrap_or(128_000)
     }
 
     async fn generate(&self, request: LLMRequest) -> Result<LLMResponse, LLMError> {
@@ -502,6 +491,7 @@ mod tests {
 
         assert_eq!(provider.effective_context_size("gpt-4o"), 128_000);
         assert_eq!(provider.effective_context_size("gpt-4"), 8_192);
-        assert_eq!(provider.effective_context_size("gpt-3.5-turbo"), 4_096);
+        assert_eq!(provider.effective_context_size("gpt-3.5-turbo"), 16_385); // Corrected: gpt-3.5-turbo actually has 16k context
+        assert_eq!(provider.effective_context_size("unknown-model"), 128_000); // Default for unknown models
     }
 }

@@ -4,7 +4,7 @@ use super::providers::{
     XAIProvider, ZAIProvider,
 };
 use crate::config::core::PromptCachingConfig;
-use crate::config::models::{ModelId, Provider};
+use crate::config::models::{ModelId, Provider, get_model_provider};
 use crate::llm::provider::{LLMError, LLMProvider};
 use std::collections::HashMap;
 use std::str::FromStr;
@@ -101,6 +101,12 @@ impl LLMFactory {
             return None;
         }
 
+        // First, check the model registry for known models
+        if let Some(provider) = get_model_provider(trimmed) {
+            return Some(provider.to_string());
+        }
+
+        // Fall back to heuristics for unknown models
         if trimmed.contains(':') && !trimmed.contains('/') && !trimmed.contains('@') {
             return Some("ollama".to_string());
         }
@@ -108,7 +114,7 @@ impl LLMFactory {
         let m = trimmed.to_lowercase();
         if m.starts_with("gpt-oss-") {
             Some("openai".to_string())
-        } else if m.starts_with("gpt-") || m.starts_with("o1") {
+        } else if m.starts_with("gpt-") || m.starts_with("o1") || m.starts_with("o3") {
             Some("openai".to_string())
         } else if m.starts_with("claude-") {
             Some("anthropic".to_string())

@@ -4,9 +4,20 @@
 //! replacing hardcoded model strings throughout the codebase for better maintainability.
 //! Read the model list in `docs/models.json`.
 
+pub mod registry;
+
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::str::FromStr;
+
+// Re-export registry types and functions for convenience
+pub use registry::{
+    ModelCapabilities, ModelInfo, ModelTier, get_context_window, get_max_output_tokens,
+    get_model_info, get_model_provider, get_model_tier, get_replacement_model,
+    is_model_deprecated, is_reasoning_model, model_supports_prompt_caching,
+    model_supports_streaming, model_supports_tools, model_supports_vision, find_model_fuzzy,
+    recommend_model_for_task, models_for_provider, all_model_ids, MODEL_REGISTRY,
+};
 
 #[derive(Clone, Copy)]
 pub struct OpenRouterMetadata {

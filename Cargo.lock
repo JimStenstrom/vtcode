@@ -6213,6 +6213,7 @@ dependencies = [
  "tokio-test",
  "tracing",
  "vtcode-commons",
+ "vtcode-config",
  "vtcode-llm-types",
 ]
 

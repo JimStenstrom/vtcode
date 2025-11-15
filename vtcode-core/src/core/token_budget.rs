@@ -17,6 +17,7 @@ use tokenizers::Tokenizer;
 use tokio::sync::RwLock;
 use tokio::task;
 use tracing::{debug, warn};
+use vtcode_config::models::get_model_provider;
 
 use super::token_constants::{
     CODE_DETECTION_THRESHOLD, CODE_INDICATOR_CHARS, CODE_TOKEN_MULTIPLIER,
@@ -595,13 +596,30 @@ fn resolve_local_tokenizer_path(identifier: &str) -> Option<PathBuf> {
 }
 
 fn map_model_to_pretrained(model: &str) -> &'static str {
-    let normalized = model.to_ascii_lowercase();
+    // First, try to get provider from registry
+    if let Some(provider) = get_model_provider(model) {
+        return match provider {
+            "openai" => {
+                let normalized = model.to_ascii_lowercase();
+                if normalized.contains("gpt-4o") || normalized.contains("gpt-5") {
+                    "openai-community/gpt-4o-mini-tokenizer"
+                } else {
+                    "openai-community/gpt2"
+                }
+            }
+            "anthropic" => "Xenova/claude-3-haiku-20240307",
+            "gemini" => "google/gemma-2b",
+            "deepseek" => "openai-community/gpt2", // DeepSeek uses similar tokenizer
+            "zai" => "THUDM/chatglm3-6b",
+            _ => "openai-community/gpt2",
+        };
+    }
 
-    if normalized.contains("gpt-4o") {
+    // Fall back to heuristics for unknown models
+    let normalized = model.to_ascii_lowercase();
+    if normalized.contains("gpt-4o") || normalized.contains("gpt-5") {
         "openai-community/gpt-4o-mini-tokenizer"
-    } else if normalized.contains("gpt-5") {
-        "openai-community/gpt-4o-mini-tokenizer"
-    } else if normalized.contains("gpt") {
+    } else if normalized.contains("gpt") || normalized.contains("o1") || normalized.contains("o3") {
         "openai-community/gpt2"
     } else if normalized.contains("gemini") {
         "google/gemma-2b"

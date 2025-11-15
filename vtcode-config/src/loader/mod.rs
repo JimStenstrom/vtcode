@@ -1121,7 +1121,7 @@ mod tests {
     use std::io::Write;
     use std::sync::Arc;
     use tempfile::NamedTempFile;
-    use vtcode_commons::reference::StaticWorkspacePaths;
+    use vtcode_commons::StaticWorkspacePaths;
 
     #[test]
     fn syntax_highlighting_defaults_are_valid() {
