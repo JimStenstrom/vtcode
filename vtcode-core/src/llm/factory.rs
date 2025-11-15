@@ -266,8 +266,8 @@ impl BuiltinProvider for AnthropicProvider {
         } = config;
 
         Box::new(AnthropicProvider::from_config(
-            api_key,
-            model,
+            api_key.unwrap_or_default(),
+            model.unwrap_or_default(),
             base_url,
             prompt_cache,
         ))

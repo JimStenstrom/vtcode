@@ -43,9 +43,6 @@
 pub mod types;
 pub mod anthropic;
 
-// Re-export Anthropic-specific types
-pub use types::PromptCachingConfig;
-
 // Re-export universal LLM types from vtcode_llm_types
 pub use vtcode_llm_types::{
     ContentPart, FinishReason, FunctionCall, FunctionDefinition, LLMError, LLMProvider,

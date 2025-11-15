@@ -29,9 +29,10 @@ impl MinimaxProvider {
         prompt_cache: Option<PromptCachingConfig>,
     ) -> Self {
         let effective_model = model.unwrap_or_else(|| models::minimax::MINIMAX_M2.to_string());
+        let effective_api_key = api_key.unwrap_or_default();
 
         let inner =
-            AnthropicProvider::from_config(api_key, Some(effective_model), base_url, prompt_cache);
+            AnthropicProvider::from_config(effective_api_key, effective_model, base_url, prompt_cache);
 
         Self { inner }
     }

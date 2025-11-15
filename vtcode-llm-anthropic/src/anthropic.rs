@@ -1,10 +1,10 @@
 //! Anthropic provider implementation for Claude models
 
-use crate::types::PromptCachingConfig;
 use async_trait::async_trait;
 use reqwest::Client as HttpClient;
 use serde_json::{json, Value};
 use std::env;
+use vtcode_config::core::AnthropicPromptCacheSettings;
 use vtcode_llm_types::{
     FinishReason, LLMError, LLMProvider, LLMRequest, LLMResponse, LLMStream, MessageRole,
     ToolCall, Usage,
@@ -44,7 +44,7 @@ pub struct AnthropicProvider {
     http_client: HttpClient,
     base_url: String,
     model: String,
-    prompt_cache_config: PromptCachingConfig,
+    prompt_cache_config: AnthropicPromptCacheSettings,
 }
 
 impl AnthropicProvider {
@@ -63,18 +63,22 @@ impl AnthropicProvider {
         api_key: String,
         model: String,
         base_url: Option<String>,
-        prompt_cache_config: Option<PromptCachingConfig>,
+        prompt_cache_config: Option<vtcode_config::core::PromptCachingConfig>,
     ) -> Self {
         let base_url_value = base_url
             .or_else(|| env::var("ANTHROPIC_BASE_URL").ok())
             .unwrap_or_else(|| ANTHROPIC_API_BASE.to_string());
+
+        let anthropic_cache_settings = prompt_cache_config
+            .map(|cfg| cfg.providers.anthropic)
+            .unwrap_or_default();
 
         Self {
             api_key,
             http_client: HttpClient::new(),
             base_url: base_url_value,
             model,
-            prompt_cache_config: prompt_cache_config.unwrap_or_default(),
+            prompt_cache_config: anthropic_cache_settings,
         }
     }
 
