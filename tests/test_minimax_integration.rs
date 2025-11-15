@@ -2,7 +2,7 @@
 mod minimax_integration_tests {
     use vtcode_core::config::constants::{model_helpers, models, urls};
     use vtcode_core::llm::provider::LLMProvider;
-    use vtcode_core::llm::providers::AnthropicProvider;
+    use vtcode_core::llm::providers::MinimaxProvider;
 
     #[test]
     fn test_minimax_m2_constant_exists() {
@@ -56,8 +56,8 @@ mod minimax_integration_tests {
     }
 
     #[test]
-    fn test_anthropic_provider_supports_minimax_model() {
-        let provider = AnthropicProvider::from_config(
+    fn test_minimax_provider_supports_minimax_model() {
+        let provider = MinimaxProvider::from_config(
             Some(String::new()),
             Some(models::minimax::MINIMAX_M2.to_string()),
             None,
@@ -67,7 +67,7 @@ mod minimax_integration_tests {
         let supported = provider.supported_models();
         assert!(
             supported.contains(&models::minimax::MINIMAX_M2.to_string()),
-            "Anthropic provider should surface MiniMax-M2 support"
+            "MiniMax provider should surface MiniMax-M2 support"
         );
     }
 }
