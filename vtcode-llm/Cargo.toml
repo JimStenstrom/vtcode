@@ -14,7 +14,7 @@ default = [
     "anthropic",
     "deepseek",
     "google",
-    "microsoft",
+    "directline",
     "moonshot",
     "ollama",
     "openai",
