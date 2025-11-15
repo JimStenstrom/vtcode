@@ -1,0 +1,23 @@
+[package]
+name = "vtcode-rag"
+version = "0.43.6"
+edition = "2024"
+authors = ["vinhnx <vinhnx@users.noreply.github.com>"]
+description = "Document retrieval (RAG) for VTCode"
+license = "MIT"
+
+[dependencies]
+anyhow = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tokio = { version = "1.48", features = ["full"] }
+async-trait = "0.1.89"
+uuid = { version = "1.8.0", features = ["v4", "serde"] }
+tracing = "0.1"
+
+# Workspace dependencies
+vtcode-commons = { path = "../vtcode-commons", version = "0.43.6" }
+vtcode-vectordb = { path = "../vtcode-vectordb", version = "0.43.6" }
+
+[dev-dependencies]
+tempfile = "3.0"
