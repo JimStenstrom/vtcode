@@ -44,10 +44,11 @@ impl OpenAIProvider {
     }
 
     /// Create from configuration
-    pub fn from_config(
+    pub fn from_config<T>(
         api_key: Option<String>,
         model: Option<String>,
         base_url: Option<String>,
+        _prompt_cache: Option<T>, // Generic placeholder for API compatibility
     ) -> Self {
         let api_key_value = api_key.unwrap_or_default();
         let model_value = model.unwrap_or_else(|| DEFAULT_MODEL.to_string());

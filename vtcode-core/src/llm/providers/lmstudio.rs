@@ -1,12 +1,11 @@
-use super::common::resolve_model;
-use super::openai::OpenAIProvider;
+use super::common::{override_base_url, resolve_model};
 use crate::config::constants::{env_vars, models, urls};
 use crate::config::core::PromptCachingConfig;
 use crate::llm::error_display;
 use crate::llm::provider::{LLMError, LLMProvider, LLMRequest, LLMResponse, LLMStream};
-use crate::llm::providers::common::override_base_url;
 use anyhow::Result;
 use async_trait::async_trait;
+use vtcode_llm_openai::OpenAIProvider;
 
 #[derive(Debug, Deserialize, Serialize)]
 struct LmStudioModelsResponse {

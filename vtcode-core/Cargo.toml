@@ -119,10 +119,11 @@ vtcode-mcp = { path = "../vtcode-mcp", version = "0.43.6" }
 vtcode-ui = { path = "../vtcode-ui", version = "0.43.6" }
 # Provider crates can be used directly now that circular dependencies are resolved
 vtcode-llm-types = { path = "../vtcode-llm-types", version = "0.43.6" }
+vtcode-llm-anthropic = { path = "../vtcode-llm-anthropic", version = "0.43.6" }
 vtcode-llm-gemini = { path = "../vtcode-llm-gemini", version = "0.43.6" }
+vtcode-llm-openai = { path = "../vtcode-llm-openai", version = "0.43.6" }
 vtcode-llm-openrouter = { path = "../vtcode-llm-openrouter", version = "0.43.6" }
-# Note: vtcode-llm-anthropic, vtcode-llm-openai, vtcode-llm-directline not included yet
-# They have their own LLMProvider trait definitions instead of using vtcode_llm_types (Phase 3 incomplete)
+# Note: vtcode-llm-directline still re-exports from vtcode-core due to config dependencies
 
 # Token counting for attention budget management
 tokenizers = { version = "0.22", features = ["http"] }
