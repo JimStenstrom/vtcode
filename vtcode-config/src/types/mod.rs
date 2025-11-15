@@ -1,6 +1,5 @@
 //! Common types and interfaces used throughout the application
 
-use crate::constants::reasoning;
 use crate::core::PromptCachingConfig;
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
