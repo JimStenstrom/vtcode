@@ -6436,6 +6436,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "vtcode-vectordb"
+version = "0.43.6"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.17",
+ "tokio",
+ "tracing",
+ "vtcode-commons",
+]
+
+[[package]]
 name = "vte"
 version = "0.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
