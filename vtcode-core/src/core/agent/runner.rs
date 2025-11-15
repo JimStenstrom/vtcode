@@ -11,6 +11,11 @@ use crate::core::agent::conversation::{
 use crate::core::agent::events::{EventSink, ExecEventRecorder};
 pub use crate::core::agent::task::{ContextItem, Task, TaskOutcome, TaskResults};
 use crate::core::agent::types::AgentType;
+use crate::core::agent::execution::{
+    AgentState, ExecutionContext, MessageBuilder, LLMCaller, ToolExecutor,
+    LoopController, ResponseProcessor, ProcessedResponse, Transition,
+    StateMachineExecutor,
+};
 use crate::exec::events::{CommandExecutionStatus, ThreadEvent};
 use vtcode_llm_gemini::{Content, Part, Tool, sanitize_function_parameters};
 use crate::llm::factory::create_provider_for_model;
@@ -297,6 +302,12 @@ pub struct AgentRunner {
     event_sink: Option<EventSink>,
     /// Maximum number of autonomous turns before halting
     max_turns: usize,
+    /// State machine handlers
+    message_builder: MessageBuilder,
+    llm_caller: LLMCaller,
+    tool_executor: ToolExecutor,
+    loop_controller: LoopController,
+    response_processor: ResponseProcessor,
 }
 
 impl AgentRunner {
@@ -582,6 +593,11 @@ impl AgentRunner {
             quiet: false,
             event_sink: None,
             max_turns: defaults::DEFAULT_FULL_AUTO_MAX_TURNS,
+            message_builder: MessageBuilder::new(),
+            llm_caller: LLMCaller::new(),
+            tool_executor: ToolExecutor::new(),
+            loop_controller: LoopController::new(),
+            response_processor: ResponseProcessor::new(),
         })
     }
 

@@ -8,6 +8,7 @@ pub mod conversation;
 pub mod core;
 pub mod events;
 pub mod examples;
+pub mod execution;
 
 pub mod runner;
 pub mod snapshots;
