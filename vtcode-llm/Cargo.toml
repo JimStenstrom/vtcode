@@ -27,7 +27,7 @@ default = [
 anthropic = ["dep:vtcode-llm-anthropic"]
 deepseek = []
 google = ["dep:vtcode-llm-gemini"]
-microsoft = ["dep:vtcode-llm-microsoft"]
+directline = ["dep:vtcode-llm-directline"]
 moonshot = []
 ollama = []
 openai = ["dep:vtcode-llm-openai"]
@@ -45,7 +45,7 @@ vtcode-commons = { path = "../vtcode-commons", version = "0.43.6" }
 vtcode-llm-types = { path = "../vtcode-llm-types", version = "0.43.6" }
 vtcode-llm-anthropic = { path = "../vtcode-llm-anthropic", version = "0.43.6", optional = true }
 vtcode-llm-gemini = { path = "../vtcode-llm-gemini", version = "0.43.6", optional = true }
-vtcode-llm-microsoft = { path = "../vtcode-llm-microsoft", version = "0.43.6", optional = true }
+vtcode-llm-directline = { path = "../vtcode-llm-directline", version = "0.43.6", optional = true }
 vtcode-llm-openai = { path = "../vtcode-llm-openai", version = "0.43.6", optional = true }
 vtcode-llm-openrouter = { path = "../vtcode-llm-openrouter", version = "0.43.6", optional = true }
 

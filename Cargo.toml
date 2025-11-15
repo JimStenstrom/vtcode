@@ -37,7 +37,7 @@ members = [
     "vtcode-llm-types",
     "vtcode-llm-gemini",
     "vtcode-llm-openai",
-    "vtcode-llm-microsoft",
+    "vtcode-llm-directline",
     "vtcode-llm-openrouter",
     "vtcode-markdown-store",
     "vtcode-mcp",

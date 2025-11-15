@@ -1,5 +1,5 @@
 [package]
-name = "vtcode-llm-microsoft"
+name = "vtcode-llm-directline"
 version = "0.43.6"
 edition = "2024"
 authors = ["vinhnx <vinhnx@users.noreply.github.com>"]
@@ -10,8 +10,8 @@ categories = ["api-bindings", "science::ml"]
 keywords = ["vtcode", "llm", "microsoft", "directline", "azure"]
 
 [features]
-default = ["microsoft"]
-microsoft = []
+default = ["directline"]
+directline = []
 telemetry = []
 mock = []
 

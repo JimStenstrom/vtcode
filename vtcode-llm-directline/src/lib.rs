@@ -21,7 +21,7 @@
 //! ## Usage
 //!
 //! ```rust,no_run
-//! use vtcode_llm_microsoft::DirectLineProvider;
+//! use vtcode_llm_directline::DirectLineProvider;
 //! use vtcode_llm_types::LLMProvider;
 //!
 //! # async fn example() -> anyhow::Result<()> {
