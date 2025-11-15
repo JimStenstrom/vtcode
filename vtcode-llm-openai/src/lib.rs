@@ -13,21 +13,15 @@
 //! ## Example
 //!
 //! ```no_run
-//! use vtcode_llm_openai::{OpenAIProvider, LLMProvider, LLMRequest, Message, MessageRole, MessageContent};
+//! use vtcode_llm_openai::{OpenAIProvider, LLMProvider, LLMRequest, Message};
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<(), Box<dyn std::error::Error>> {
 //!     let provider = OpenAIProvider::new("your-api-key".to_string());
 //!
 //!     let request = LLMRequest {
-//!         messages: vec![Message {
-//!             role: MessageRole::User,
-//!             content: MessageContent::Text("Hello, world!".to_string()),
-//!             reasoning: None,
-//!             tool_calls: None,
-//!             tool_call_id: None,
-//!         }],
-//!         system_prompt: None,
+//!         messages: vec![Message::user("Hello, GPT!".to_string())],
+//!         system_prompt: Some("You are a helpful assistant.".to_string()),
 //!         tools: None,
 //!         model: "gpt-4o-mini".to_string(),
 //!         max_tokens: Some(1000),
@@ -39,17 +33,22 @@
 //!     };
 //!
 //!     let response = provider.generate(request).await?;
-//!     println!("Response: {}", response.content);
+//!     println!("Response: {:?}", response.content);
 //!
 //!     Ok(())
 //! }
 //! ```
 
 pub mod types;
-pub mod provider;
 pub mod openai;
 
-// Re-export main types and traits
-pub use types::*;
-pub use provider::{LLMProvider, LLMStream, LLMStreamEvent};
+// Re-export universal LLM types from vtcode_llm_types
+pub use vtcode_llm_types::{
+    ContentPart, FinishReason, FunctionCall, FunctionDefinition, LLMError, LLMProvider,
+    LLMRequest, LLMResponse, LLMResult, LLMStream, LLMStreamEvent, Message, MessageContent,
+    MessageRole, ParallelToolConfig, ReasoningEffortLevel, SpecificFunctionChoice,
+    SpecificToolChoice, ToolCall, ToolChoice, ToolDefinition, Usage,
+};
+
+// Re-export the provider implementation
 pub use openai::OpenAIProvider;

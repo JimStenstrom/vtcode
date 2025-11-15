@@ -30,6 +30,7 @@ tracing = "0.1"
 
 # VTCode dependencies
 vtcode-commons = { path = "../vtcode-commons", version = "0.43.6" }
+vtcode-llm-types = { path = "../vtcode-llm-types", version = "0.43.6" }
 
 [dev-dependencies]
 tokio-test = "0.4"

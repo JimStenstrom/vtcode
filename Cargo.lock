@@ -6062,6 +6062,7 @@ dependencies = [
  "tokio-test",
  "tracing",
  "vtcode-commons",
+ "vtcode-llm-types",
 ]
 
 [[package]]

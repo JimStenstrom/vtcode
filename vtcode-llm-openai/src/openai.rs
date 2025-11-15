@@ -7,9 +7,10 @@ use reqwest::Client as HttpClient;
 use serde_json::{Value, json};
 use std::time::Duration;
 use tracing::debug;
-
-use crate::provider::{LLMProvider, LLMStream, LLMStreamEvent};
-use crate::types::*;
+use vtcode_llm_types::{
+    FinishReason, FunctionCall, LLMError, LLMProvider, LLMRequest, LLMResponse, LLMStream,
+    LLMStreamEvent, Message, MessageRole, ToolCall, ToolChoice, ToolDefinition, Usage,
+};
 
 const OPENAI_API_BASE: &str = "https://api.openai.com/v1";
 const DEFAULT_MODEL: &str = "gpt-4o-mini";
@@ -189,14 +190,14 @@ impl OpenAIProvider {
         // Parse usage
         let usage = response_json.get("usage").and_then(|u| {
             Some(Usage {
-                prompt_tokens: u.get("prompt_tokens")?.as_u64()? as usize,
-                completion_tokens: u.get("completion_tokens")?.as_u64()? as usize,
-                total_tokens: u.get("total_tokens")?.as_u64()? as usize,
+                prompt_tokens: u.get("prompt_tokens")?.as_u64()? as u32,
+                completion_tokens: u.get("completion_tokens")?.as_u64()? as u32,
+                total_tokens: u.get("total_tokens")?.as_u64()? as u32,
                 cached_prompt_tokens: u
                     .get("prompt_tokens_details")
                     .and_then(|d| d.get("cached_tokens"))
                     .and_then(|t| t.as_u64())
-                    .map(|t| t as usize),
+                    .map(|t| t as u32),
                 cache_creation_tokens: None,
                 cache_read_tokens: None,
             })
@@ -206,26 +207,23 @@ impl OpenAIProvider {
         let finish_reason = choice
             .get("finish_reason")
             .and_then(|fr| fr.as_str())
-            .and_then(|fr_str| match fr_str {
-                "stop" => Some(FinishReason::Stop),
-                "length" => Some(FinishReason::Length),
-                "tool_calls" => Some(FinishReason::ToolCalls),
-                "content_filter" => Some(FinishReason::ContentFilter),
-                "function_call" => Some(FinishReason::FunctionCall),
-                _ => None,
-            });
+            .map(|fr_str| match fr_str {
+                "stop" => FinishReason::Stop,
+                "length" => FinishReason::Length,
+                "tool_calls" => FinishReason::ToolCalls,
+                "content_filter" => FinishReason::ContentFilter,
+                "function_call" => FinishReason::ToolCalls,
+                _ => FinishReason::Error(fr_str.to_string()),
+            })
+            .unwrap_or(FinishReason::Stop);
 
         Ok(LLMResponse {
-            content,
-            model: response_json
-                .get("model")
-                .and_then(|m| m.as_str())
-                .unwrap_or(&self.model)
-                .to_string(),
+            content: Some(content),
             usage,
             reasoning: None,
             tool_calls,
             finish_reason,
+            reasoning_details: None,
         })
     }
 
@@ -253,7 +251,7 @@ impl OpenAIProvider {
                     body["tool_choice"] = match tool_choice {
                         ToolChoice::Auto => json!("auto"),
                         ToolChoice::None => json!("none"),
-                        ToolChoice::Required => json!("required"),
+                        ToolChoice::Any => json!("required"),
                         ToolChoice::Specific(s) => json!(s),
                     };
                 }
@@ -275,11 +273,11 @@ impl OpenAIProvider {
             .await
             .map_err(|e| {
                 if e.status() == Some(reqwest::StatusCode::UNAUTHORIZED) {
-                    LLMError::Authentication("Invalid API key".to_string())
+                    LLMError::AuthenticationError("Invalid API key".to_string())
                 } else if e.status() == Some(reqwest::StatusCode::TOO_MANY_REQUESTS) {
                     LLMError::RateLimit
                 } else {
-                    LLMError::Network(e.to_string())
+                    LLMError::NetworkError(e.to_string())
                 }
             })?;
 
@@ -289,7 +287,10 @@ impl OpenAIProvider {
             return Err(LLMError::ApiError(format!("API error ({}): {}", status, error_text)));
         }
 
-        let response_json: Value = response.json().await?;
+        let response_json: Value = response
+            .json()
+            .await
+            .map_err(|e| LLMError::Provider(format!("Failed to parse JSON response: {}", e)))?;
         self.parse_response(response_json)
     }
 }
@@ -370,14 +371,23 @@ impl LLMProvider for OpenAIProvider {
             .authorize(self.http_client.post(&url))
             .json(&body)
             .send()
-            .await?;
+            .await
+            .map_err(|e| {
+                if e.status() == Some(reqwest::StatusCode::UNAUTHORIZED) {
+                    LLMError::AuthenticationError("Invalid API key".to_string())
+                } else if e.status() == Some(reqwest::StatusCode::TOO_MANY_REQUESTS) {
+                    LLMError::RateLimit
+                } else {
+                    LLMError::NetworkError(format!("Stream request failed: {}", e))
+                }
+            })?;
 
         if !response.status().is_success() {
             let error_text = response.text().await.unwrap_or_else(|_| "Unknown error".to_string());
             return Err(LLMError::ApiError(error_text));
         }
 
-        let model = self.model.clone();
+        let _model = self.model.clone();
         let mut byte_stream = response.bytes_stream();
 
         let stream = try_stream! {
@@ -385,7 +395,7 @@ impl LLMProvider for OpenAIProvider {
             let mut accumulated_content = String::new();
 
             while let Some(chunk) = byte_stream.next().await {
-                let chunk = chunk.map_err(|e| LLMError::StreamError(e.to_string()))?;
+                let chunk = chunk.map_err(|e| LLMError::Provider(format!("Stream error: {}", e)))?;
                 buffer.push_str(&String::from_utf8_lossy(&chunk));
 
                 while let Some(line_end) = buffer.find('\n') {
@@ -400,12 +410,12 @@ impl LLMProvider for OpenAIProvider {
                     if data == "[DONE]" {
                         yield LLMStreamEvent::Completed {
                             response: LLMResponse {
-                                content: accumulated_content.clone(),
-                                model: model.clone(),
+                                content: Some(accumulated_content.clone()),
                                 usage: None,
                                 reasoning: None,
                                 tool_calls: None,
-                                finish_reason: Some(FinishReason::Stop),
+                                finish_reason: FinishReason::Stop,
+                                reasoning_details: None,
                             }
                         };
                         break;
@@ -417,9 +427,8 @@ impl LLMProvider for OpenAIProvider {
                                 if let Some(delta) = choice.get("delta") {
                                     if let Some(content) = delta.get("content").and_then(|v| v.as_str()) {
                                         accumulated_content.push_str(content);
-                                        yield LLMStreamEvent::Delta {
-                                            content: content.to_string(),
-                                            reasoning: None,
+                                        yield LLMStreamEvent::Token {
+                                            delta: content.to_string(),
                                         };
                                     }
                                 }
