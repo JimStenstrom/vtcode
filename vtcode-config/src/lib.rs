@@ -70,7 +70,6 @@ pub use mcp::{
     McpAllowListConfig, McpAllowListRules, McpClientConfig, McpHttpServerConfig, McpProviderConfig,
     McpStdioServerConfig, McpTransportConfig, McpUiConfig, McpUiMode,
 };
-pub use memory::{MemoryConfig, QdrantConfig, VectorDbConfig};
 pub use models::{ModelId, OpenRouterMetadata};
 pub use root::{PtyConfig, StatusLineConfig, StatusLineMode, ToolOutputMode, UiConfig};
 pub use router::{ComplexityModelMap, HeuristicSettings, ResourceBudget, RouterConfig};
