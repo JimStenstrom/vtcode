@@ -11,10 +11,10 @@ use std::fs;
 
 // Import error handling utilities
 use vtcode_core::errors::{
-    VTCodeError, UserError, SystemError, ConfigError, ToolError, ProviderError,
+    VTCodeError, UserError, ConfigError, ToolError, ProviderError,
 };
 use vtcode_core::errors::context::{
-    FileErrorExt, CommandErrorExt, ToolErrorExt, ProviderErrorExt,
+    FileErrorExt, CommandErrorExt,
 };
 use vtcode_core::errors::recovery::{
     try_with_fallback, try_alternatives,
@@ -280,9 +280,6 @@ struct ProjectConfig {
 // Main function demonstrating all examples
 #[tokio::main]
 async fn main() -> Result<()> {
-    // Initialize logging
-    tracing_subscriber::fmt::init();
-
     println!("Error Handling Examples for vtcode-core\n");
     println!("========================================\n");
 
