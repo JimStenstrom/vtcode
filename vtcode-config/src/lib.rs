@@ -33,6 +33,7 @@ pub mod defaults;
 pub mod hooks;
 pub mod loader;
 pub mod mcp;
+pub mod memory;
 pub mod models;
 pub mod root;
 pub mod router;
@@ -69,6 +70,7 @@ pub use mcp::{
     McpAllowListConfig, McpAllowListRules, McpClientConfig, McpHttpServerConfig, McpProviderConfig,
     McpStdioServerConfig, McpTransportConfig, McpUiConfig, McpUiMode,
 };
+pub use memory::{MemoryConfig, QdrantConfig, VectorDbConfig};
 pub use models::{ModelId, OpenRouterMetadata};
 pub use root::{PtyConfig, StatusLineConfig, StatusLineMode, ToolOutputMode, UiConfig};
 pub use router::{ComplexityModelMap, HeuristicSettings, ResourceBudget, RouterConfig};

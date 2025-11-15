@@ -209,6 +209,11 @@ rand = "0.9"
 regex = "1.12"
 assert_cmd = "2.1"
 insta = "1.39"
+vtcode-memory = { path = "vtcode-memory" }
+vtcode-vectordb = { path = "vtcode-vectordb" }
+vtcode-rag = { path = "vtcode-rag" }
+vtcode-llm-types = { path = "vtcode-llm-types" }
+vtcode-config = { path = "vtcode-config" }
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.61", features = [
