@@ -58,6 +58,7 @@ members = [
     "vtcode-ui",
     "vtcode-memory",
     "vtcode-vectordb",
+    "vtcode-rag",
 ]
 exclude = ["zed-extension", "third-party/mcp-types"]
 
@@ -74,6 +75,7 @@ vtcode-bash-runner = { path = "vtcode-bash-runner" }
 vtcode-exec-events = { path = "vtcode-exec-events" }
 vtcode-ui = { path = "vtcode-ui" }
 vtcode-vectordb = { path = "vtcode-vectordb" }
+vtcode-rag = { path = "vtcode-rag" }
 mcp-types = { path = "third-party/mcp-types" }
 
 [workspace.lints]

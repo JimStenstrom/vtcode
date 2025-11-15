@@ -16,20 +16,20 @@
 //!     let db = InMemoryVectorDb::new();
 //!
 //!     // Create collection
-//!     db.create_collection("docs", 3, Distance::Cosine).await.unwrap();
+//!     db.create_collection("docs", 384, Distance::Cosine).await.unwrap();
 //!
 //!     // Insert points
 //!     let points = vec![
 //!         VectorPoint::new(
 //!             "doc1".to_string(),
-//!             vec![0.1, 0.2, 0.3],
+//!             vec![0.1; 384],  // 384-dimensional vector
 //!             json!({"text": "example document"}),
 //!         ),
 //!     ];
 //!     db.upsert("docs", points).await.unwrap();
 //!
 //!     // Search
-//!     let results = db.search("docs", vec![0.1, 0.2, 0.3], 10, None).await.unwrap();
+//!     let results = db.search("docs", vec![0.1; 384], 10, None).await.unwrap();
 //!     println!("Found {} results", results.len());
 //! }
 //! ```
