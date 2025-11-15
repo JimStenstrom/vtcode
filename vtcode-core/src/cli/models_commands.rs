@@ -38,7 +38,7 @@ async fn handle_list_models(_cli: &Cli) -> Result<()> {
     println!("{}", underline(&bold("Available Providers & Models")));
     println!();
 
-    let factory = get_factory().lock().unwrap();
+    let factory = get_factory();
     let config = load_user_config().await.unwrap_or_default();
     let providers = factory.list_providers();
 
@@ -151,7 +151,7 @@ fn is_provider_configured(config: &DotConfig, provider: &str) -> bool {
 
 /// Set default provider
 async fn handle_set_provider(_cli: &Cli, provider: &str) -> Result<()> {
-    let factory = get_factory().lock().unwrap();
+    let factory = get_factory();
     let available = factory.list_providers();
 
     if !available.contains(&provider.to_string()) {

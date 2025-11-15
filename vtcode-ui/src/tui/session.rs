@@ -43,6 +43,7 @@ mod queue;
 mod scroll;
 mod slash;
 mod slash_palette;
+mod state;
 mod transcript;
 
 use self::file_palette::{FilePalette, extract_file_reference};
@@ -58,6 +59,7 @@ use self::prompt_palette::{PromptPalette, extract_prompt_reference};
 use self::queue::QueueOverlay;
 use self::scroll::ScrollManager;
 use self::slash_palette::SlashPalette;
+use self::state::{DisplayState, PromptState, UIState, PaletteState, RenderState};
 use self::transcript::{CachedMessage, TranscriptReflowCache};
 #[cfg(test)]
 use super::types::InlineHeaderHighlight;
@@ -75,66 +77,28 @@ const LEGACY_PROMPT_INVOKE_PREFIX: &str = "prompts:";
 const PROMPT_COMMAND_PREFIX: &str = "/prompt:";
 
 pub struct Session {
-    // --- Managers (Phase 2) ---
+    // --- Managers ---
     /// Manages user input, cursor, and command history
     input_manager: InputManager,
     /// Manages scroll state and viewport metrics
     scroll_manager: ScrollManager,
 
-    // --- Message Management ---
-    lines: Vec<MessageLine>,
-    theme: InlineTheme,
-    header_context: InlineHeaderContext,
-    header_rows: u16,
-    labels: MessageLabels,
-
-    // --- Prompt/Input Display ---
-    prompt_prefix: String,
-    prompt_style: InlineTextStyle,
-    placeholder: Option<String>,
-    placeholder_style: Option<InlineTextStyle>,
-    input_status_left: Option<String>,
-    input_status_right: Option<String>,
-
-    // --- UI State ---
-    slash_palette: SlashPalette,
-    navigation_state: ListState,
-    input_enabled: bool,
-    cursor_visible: bool,
-    needs_redraw: bool,
-    needs_full_clear: bool,
-    should_exit: bool,
-    view_rows: u16,
-    input_height: u16,
-    transcript_rows: u16,
-    transcript_width: u16,
-    transcript_view_top: usize,
-
-    // --- Rendering ---
-    transcript_cache: Option<TranscriptReflowCache>,
-    queued_inputs: Vec<String>,
-    queue_overlay_cache: Option<QueueOverlay>,
-    queue_overlay_version: u64,
-    modal: Option<ModalState>,
-    show_timeline_pane: bool,
-    plan: TaskPlan,
-    line_revision_counter: u64,
-    in_tool_code_fence: bool,
-
-    // --- Palette Management ---
-    custom_prompts: Option<CustomPromptRegistry>,
-    file_palette: Option<FilePalette>,
-    file_palette_active: bool,
-    deferred_file_browser_trigger: bool,
-    prompt_palette: Option<PromptPalette>,
-    prompt_palette_active: bool,
-    deferred_prompt_browser_trigger: bool,
+    // --- State Modules (Refactored from individual fields) ---
+    /// Display state: theme, messages, labels, revision tracking
+    display: DisplayState,
+    /// Prompt state: prompt display configuration
+    prompt: PromptState,
+    /// UI state: flags, dimensions, layout
+    ui: UIState,
+    /// Palette state: file/prompt/slash palette management
+    palette: PaletteState,
+    /// Render state: caches, overlays, modal
+    render: RenderState,
 }
 
 impl Session {
     fn next_revision(&mut self) -> u64 {
-        self.line_revision_counter = self.line_revision_counter.wrapping_add(1);
-        self.line_revision_counter
+        self.display.next_revision()
     }
 
     pub fn new(
@@ -149,74 +113,29 @@ impl Session {
         let initial_transcript_rows = resolved_rows.saturating_sub(reserved_rows).max(1);
 
         let mut session = Self {
-            // --- Managers (Phase 2) ---
             input_manager: InputManager::new(),
             scroll_manager: ScrollManager::new(initial_transcript_rows),
-
-            // --- Message Management ---
-            lines: Vec::new(),
-            theme,
-            header_context: InlineHeaderContext::default(),
-            labels: MessageLabels::default(),
-
-            // --- Prompt/Input Display ---
-            prompt_prefix: USER_PREFIX.to_string(),
-            prompt_style: InlineTextStyle::default(),
-            placeholder,
-            placeholder_style: None,
-            input_status_left: None,
-            input_status_right: None,
-
-            // --- UI State ---
-            slash_palette: SlashPalette::new(),
-            navigation_state: ListState::default(),
-            input_enabled: true,
-            cursor_visible: true,
-            needs_redraw: true,
-            needs_full_clear: false,
-            should_exit: false,
-            view_rows: resolved_rows,
-            input_height: Self::input_block_height_for_lines(1),
-            transcript_rows: initial_transcript_rows,
-            transcript_width: 0,
-            transcript_view_top: 0,
-
-            // --- Rendering ---
-            transcript_cache: None,
-            queued_inputs: Vec::new(),
-            queue_overlay_cache: None,
-            queue_overlay_version: 0,
-            modal: None,
-            show_timeline_pane,
-            plan: TaskPlan::default(),
-            header_rows: initial_header_rows,
-            line_revision_counter: 0,
-            in_tool_code_fence: false,
-
-            // --- Palette Management ---
-            custom_prompts: None,
-            file_palette: None,
-            file_palette_active: false,
-            deferred_file_browser_trigger: false,
-            prompt_palette: None,
-            prompt_palette_active: false,
-            deferred_prompt_browser_trigger: false,
+            display: DisplayState::new(theme),
+            prompt: PromptState::new(placeholder, USER_PREFIX.to_string(), InlineTextStyle::default()),
+            ui: UIState::new(resolved_rows, Self::input_block_height_for_lines(1), initial_transcript_rows, show_timeline_pane),
+            palette: PaletteState::new(SlashPalette::new()),
+            render: RenderState::new(InlineHeaderContext::default(), initial_header_rows),
         };
         session.ensure_prompt_style_color();
         session
     }
 
     pub fn should_exit(&self) -> bool {
-        self.should_exit
+        self.ui.should_exit()
     }
 
     pub fn request_exit(&mut self) {
-        self.should_exit = true;
+        self.ui.request_exit();
     }
 
     pub fn take_redraw(&mut self) -> bool {
-        if self.needs_redraw {
-            self.needs_redraw = false;
+        if self.ui.needs_redraw() {
+            self.ui.clear_redraw_flag();
             true
         } else {
             false
@@ -235,30 +154,30 @@ impl Session {
                 self.replace_last(count, kind, lines);
             }
             InlineCommand::SetPrompt { prefix, style } => {
-                self.prompt_prefix = prefix;
-                self.prompt_style = style;
+                self.prompt.set_prefix(prefix);
+                self.prompt.set_style(style);
                 self.ensure_prompt_style_color();
             }
             InlineCommand::SetPlaceholder { hint, style } => {
-                self.placeholder = hint;
-                self.placeholder_style = style;
+                self.prompt.set_placeholder(hint);
+                self.prompt.set_placeholder_style(style);
             }
             InlineCommand::SetMessageLabels { agent, user } => {
-                self.labels.agent = agent.filter(|label| !label.is_empty());
-                self.labels.user = user.filter(|label| !label.is_empty());
+                self.display.labels_mut().agent = agent.filter(|label| !label.is_empty());
+                self.display.labels_mut().user = user.filter(|label| !label.is_empty());
                 self.invalidate_scroll_metrics();
             }
             InlineCommand::SetHeaderContext { context } => {
-                self.header_context = context;
-                self.needs_redraw = true;
+                self.render.set_header_context(context);
+                self.ui.request_redraw();
             }
             InlineCommand::SetInputStatus { left, right } => {
-                self.input_status_left = left;
-                self.input_status_right = right;
-                self.needs_redraw = true;
+                self.prompt.set_status_left(left);
+                self.prompt.set_status_right(right);
+                self.ui.request_redraw();
             }
             InlineCommand::SetTheme { theme } => {
-                self.theme = theme;
+                self.display.set_theme(theme);
                 self.ensure_prompt_style_color();
                 self.invalidate_transcript_cache();
             }
@@ -270,10 +189,10 @@ impl Session {
                 self.set_plan(plan);
             }
             InlineCommand::SetCursorVisible(value) => {
-                self.cursor_visible = value;
+                self.ui.set_cursor_visible(value);
             }
             InlineCommand::SetInputEnabled(value) => {
-                self.input_enabled = value;
+                self.ui.set_input_enabled(value);
                 self.update_slash_suggestions();
             }
             InlineCommand::SetInput(content) => {
@@ -348,12 +267,12 @@ impl Session {
                 _ => {}
             },
             CrosstermEvent::Paste(content) => {
-                if self.input_enabled {
+                if self.ui.is_input_enabled() {
                     self.insert_text(&content);
                     self.check_file_reference_trigger();
                     self.check_prompt_reference_trigger();
                     self.mark_dirty();
-                } else if let Some(modal) = self.modal.as_mut() {
+                } else if let Some(modal) = self.render.modal_mut().as_mut() {
                     if let (Some(list), Some(search)) = (modal.list.as_mut(), modal.search.as_mut())
                     {
                         search.insert(&content);
@@ -430,14 +349,14 @@ impl Session {
         }
 
         // Clear entire frame if modal was just closed to remove artifacts
-        if self.needs_full_clear {
+        if self.ui.needs_full_clear() {
             frame.render_widget(Clear, viewport);
-            self.needs_full_clear = false;
+            self.ui.set_needs_full_clear(false);
         }
 
         // Handle deferred file browser trigger (after slash modal dismisses)
-        if self.deferred_file_browser_trigger {
-            self.deferred_file_browser_trigger = false;
+        if self.palette.has_deferred_file_browser_trigger() {
+            self.palette.set_deferred_file_browser_trigger(false);
             // Insert @ to trigger file browser now that slash modal is gone
             self.input_manager.insert_char('@');
             self.check_file_reference_trigger();
@@ -445,8 +364,8 @@ impl Session {
         }
 
         // Handle deferred prompt browser trigger (after slash modal dismisses)
-        if self.deferred_prompt_browser_trigger {
-            self.deferred_prompt_browser_trigger = false;
+        if self.palette.has_deferred_prompt_browser_trigger() {
+            self.palette.set_deferred_prompt_browser_trigger(false);
             // Insert # to trigger prompt browser now that slash modal is gone
             self.input_manager.insert_char('#');
             self.check_prompt_reference_trigger();
@@ -457,8 +376,8 @@ impl Session {
 
         let header_lines = self.header_lines();
         let header_height = self.header_height_from_lines(viewport.width, &header_lines);
-        if header_height != self.header_rows {
-            self.header_rows = header_height;
+        if header_height != self.render.header_rows() {
+            self.render.set_header_rows(header_height);
             self.recalculate_transcript_rows();
         }
 
@@ -486,7 +405,7 @@ impl Session {
         let available_width = main_area.width;
         let horizontal_minimum = ui::INLINE_CONTENT_MIN_WIDTH + ui::INLINE_NAVIGATION_MIN_WIDTH;
 
-        let (transcript_area, navigation_area) = if self.show_timeline_pane {
+        let (transcript_area, navigation_area) = if self.ui.show_timeline_pane() {
             if available_width >= horizontal_minimum {
                 let nav_percent = u32::from(ui::INLINE_NAVIGATION_PERCENT);
                 let mut nav_width = ((available_width as u32 * nav_percent) / 100) as u16;
@@ -515,7 +434,7 @@ impl Session {
         };
 
         self.render_header(frame, header_area, &header_lines);
-        if self.show_timeline_pane {
+        if self.ui.show_timeline_pane() {
             self.render_navigation(frame, navigation_area);
         }
         self.render_transcript(frame, transcript_area);
@@ -527,13 +446,13 @@ impl Session {
     }
 
     fn set_plan(&mut self, plan: TaskPlan) {
-        self.plan = plan;
+        self.render.set_plan(plan);
         self.mark_dirty();
     }
 
     fn modal_list_highlight_style(&self) -> Style {
         let mut style = Style::default().add_modifier(Modifier::REVERSED | Modifier::BOLD);
-        if let Some(primary) = self.theme.primary.or(self.theme.foreground) {
+        if let Some(primary) = self.display.theme().primary.or(self.display.theme().foreground) {
             style = style.fg(ratatui_color_from_ansi(primary));
         }
         style
@@ -541,8 +460,8 @@ impl Session {
 
     fn apply_view_rows(&mut self, rows: u16) {
         let resolved = rows.max(2);
-        if self.view_rows != resolved {
-            self.view_rows = resolved;
+        if self.ui.view_rows() != resolved {
+            self.ui.set_view_rows(resolved);
             self.invalidate_scroll_metrics();
         }
         self.recalculate_transcript_rows();
@@ -556,15 +475,15 @@ impl Session {
 
     fn apply_transcript_rows(&mut self, rows: u16) {
         let resolved = rows.max(1);
-        if self.transcript_rows != resolved {
-            self.transcript_rows = resolved;
+        if self.ui.transcript_rows() != resolved {
+            self.ui.set_transcript_rows(resolved);
             self.invalidate_scroll_metrics();
         }
     }
 
     fn apply_transcript_width(&mut self, width: u16) {
-        if self.transcript_width != width {
-            self.transcript_width = width;
+        if self.ui.transcript_width() != width {
+            self.ui.set_transcript_width(width);
             self.invalidate_scroll_metrics();
         }
     }
@@ -600,7 +519,7 @@ impl Session {
         let (top_offset, _clamped_total_rows) =
             self.prepare_transcript_scroll(total_rows, viewport_rows);
         let vertical_offset = top_offset.min(self.scroll_manager.max_offset());
-        self.transcript_view_top = vertical_offset;
+        self.ui.set_transcript_view_top(vertical_offset);
 
         let visible_start = vertical_offset;
         let scroll_area = Rect::new(inner.x, inner.y, content_width, inner.height);
@@ -620,29 +539,29 @@ impl Session {
     }
 
     fn header_reserved_rows(&self) -> u16 {
-        self.header_rows.max(ui::INLINE_HEADER_HEIGHT)
+        self.render.header_rows().max(ui::INLINE_HEADER_HEIGHT)
     }
 
     fn input_reserved_rows(&self) -> u16 {
-        self.header_reserved_rows() + self.input_height
+        self.header_reserved_rows() + self.ui.input_height()
     }
 
     fn recalculate_transcript_rows(&mut self) {
         let reserved = self.input_reserved_rows().saturating_add(2); // account for transcript block borders
-        let available = self.view_rows.saturating_sub(reserved).max(1);
+        let available = self.ui.view_rows().saturating_sub(reserved).max(1);
         self.apply_transcript_rows(available);
     }
 
     fn render_file_palette(&mut self, frame: &mut Frame<'_>, viewport: Rect) {
-        if !self.file_palette_active {
+        if !self.palette.is_file_palette_active() {
             return;
         }
 
-        let Some(palette) = self.file_palette.as_ref() else {
+        let Some(palette) = self.palette.file_palette() else {
             return;
         };
 
-        if viewport.height == 0 || viewport.width == 0 || self.modal.is_some() {
+        if viewport.height == 0 || viewport.width == 0 || self.render.modal().is_some() {
             return;
         }
 
@@ -705,7 +624,7 @@ impl Session {
                 };
 
                 // Get system file color from LS_COLORS if available
-                let mut style = if let Some(file_palette) = self.file_palette.as_ref() {
+                let mut style = if let Some(file_palette) = self.palette.file_palette().as_ref() {
                     if let Some(file_style) = file_palette.style_for_entry(entry) {
                         // Convert anstyle::Style to ratatui::Style using anstyle_utils
                         let anstyle_converted =
@@ -833,15 +752,15 @@ impl Session {
     }
 
     fn render_prompt_palette(&mut self, frame: &mut Frame<'_>, viewport: Rect) {
-        if !self.prompt_palette_active {
+        if !self.palette.is_prompt_palette_active() {
             return;
         }
 
-        let Some(palette) = self.prompt_palette.as_ref() else {
+        let Some(palette) = self.palette.prompt_palette() else {
             return;
         };
 
-        if viewport.height == 0 || viewport.width == 0 || self.modal.is_some() {
+        if viewport.height == 0 || viewport.width == 0 || self.render.modal().is_some() {
             return;
         }
 
@@ -996,19 +915,17 @@ impl Session {
 
     fn has_input_status(&self) -> bool {
         let left_present = self
-            .input_status_left
-            .as_ref()
+            .prompt.status_left()
             .is_some_and(|value| !value.trim().is_empty());
         if left_present {
             return true;
         }
-        self.input_status_right
-            .as_ref()
+        self.prompt.status_right()
             .is_some_and(|value| !value.trim().is_empty())
     }
 
     fn render_message_spans(&self, index: usize) -> Vec<Span<'static>> {
-        let Some(line) = self.lines.get(index) else {
+        let Some(line) = self.display.lines().get(index) else {
             return vec![Span::raw(String::new())];
         };
         let mut spans = Vec::new();
@@ -1018,7 +935,7 @@ impl Session {
             let style = self.prefix_style(line);
             spans.push(Span::styled(
                 prefix,
-                ratatui_style_from_inline(&style, self.theme.foreground),
+                ratatui_style_from_inline(&style, self.display.theme().foreground),
             ));
         }
 
@@ -1046,7 +963,7 @@ impl Session {
         if line.kind == InlineMessageKind::Pty {
             let prev_is_pty = index
                 .checked_sub(1)
-                .and_then(|prev| self.lines.get(prev))
+                .and_then(|prev| self.display.lines().get(prev))
                 .map(|prev| prev.kind == InlineMessageKind::Pty)
                 .unwrap_or(false);
             if !prev_is_pty {
@@ -1060,15 +977,15 @@ impl Session {
                     combined.trim().to_string()
                 };
                 let label_style = InlineTextStyle::default()
-                    .with_color(self.theme.primary.or(self.theme.foreground))
+                    .with_color(self.display.theme().primary.or(self.display.theme().foreground))
                     .bold();
                 spans.push(Span::styled(
                     format!("[{}]", ui::INLINE_PTY_HEADER_LABEL),
-                    ratatui_style_from_inline(&label_style, self.theme.foreground),
+                    ratatui_style_from_inline(&label_style, self.display.theme().foreground),
                 ));
                 spans.push(Span::raw(" "));
                 let body_style = InlineTextStyle::default()
-                    .with_color(self.theme.foreground)
+                    .with_color(self.display.theme().foreground)
                     .bold();
                 // Parse ANSI escape sequences in PTY output for color support
                 // Limit to last 30 lines for performance and readability
@@ -1107,14 +1024,14 @@ impl Session {
                     // Fallback to plain text if ANSI parsing fails
                     spans.push(Span::styled(
                         output_text,
-                        ratatui_style_from_inline(&body_style, self.theme.foreground),
+                        ratatui_style_from_inline(&body_style, self.display.theme().foreground),
                     ));
                 }
                 return spans;
             }
         }
 
-        let fallback = self.text_fallback(line.kind).or(self.theme.foreground);
+        let fallback = self.text_fallback(line.kind).or(self.display.theme().foreground);
         for segment in &line.segments {
             let style = ratatui_style_from_inline(&segment.style, fallback);
             spans.push(Span::styled(segment.text.clone(), style));
@@ -1130,7 +1047,7 @@ impl Session {
     fn agent_prefix_spans(&self, line: &MessageLine) -> Vec<Span<'static>> {
         let mut spans = Vec::new();
         let prefix_style =
-            ratatui_style_from_inline(&self.prefix_style(line), self.theme.foreground);
+            ratatui_style_from_inline(&self.prefix_style(line), self.display.theme().foreground);
         if !ui::INLINE_AGENT_QUOTE_PREFIX.is_empty() {
             spans.push(Span::styled(
                 ui::INLINE_AGENT_QUOTE_PREFIX.to_string(),
@@ -1138,10 +1055,10 @@ impl Session {
             ));
         }
 
-        if let Some(label) = self.labels.agent.clone() {
+        if let Some(label) = self.display.labels().agent.clone() {
             if !label.is_empty() {
                 let label_style =
-                    ratatui_style_from_inline(&self.prefix_style(line), self.theme.foreground);
+                    ratatui_style_from_inline(&self.prefix_style(line), self.display.theme().foreground);
                 spans.push(Span::styled(label, label_style));
             }
         }
@@ -1175,10 +1092,10 @@ impl Session {
 
         if !indent.is_empty() {
             let mut indent_style = InlineTextStyle::default();
-            indent_style.color = self.theme.tool_body.or(self.theme.foreground);
+            indent_style.color = self.display.theme().tool_body.or(self.display.theme().foreground);
             spans.push(Span::styled(
                 indent,
-                ratatui_style_from_inline(&indent_style, self.theme.foreground),
+                ratatui_style_from_inline(&indent_style, self.display.theme().foreground),
             ));
         }
 
@@ -1221,7 +1138,7 @@ impl Session {
 
             spans.push(Span::styled(
                 name.to_string(),
-                ratatui_style_from_inline(&tool_name_style, self.theme.foreground),
+                ratatui_style_from_inline(&tool_name_style, self.display.theme().foreground),
             ));
 
             spans.push(Span::styled(
@@ -1238,7 +1155,7 @@ impl Session {
                 // Format as "action → description · parameter1 · parameter2"
                 let action = parts[0];
                 let body_style = InlineTextStyle::default()
-                    .with_color(self.theme.tool_body.or(self.theme.foreground));
+                    .with_color(self.display.theme().tool_body.or(self.display.theme().foreground));
 
                 // Parse and style the action text with special highlighting
                 self.render_styled_action_text(&mut spans, action, &body_style);
@@ -1276,19 +1193,19 @@ impl Session {
                             .bold();
                         spans.push(Span::styled(
                             param_parts[1].to_string(),
-                            ratatui_style_from_inline(&value_style, self.theme.foreground),
+                            ratatui_style_from_inline(&value_style, self.display.theme().foreground),
                         ));
                     } else {
                         spans.push(Span::styled(
                             part.to_string(),
-                            ratatui_style_from_inline(&body_style, self.theme.foreground),
+                            ratatui_style_from_inline(&body_style, self.display.theme().foreground),
                         ));
                     }
                 }
             } else {
                 // Fallback for original formatting
                 let body_style = InlineTextStyle::default()
-                    .with_color(self.theme.tool_body.or(self.theme.foreground));
+                    .with_color(self.display.theme().tool_body.or(self.display.theme().foreground));
 
                 // Simplify common tool call patterns for human readability
                 let mut simplified_text = self.simplify_tool_display(trimmed_tail);
@@ -1298,7 +1215,7 @@ impl Session {
                 }
                 spans.push(Span::styled(
                     simplified_text,
-                    ratatui_style_from_inline(&body_style, self.theme.foreground),
+                    ratatui_style_from_inline(&body_style, self.display.theme().foreground),
                 ));
             }
         }
@@ -1326,7 +1243,7 @@ impl Session {
                     .italic();
                 spans.push(Span::styled(
                     word.to_string(),
-                    ratatui_style_from_inline(&in_style, self.theme.foreground),
+                    ratatui_style_from_inline(&in_style, self.display.theme().foreground),
                 ));
             } else if i < 2
                 && (word.starts_with("List")
@@ -1338,17 +1255,17 @@ impl Session {
             {
                 // Highlight the main action verb (first 1-2 words) with bold and accent color
                 let action_style = InlineTextStyle::default()
-                    .with_color(self.theme.tool_accent.or(Some(AnsiColor::Yellow.into())))
+                    .with_color(self.display.theme().tool_accent.or(Some(AnsiColor::Yellow.into())))
                     .bold();
                 spans.push(Span::styled(
                     word.to_string(),
-                    ratatui_style_from_inline(&action_style, self.theme.foreground),
+                    ratatui_style_from_inline(&action_style, self.display.theme().foreground),
                 ));
             } else {
                 // Normal styling for other words
                 spans.push(Span::styled(
                     word.to_string(),
-                    ratatui_style_from_inline(body_style, self.theme.foreground),
+                    ratatui_style_from_inline(body_style, self.display.theme().foreground),
                 ));
             }
         }
@@ -1476,10 +1393,10 @@ impl Session {
             }
             _ => {
                 // Use the default tool accent color for other tools
-                self.theme
+                self.display.theme()
                     .tool_accent
-                    .or(self.theme.primary)
-                    .or(self.theme.foreground)
+                    .or(self.display.theme().primary)
+                    .or(self.display.theme().foreground)
             }
         };
 
@@ -1492,47 +1409,49 @@ impl Session {
 
     fn default_style(&self) -> Style {
         let mut style = Style::default();
-        if let Some(foreground) = self.theme.foreground.map(ratatui_color_from_ansi) {
+        if let Some(foreground) = self.display.theme().foreground.map(ratatui_color_from_ansi) {
             style = style.fg(foreground);
         }
         style
     }
 
     fn ensure_prompt_style_color(&mut self) {
-        if self.prompt_style.color.is_none() {
-            self.prompt_style.color = self.theme.primary.or(self.theme.foreground);
+        if self.prompt.style().color.is_none() {
+            let mut style = self.prompt.style().clone();
+            style.color = self.display.theme().primary.or(self.display.theme().foreground);
+            self.prompt.set_style(style);
         }
     }
 
     fn accent_inline_style(&self) -> InlineTextStyle {
         InlineTextStyle {
-            color: self.theme.primary.or(self.theme.foreground),
+            color: self.display.theme().primary.or(self.display.theme().foreground),
             ..InlineTextStyle::default()
         }
     }
 
     fn accent_style(&self) -> Style {
-        ratatui_style_from_inline(&self.accent_inline_style(), self.theme.foreground)
+        ratatui_style_from_inline(&self.accent_inline_style(), self.display.theme().foreground)
     }
 
     fn border_inline_style(&self) -> InlineTextStyle {
         InlineTextStyle {
-            color: self.theme.secondary.or(self.theme.foreground),
+            color: self.display.theme().secondary.or(self.display.theme().foreground),
             ..InlineTextStyle::default()
         }
     }
 
     fn border_style(&self) -> Style {
-        ratatui_style_from_inline(&self.border_inline_style(), self.theme.foreground)
+        ratatui_style_from_inline(&self.border_inline_style(), self.display.theme().foreground)
             .add_modifier(Modifier::DIM)
     }
 
     pub fn mark_dirty(&mut self) {
-        self.needs_redraw = true;
+        self.ui.request_redraw();
     }
 
     fn toggle_timeline_pane(&mut self) {
-        self.show_timeline_pane = !self.show_timeline_pane;
+        self.ui.set_show_timeline_pane(!self.ui.show_timeline_pane());
         self.invalidate_scroll_metrics();
         self.mark_dirty();
     }
@@ -1549,15 +1468,15 @@ impl Session {
             list: None,
             secure_prompt,
             popup_state: PopupState::default(),
-            restore_input: self.input_enabled,
-            restore_cursor: self.cursor_visible,
+            restore_input: self.ui.is_input_enabled(),
+            restore_cursor: self.ui.is_cursor_visible(),
             search: None,
         };
         if state.secure_prompt.is_none() {
-            self.input_enabled = false;
+            self.ui.set_input_enabled(false);
         }
-        self.cursor_visible = false;
-        self.modal = Some(state);
+        self.ui.set_cursor_visible(false);
+        self.render.set_modal(Some(state));
         self.mark_dirty();
     }
 
@@ -1580,24 +1499,24 @@ impl Session {
             list: Some(list_state),
             secure_prompt: None,
             popup_state: PopupState::default(),
-            restore_input: self.input_enabled,
-            restore_cursor: self.cursor_visible,
+            restore_input: self.ui.is_input_enabled(),
+            restore_cursor: self.ui.is_cursor_visible(),
             search: search_state,
         };
-        self.input_enabled = false;
-        self.cursor_visible = false;
-        self.modal = Some(state);
+        self.ui.set_input_enabled(false);
+        self.ui.set_cursor_visible(false);
+        self.render.set_modal(Some(state));
         self.mark_dirty();
     }
 
     fn close_modal(&mut self) {
-        if let Some(state) = self.modal.take() {
-            self.input_enabled = state.restore_input;
-            self.cursor_visible = state.restore_cursor;
+        if let Some(state) = self.render.modal().take() {
+            self.ui.set_input_enabled(state.restore_input);
+            self.ui.set_cursor_visible(state.restore_cursor);
             // Force full screen clear on next render to remove modal artifacts
-            self.needs_full_clear = true;
+            self.ui.set_needs_full_clear(true);
             // Force transcript cache invalidation to ensure full redraw
-            self.transcript_cache = None;
+            self.render.set_transcript_cache(None);
             self.mark_dirty();
         }
     }
@@ -1608,7 +1527,7 @@ impl Session {
         }
 
         let styles = self.modal_render_styles();
-        let Some(modal) = self.modal.as_mut() else {
+        let Some(modal) = self.render.modal_mut() else {
             return;
         };
 
@@ -1701,11 +1620,11 @@ impl Session {
     }
 
     fn clear_screen(&mut self) {
-        self.lines.clear();
+        self.display.lines_mut().clear();
         self.scroll_manager.set_offset(0);
         self.invalidate_transcript_cache();
         self.invalidate_scroll_metrics();
-        self.needs_full_clear = true;
+        self.ui.set_needs_full_clear(true);
         self.mark_dirty();
     }
 
@@ -1714,10 +1633,10 @@ impl Session {
         if custom_prompts.enabled() && !custom_prompts.is_empty() {
             let mut palette = PromptPalette::new();
             palette.load_prompts(custom_prompts.iter());
-            self.prompt_palette = Some(palette);
+            self.palette.set_prompt_palette(Some(palette));
         }
 
-        self.custom_prompts = Some(custom_prompts);
+        self.palette.set_custom_prompts(Some(custom_prompts));
         // Update slash palette if we're currently viewing slash commands
         if self.input_manager.content().starts_with('/') {
             self.update_slash_suggestions();
@@ -1727,41 +1646,41 @@ impl Session {
     fn load_file_palette(&mut self, files: Vec<String>, workspace: std::path::PathBuf) {
         let mut palette = FilePalette::new(workspace);
         palette.load_files(files);
-        self.file_palette = Some(palette);
-        self.file_palette_active = false;
+        self.palette.set_file_palette(Some(palette));
+        self.palette.set_file_palette_active(false);
         self.check_file_reference_trigger();
     }
 
     fn check_file_reference_trigger(&mut self) {
-        if let Some(palette) = self.file_palette.as_mut() {
+        if let Some(palette) = self.palette.file_palette_mut() {
             if let Some((_, _, query)) =
                 extract_file_reference(self.input_manager.content(), self.input_manager.cursor())
             {
                 // Reset selection and clear previous state when opening
                 palette.reset();
                 palette.set_filter(query);
-                self.file_palette_active = true;
+                self.palette.set_file_palette_active(true);
             } else {
-                self.file_palette_active = false;
+                self.palette.set_file_palette_active(false);
             }
         }
     }
 
     fn close_file_palette(&mut self) {
-        self.file_palette_active = false;
+        self.palette.set_file_palette_active(false);
 
         // Clean up resources when closing to free memory
-        if let Some(palette) = self.file_palette.as_mut() {
+        if let Some(palette) = self.palette.file_palette_mut() {
             palette.cleanup();
         }
     }
 
     fn handle_file_palette_key(&mut self, key: &KeyEvent) -> bool {
-        if !self.file_palette_active {
+        if !self.palette.is_file_palette_active() {
             return false;
         }
 
-        let Some(palette) = self.file_palette.as_mut() else {
+        let Some(palette) = self.palette.file_palette_mut() else {
             return false;
         };
 
@@ -1825,11 +1744,11 @@ impl Session {
 
     fn check_prompt_reference_trigger(&mut self) {
         // Initialize prompt palette on-demand if it doesn't exist
-        if self.prompt_palette.is_none() {
+        if self.palette.prompt_palette().is_none() {
             let mut palette = PromptPalette::new();
 
             // Try loading from custom_prompts first
-            let loaded = if let Some(ref custom_prompts) = self.custom_prompts {
+            let loaded = if let Some(ref custom_prompts) = self.palette.custom_prompts() {
                 if custom_prompts.enabled() && !custom_prompts.is_empty() {
                     palette.load_prompts(custom_prompts.iter());
                     true
@@ -1859,38 +1778,38 @@ impl Session {
                 palette.append_custom_prompts(builtin_prompts.iter());
             }
 
-            self.prompt_palette = Some(palette);
+            self.palette.set_prompt_palette(Some(palette));
         }
 
-        if let Some(palette) = self.prompt_palette.as_mut() {
+        if let Some(palette) = self.palette.prompt_palette_mut() {
             if let Some((_, _, query)) =
                 extract_prompt_reference(self.input_manager.content(), self.input_manager.cursor())
             {
                 // Reset selection and clear previous state when opening
                 palette.reset();
                 palette.set_filter(query);
-                self.prompt_palette_active = true;
+                self.palette.set_prompt_palette_active(true);
             } else {
-                self.prompt_palette_active = false;
+                self.palette.set_prompt_palette_active(false);
             }
         }
     }
 
     fn close_prompt_palette(&mut self) {
-        self.prompt_palette_active = false;
+        self.palette.set_prompt_palette_active(false);
 
         // Clean up resources when closing to free memory
-        if let Some(palette) = self.prompt_palette.as_mut() {
+        if let Some(palette) = self.palette.prompt_palette_mut() {
             palette.cleanup();
         }
     }
 
     fn handle_prompt_palette_key(&mut self, key: &KeyEvent) -> bool {
-        if !self.prompt_palette_active {
+        if !self.palette.is_prompt_palette_active() {
             return false;
         }
 
-        let Some(palette) = self.prompt_palette.as_mut() else {
+        let Some(palette) = self.palette.prompt_palette_mut() else {
             return false;
         };
 
@@ -1963,7 +1882,7 @@ impl Session {
         let has_alt = raw_alt || (!has_super && raw_meta);
         let has_command = has_super || (raw_meta && !has_alt);
 
-        if let Some(modal) = self.modal.as_mut() {
+        if let Some(modal) = self.render.modal_mut().as_mut() {
             let result = modal.handle_list_key_event(
                 &key,
                 ModalKeyModifiers {
@@ -2015,7 +1934,7 @@ impl Session {
                 Some(InlineEvent::Exit)
             }
             KeyCode::Esc => {
-                if self.modal.is_some() {
+                if self.render.modal().is_some() {
                     self.close_modal();
                     None
                 } else {
@@ -2045,9 +1964,9 @@ impl Session {
                 Some(InlineEvent::ScrollPageDown)
             }
             KeyCode::Up => {
-                let history_requested = if self.input_enabled && (has_alt || has_command) {
+                let history_requested = if self.ui.is_input_enabled() && (has_alt || has_command) {
                     true
-                } else if self.input_enabled {
+                } else if self.ui.is_input_enabled() {
                     self.current_max_scroll_offset() == 0
                 } else {
                     false
@@ -2063,9 +1982,9 @@ impl Session {
                 Some(InlineEvent::ScrollLineUp)
             }
             KeyCode::Down => {
-                let history_requested = if self.input_enabled && (has_alt || has_command) {
+                let history_requested = if self.ui.is_input_enabled() && (has_alt || has_command) {
                     true
-                } else if self.input_enabled {
+                } else if self.ui.is_input_enabled() {
                     self.current_max_scroll_offset() == 0
                 } else {
                     false
@@ -2081,12 +2000,12 @@ impl Session {
                 Some(InlineEvent::ScrollLineDown)
             }
             KeyCode::Enter => {
-                if !self.input_enabled {
+                if !self.ui.is_input_enabled() {
                     return None;
                 }
 
-                if self.file_palette_active {
-                    if let Some(palette) = self.file_palette.as_ref() {
+                if self.palette.is_file_palette_active() {
+                    if let Some(palette) = self.palette.file_palette().as_ref() {
                         if let Some(entry) = palette.get_selected() {
                             let file_path = entry.path.clone();
                             self.insert_file_reference(&file_path);
@@ -2126,7 +2045,7 @@ impl Session {
                 }
             }
             KeyCode::Backspace => {
-                if self.input_enabled {
+                if self.ui.is_input_enabled() {
                     if has_alt {
                         // Alt+Backspace (Option+Backspace on Mac) - delete word backwards
                         self.delete_word_backward();
@@ -2144,7 +2063,7 @@ impl Session {
                 None
             }
             KeyCode::Delete => {
-                if self.input_enabled {
+                if self.ui.is_input_enabled() {
                     if has_alt {
                         // Alt+Delete (Option+Delete on Mac) - delete word backwards
                         self.delete_word_backward();
@@ -2162,7 +2081,7 @@ impl Session {
                 None
             }
             KeyCode::Left => {
-                if self.input_enabled {
+                if self.ui.is_input_enabled() {
                     if has_command {
                         self.move_to_start();
                     } else if has_alt {
@@ -2175,7 +2094,7 @@ impl Session {
                 None
             }
             KeyCode::Right => {
-                if self.input_enabled {
+                if self.ui.is_input_enabled() {
                     if has_command {
                         self.move_to_end();
                     } else if has_alt {
@@ -2188,14 +2107,14 @@ impl Session {
                 None
             }
             KeyCode::Home => {
-                if self.input_enabled {
+                if self.ui.is_input_enabled() {
                     self.move_to_start();
                     self.mark_dirty();
                 }
                 None
             }
             KeyCode::End => {
-                if self.input_enabled {
+                if self.ui.is_input_enabled() {
                     self.move_to_end();
                     self.mark_dirty();
                 }
@@ -2206,7 +2125,7 @@ impl Session {
                 None
             }
             KeyCode::Char(ch) => {
-                if !self.input_enabled {
+                if !self.ui.is_input_enabled() {
                     return None;
                 }
 
@@ -2589,20 +2508,20 @@ impl Session {
     fn prefix_text(&self, kind: InlineMessageKind) -> Option<String> {
         match kind {
             InlineMessageKind::User => Some(
-                self.labels
+                self.display.labels()
                     .user
                     .clone()
                     .unwrap_or_else(|| USER_PREFIX.to_string()),
             ),
             InlineMessageKind::Agent => None,
-            InlineMessageKind::Policy => self.labels.agent.clone(),
+            InlineMessageKind::Policy => self.display.labels().agent.clone(),
             InlineMessageKind::Tool | InlineMessageKind::Pty | InlineMessageKind::Error => None,
             InlineMessageKind::Info => None,
         }
     }
 
     fn prefix_style(&self, line: &MessageLine) -> InlineTextStyle {
-        let fallback = self.text_fallback(line.kind).or(self.theme.foreground);
+        let fallback = self.text_fallback(line.kind).or(self.display.theme().foreground);
 
         let color = line
             .segments
@@ -2619,20 +2538,20 @@ impl Session {
     fn text_fallback(&self, kind: InlineMessageKind) -> Option<AnsiColorEnum> {
         match kind {
             InlineMessageKind::Agent | InlineMessageKind::Policy => {
-                self.theme.primary.or(self.theme.foreground)
+                self.display.theme().primary.or(self.display.theme().foreground)
             }
-            InlineMessageKind::User => self.theme.secondary.or(self.theme.foreground),
+            InlineMessageKind::User => self.display.theme().secondary.or(self.display.theme().foreground),
             InlineMessageKind::Tool | InlineMessageKind::Pty | InlineMessageKind::Error => {
-                self.theme.primary.or(self.theme.foreground)
+                self.display.theme().primary.or(self.display.theme().foreground)
             }
-            InlineMessageKind::Info => self.theme.foreground,
+            InlineMessageKind::Info => self.display.theme().foreground,
         }
     }
 
     fn push_line(&mut self, kind: InlineMessageKind, segments: Vec<InlineSegment>) {
         let previous_max_offset = self.current_max_scroll_offset();
         let revision = self.next_revision();
-        self.lines.push(MessageLine {
+        self.display.lines_mut().push(MessageLine {
             kind,
             segments,
             revision,
@@ -2691,13 +2610,13 @@ impl Session {
         lines: Vec<Vec<InlineSegment>>,
     ) {
         let previous_max_offset = self.current_max_scroll_offset();
-        let remove_count = min(count, self.lines.len());
+        let remove_count = min(count, self.display.lines().len());
         for _ in 0..remove_count {
-            self.lines.pop();
+            self.display.lines_mut().pop();
         }
         for segments in lines {
             let revision = self.next_revision();
-            self.lines.push(MessageLine {
+            self.display.lines_mut().push(MessageLine {
                 kind,
                 segments,
                 revision,
@@ -2720,7 +2639,7 @@ impl Session {
 
         let mut mark_revision = false;
         {
-            if let Some(line) = self.lines.last_mut() {
+            if let Some(line) = self.display.lines_mut().last_mut() {
                 if line.kind == kind {
                     if let Some(last) = line.segments.last_mut() {
                         if last.style == *style {
@@ -2743,7 +2662,7 @@ impl Session {
 
         if mark_revision {
             let revision = self.next_revision();
-            if let Some(line) = self.lines.last_mut() {
+            if let Some(line) = self.display.lines_mut().last_mut() {
                 if line.kind == kind {
                     line.revision = revision;
                 }
@@ -2756,13 +2675,13 @@ impl Session {
         }
 
         let can_reuse_last = self
-            .lines
+            .display.lines()
             .last()
             .map(|line| line.kind == kind && line.segments.is_empty())
             .unwrap_or(false);
         if can_reuse_last {
             let revision = self.next_revision();
-            if let Some(line) = self.lines.last_mut() {
+            if let Some(line) = self.display.lines_mut().last_mut() {
                 line.segments.push(InlineSegment {
                     text: text.to_string(),
                     style: style.clone(),
@@ -2774,7 +2693,7 @@ impl Session {
         }
 
         let revision = self.next_revision();
-        self.lines.push(MessageLine {
+        self.display.lines_mut().push(MessageLine {
             kind,
             segments: vec![InlineSegment {
                 text: text.to_string(),
@@ -2793,7 +2712,7 @@ impl Session {
     fn reset_line(&mut self, kind: InlineMessageKind) {
         let mut cleared = false;
         {
-            if let Some(line) = self.lines.last_mut() {
+            if let Some(line) = self.display.lines_mut().last_mut() {
                 if line.kind == kind {
                     line.segments.clear();
                     cleared = true;
@@ -2802,7 +2721,7 @@ impl Session {
         }
         if cleared {
             let revision = self.next_revision();
-            if let Some(line) = self.lines.last_mut() {
+            if let Some(line) = self.display.lines_mut().last_mut() {
                 if line.kind == kind {
                     line.revision = revision;
                 }
@@ -2817,7 +2736,7 @@ impl Session {
         let previous = self.scroll_manager.offset();
         self.scroll_manager.scroll_up(1);
         if self.scroll_manager.offset() != previous {
-            self.needs_full_clear = true;
+            self.ui.set_needs_full_clear(true);
         }
     }
 
@@ -2825,7 +2744,7 @@ impl Session {
         let previous = self.scroll_manager.offset();
         self.scroll_manager.scroll_down(1);
         if self.scroll_manager.offset() != previous {
-            self.needs_full_clear = true;
+            self.ui.set_needs_full_clear(true);
         }
     }
 
@@ -2833,7 +2752,7 @@ impl Session {
         let previous = self.scroll_manager.offset();
         self.scroll_manager.scroll_up(self.viewport_height().max(1));
         if self.scroll_manager.offset() != previous {
-            self.needs_full_clear = true;
+            self.ui.set_needs_full_clear(true);
         }
     }
 
@@ -2842,12 +2761,12 @@ impl Session {
         let page = self.viewport_height().max(1);
         self.scroll_manager.scroll_down(page);
         if self.scroll_manager.offset() != previous {
-            self.needs_full_clear = true;
+            self.ui.set_needs_full_clear(true);
         }
     }
 
     fn viewport_height(&self) -> usize {
-        self.transcript_rows.max(1) as usize
+        self.ui.transcript_rows().max(1) as usize
     }
 
     fn current_max_scroll_offset(&mut self) -> usize {
@@ -2868,7 +2787,7 @@ impl Session {
     }
 
     fn invalidate_transcript_cache(&mut self) {
-        self.transcript_cache = None;
+        self.render.set_transcript_cache(None);
     }
 
     fn ensure_scroll_metrics(&mut self) {
@@ -2877,22 +2796,21 @@ impl Session {
         }
 
         let viewport_rows = self.viewport_height();
-        if self.transcript_width == 0 || viewport_rows == 0 {
-            let total_rows = self.lines.len().saturating_sub(viewport_rows.max(1));
+        if self.ui.transcript_width() == 0 || viewport_rows == 0 {
+            let total_rows = self.display.lines().len().saturating_sub(viewport_rows.max(1));
             self.scroll_manager.set_total_rows(total_rows);
             return;
         }
 
         let padding = usize::from(ui::INLINE_TRANSCRIPT_BOTTOM_PADDING);
         let effective_padding = padding.min(viewport_rows.saturating_sub(1));
-        let total_rows = self.total_transcript_rows(self.transcript_width) + effective_padding;
+        let total_rows = self.total_transcript_rows(self.ui.transcript_width()) + effective_padding;
         self.scroll_manager.set_total_rows(total_rows);
     }
 
     fn ensure_reflow_cache(&mut self, width: u16) -> &mut TranscriptReflowCache {
         let mut cache = self
-            .transcript_cache
-            .take()
+            .render.take_transcript_cache()
             .unwrap_or_else(|| TranscriptReflowCache::new(width));
 
         // Update width if needed and handle width changes
@@ -2901,18 +2819,18 @@ impl Session {
         }
 
         // Resize message cache to match current line count
-        while cache.messages.len() > self.lines.len() {
+        while cache.messages.len() > self.display.lines().len() {
             cache.messages.pop();
         }
-        while cache.messages.len() < self.lines.len() {
+        while cache.messages.len() < self.display.lines().len() {
             cache.messages.push(CachedMessage::default());
         }
 
         // Process any dirty messages (those that need reflow)
-        let mut first_dirty = self.lines.len(); // Start with all clean
+        let mut first_dirty = self.display.lines().len(); // Start with all clean
 
         // Find the first message that needs reflow
-        for (index, line) in self.lines.iter().enumerate() {
+        for (index, line) in self.display.lines().iter().enumerate() {
             if cache.needs_reflow(index, line.revision) {
                 first_dirty = index;
                 break;
@@ -2920,17 +2838,17 @@ impl Session {
         }
 
         // If no messages need reflow, just return existing cache
-        if first_dirty == self.lines.len() {
+        if first_dirty == self.display.lines().len() {
             // Still need to ensure row offsets are correct
             cache.update_row_offsets();
-            self.transcript_cache = Some(cache);
-            return self.transcript_cache.as_mut().unwrap();
+            self.render.set_transcript_cache(Some(cache));
+            return self.render.transcript_cache_mut().as_mut().unwrap();
         }
 
         // Update all messages from the first dirty one onwards
-        for index in first_dirty..self.lines.len() {
-            if index < self.lines.len() {
-                let line = &self.lines[index];
+        for index in first_dirty..self.display.lines().len() {
+            if index < self.display.lines().len() {
+                let line = &self.display.lines()[index];
                 if cache.needs_reflow(index, line.revision) {
                     let new_lines = self.reflow_message_lines(index, width);
                     cache.update_message(index, line.revision, new_lines);
@@ -2940,12 +2858,12 @@ impl Session {
 
         // Update row offsets and total row count
         cache.update_row_offsets();
-        self.transcript_cache = Some(cache);
-        self.transcript_cache.as_mut().unwrap()
+        self.render.set_transcript_cache(Some(cache));
+        self.render.transcript_cache_mut().as_mut().unwrap()
     }
 
     fn total_transcript_rows(&mut self, width: u16) -> usize {
-        if self.lines.is_empty() {
+        if self.display.lines().is_empty() {
             return 0;
         }
         let cache = self.ensure_reflow_cache(width);
@@ -2971,7 +2889,7 @@ impl Session {
     fn reflow_transcript_lines(&self, width: u16) -> Vec<Line<'static>> {
         if width == 0 {
             let mut lines: Vec<Line<'static>> = Vec::new();
-            for index in 0..self.lines.len() {
+            for index in 0..self.display.lines().len() {
                 lines.extend(self.reflow_message_lines(index, 0));
             }
             if lines.is_empty() {
@@ -2981,7 +2899,7 @@ impl Session {
         }
 
         let mut wrapped_lines = Vec::new();
-        for index in 0..self.lines.len() {
+        for index in 0..self.display.lines().len() {
             wrapped_lines.extend(self.reflow_message_lines(index, width));
         }
 
@@ -2993,7 +2911,7 @@ impl Session {
     }
 
     fn reflow_message_lines(&self, index: usize, width: u16) -> Vec<Line<'static>> {
-        let Some(message) = self.lines.get(index) else {
+        let Some(message) = self.display.lines().get(index) else {
             return vec![Line::default()];
         };
 
@@ -3089,7 +3007,7 @@ impl Session {
     }
 
     fn reflow_tool_lines(&self, index: usize, width: u16) -> Vec<Line<'static>> {
-        let Some(line) = self.lines.get(index) else {
+        let Some(line) = self.display.lines().get(index) else {
             return vec![Line::default()];
         };
 
@@ -3100,7 +3018,7 @@ impl Session {
         };
 
         let mut border_style =
-            ratatui_style_from_inline(&self.tool_border_style(), self.theme.foreground);
+            ratatui_style_from_inline(&self.tool_border_style(), self.display.theme().foreground);
         border_style = border_style.add_modifier(Modifier::DIM);
 
         let is_detail = line
@@ -3108,7 +3026,7 @@ impl Session {
             .iter()
             .any(|segment| segment.style.effects.contains(Effects::ITALIC));
         let next_is_tool = self
-            .lines
+            .display.lines()
             .get(index + 1)
             .map(|next| next.kind == InlineMessageKind::Tool)
             .unwrap_or(false);
@@ -3160,11 +3078,11 @@ impl Session {
             return false;
         }
 
-        if self.in_tool_code_fence {
-            self.in_tool_code_fence = false;
+        if self.display.is_in_tool_code_fence() {
+            self.display.set_in_tool_code_fence(false);
             self.remove_trailing_empty_tool_line();
         } else {
-            self.in_tool_code_fence = true;
+            self.display.set_in_tool_code_fence(true);
         }
 
         true
@@ -3172,24 +3090,24 @@ impl Session {
 
     fn remove_trailing_empty_tool_line(&mut self) {
         let should_remove = self
-            .lines
+            .display.lines()
             .last()
             .map(|line| line.kind == InlineMessageKind::Tool && line.segments.is_empty())
             .unwrap_or(false);
         if should_remove {
-            self.lines.pop();
+            self.display.lines_mut().pop();
             self.invalidate_scroll_metrics();
         }
     }
 
     fn pty_block_has_content(&self, index: usize) -> bool {
-        if self.lines.is_empty() {
+        if self.display.lines().is_empty() {
             return false;
         }
 
         let mut start = index;
         while start > 0 {
-            let Some(previous) = self.lines.get(start - 1) else {
+            let Some(previous) = self.display.lines().get(start - 1) else {
                 break;
             };
             if previous.kind != InlineMessageKind::Pty {
@@ -3199,8 +3117,8 @@ impl Session {
         }
 
         let mut end = index;
-        while end + 1 < self.lines.len() {
-            let Some(next) = self.lines.get(end + 1) else {
+        while end + 1 < self.display.lines().len() {
+            let Some(next) = self.display.lines().get(end + 1) else {
                 break;
             };
             if next.kind != InlineMessageKind::Pty {
@@ -3209,7 +3127,7 @@ impl Session {
             end += 1;
         }
 
-        for line in &self.lines[start..=end] {
+        for line in &self.display.lines()[start..=end] {
             if line
                 .segments
                 .iter()
@@ -3223,7 +3141,7 @@ impl Session {
     }
 
     fn reflow_pty_lines(&self, index: usize, width: u16) -> Vec<Line<'static>> {
-        let Some(line) = self.lines.get(index) else {
+        let Some(line) = self.display.lines().get(index) else {
             return vec![Line::default()];
         };
 
@@ -3238,27 +3156,27 @@ impl Session {
         }
 
         let mut border_inline = InlineTextStyle::default();
-        border_inline.color = self.theme.secondary.or(self.theme.foreground);
-        let mut border_style = ratatui_style_from_inline(&border_inline, self.theme.foreground);
+        border_inline.color = self.display.theme().secondary.or(self.display.theme().foreground);
+        let mut border_style = ratatui_style_from_inline(&border_inline, self.display.theme().foreground);
         border_style = border_style.add_modifier(Modifier::DIM);
 
         let header_inline = InlineTextStyle::default()
-            .with_color(self.theme.primary.or(self.theme.foreground))
+            .with_color(self.display.theme().primary.or(self.display.theme().foreground))
             .bold();
-        let header_style = ratatui_style_from_inline(&header_inline, self.theme.foreground);
+        let header_style = ratatui_style_from_inline(&header_inline, self.display.theme().foreground);
 
         let mut body_inline = InlineTextStyle::default();
-        body_inline.color = self.theme.foreground;
-        let mut body_style = ratatui_style_from_inline(&body_inline, self.theme.foreground);
+        body_inline.color = self.display.theme().foreground;
+        let mut body_style = ratatui_style_from_inline(&body_inline, self.display.theme().foreground);
         body_style = body_style.add_modifier(Modifier::BOLD);
 
         let prev_is_pty = index
             .checked_sub(1)
-            .and_then(|prev| self.lines.get(prev))
+            .and_then(|prev| self.display.lines().get(prev))
             .map(|prev| prev.kind == InlineMessageKind::Pty)
             .unwrap_or(false);
         let next_is_pty = self
-            .lines
+            .display.lines()
             .get(index + 1)
             .map(|next| next.kind == InlineMessageKind::Pty)
             .unwrap_or(false);
@@ -3304,11 +3222,11 @@ impl Session {
             ));
             header_spans.push(Span::raw(" "));
             let running_style = InlineTextStyle::default()
-                .with_color(self.theme.secondary.or(self.theme.foreground))
+                .with_color(self.display.theme().secondary.or(self.display.theme().foreground))
                 .italic();
             header_spans.push(Span::styled(
                 ui::INLINE_PTY_RUNNING_LABEL.to_string(),
-                ratatui_style_from_inline(&running_style, self.theme.foreground),
+                ratatui_style_from_inline(&running_style, self.display.theme().foreground),
             ));
             if !header_text.is_empty() {
                 header_spans.push(Span::raw(" "));
@@ -3338,7 +3256,7 @@ impl Session {
         } else {
             let fallback = self
                 .text_fallback(InlineMessageKind::Pty)
-                .or(self.theme.foreground);
+                .or(self.display.theme().foreground);
             let mut body_spans = Vec::new();
             for segment in &line.segments {
                 let style = ratatui_style_from_inline(&segment.style, fallback);
@@ -3379,11 +3297,11 @@ impl Session {
     fn message_divider_style(&self, kind: InlineMessageKind) -> Style {
         let mut style = InlineTextStyle::default();
         if kind == InlineMessageKind::User {
-            style.color = self.theme.primary.or(self.theme.foreground);
+            style.color = self.display.theme().primary.or(self.display.theme().foreground);
         } else {
-            style.color = self.text_fallback(kind).or(self.theme.foreground);
+            style.color = self.text_fallback(kind).or(self.display.theme().foreground);
         }
-        let resolved = ratatui_style_from_inline(&style, self.theme.foreground);
+        let resolved = ratatui_style_from_inline(&style, self.display.theme().foreground);
         if kind == InlineMessageKind::User {
             resolved
         } else {

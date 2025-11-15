@@ -30,10 +30,16 @@ use tokio::task::spawn_blocking;
 use perg::{SearchConfig, search_paths};
 
 /// Maximum number of search results to return
-const MAX_SEARCH_RESULTS: NonZeroUsize = NonZeroUsize::new(100).unwrap();
+const MAX_SEARCH_RESULTS: NonZeroUsize = unsafe {
+    // SAFETY: 100 is non-zero by definition
+    NonZeroUsize::new_unchecked(100)
+};
 
 /// Number of threads to use for searching
-const NUM_SEARCH_THREADS: NonZeroUsize = NonZeroUsize::new(2).unwrap();
+const NUM_SEARCH_THREADS: NonZeroUsize = unsafe {
+    // SAFETY: 2 is non-zero by definition
+    NonZeroUsize::new_unchecked(2)
+};
 
 /// How long to wait after a keystroke before firing the first search when none
 /// is currently running. Keeps early queries more meaningful.

@@ -1,0 +1,44 @@
+Hi! I need help fixing compilation errors after refactoring state structs for proper encapsulation.
+
+BRANCH: refactor/state-encapsulation
+Please checkout this branch and continue the work from there.
+
+CONTEXT:
+The vtcode-ui/src/tui/session/state.rs file was refactored to make all fields private with accessor methods. This introduced ~45 compilation errors that need fixing.
+
+CURRENT STATUS:
+Run: cargo check --package vtcode-ui
+Result: ~45 errors (E0616, E0596, E0594, E0716, E0599, E0521)
+
+YOUR TASK:
+Fix all compilation errors by converting direct field access to proper accessor method calls.
+
+REFERENCE GUIDE:
+Please read: docs/prompts/fix-state-encapsulation.md
+This has complete instructions, patterns, and accessor reference.
+
+KEY PATTERNS:
+
+1. Direct field access → accessor methods:
+   self.ui.input_enabled → self.ui.is_input_enabled()
+   self.display.lines → self.display.lines()
+
+2. Invalid assignments → setter methods:
+   self.ui.should_exit() = true → self.ui.request_exit()
+   self.prompt.prefix() = x → self.prompt.set_prefix(x)
+
+3. Mutable borrows → _mut() accessors:
+   self.display.lines().last_mut() → self.display.lines_mut().last_mut()
+   self.render.navigation_state().select() → self.render.navigation_state_mut().select()
+
+APPROACH:
+1. Read docs/prompts/fix-state-encapsulation.md for full details
+2. Fix errors systematically by type
+3. Use accessor reference in the guide
+4. Test with: cargo check --package vtcode-ui
+5. Goal: 0 errors
+
+START HERE:
+cargo check --package vtcode-ui 2>&1 | head -100
+
+Let me know when you're ready and I'll help fix these!

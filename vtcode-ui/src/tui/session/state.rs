@@ -1,7 +1,13 @@
 ///! Session State Management
 ///!
 ///! Organizes session state into logical groups to reduce the complexity
-///! of the monolithic Session struct
+///! of the monolithic Session struct.
+///!
+///! All state structs use private fields with accessor methods to:
+///! - Enforce invariants
+///! - Provide validation
+///! - Enable future changes without breaking API
+///! - Make cache invalidation explicit
 
 use crate::tools::TaskPlan;
 use crate::prompts::CustomPromptRegistry;
@@ -16,18 +22,17 @@ use super::message::{MessageLabels, MessageLine};
 use ratatui::widgets::ListState;
 
 /// Manages display and presentation state
-#[derive(Debug)]
 pub struct DisplayState {
     /// Theme configuration for styling
-    pub theme: InlineTheme,
+    theme: InlineTheme,
     /// Message labels configuration
-    pub labels: MessageLabels,
+    labels: MessageLabels,
     /// Message lines to display
-    pub lines: Vec<MessageLine>,
+    lines: Vec<MessageLine>,
     /// Line revision counter for cache invalidation
-    pub line_revision_counter: u64,
+    line_revision_counter: u64,
     /// Whether we're inside a tool code fence
-    pub in_tool_code_fence: bool,
+    in_tool_code_fence: bool,
 }
 
 impl DisplayState {
@@ -41,27 +46,75 @@ impl DisplayState {
         }
     }
 
+    // Theme accessors
+    pub fn theme(&self) -> &InlineTheme {
+        &self.theme
+    }
+
+    pub fn theme_mut(&mut self) -> &mut InlineTheme {
+        &mut self.theme
+    }
+
+    pub fn set_theme(&mut self, theme: InlineTheme) {
+        self.theme = theme;
+    }
+
+    // Labels accessors
+    pub fn labels(&self) -> &MessageLabels {
+        &self.labels
+    }
+
+    pub fn labels_mut(&mut self) -> &mut MessageLabels {
+        &mut self.labels
+    }
+
+    pub fn set_labels(&mut self, labels: MessageLabels) {
+        self.labels = labels;
+    }
+
+    // Lines accessors (read-only slice, mutable vec for internal use)
+    pub fn lines(&self) -> &[MessageLine] {
+        &self.lines
+    }
+
+    pub fn lines_mut(&mut self) -> &mut Vec<MessageLine> {
+        &mut self.lines
+    }
+
+    // Revision counter (encapsulated - can only increment)
+    pub fn current_revision(&self) -> u64 {
+        self.line_revision_counter
+    }
+
     pub fn next_revision(&mut self) -> u64 {
         self.line_revision_counter = self.line_revision_counter.wrapping_add(1);
         self.line_revision_counter
     }
+
+    // Tool code fence state
+    pub fn is_in_tool_code_fence(&self) -> bool {
+        self.in_tool_code_fence
+    }
+
+    pub fn set_in_tool_code_fence(&mut self, value: bool) {
+        self.in_tool_code_fence = value;
+    }
 }
 
 /// Manages prompt and input display configuration
-#[derive(Debug)]
 pub struct PromptState {
     /// Prefix text displayed before user input
-    pub prefix: String,
+    prefix: String,
     /// Style for the prompt prefix
-    pub style: InlineTextStyle,
+    style: InlineTextStyle,
     /// Optional placeholder text when input is empty
-    pub placeholder: Option<String>,
+    placeholder: Option<String>,
     /// Style for placeholder text
-    pub placeholder_style: Option<InlineTextStyle>,
+    placeholder_style: Option<InlineTextStyle>,
     /// Optional status text shown on the left of input
-    pub status_left: Option<String>,
+    status_left: Option<String>,
     /// Optional status text shown on the right of input
-    pub status_right: Option<String>,
+    status_right: Option<String>,
 }
 
 impl PromptState {
@@ -81,40 +134,107 @@ impl PromptState {
         }
     }
 
-    pub fn has_status(&self) -> bool {
+    // Prefix accessors
+    pub fn prefix(&self) -> &str {
+        &self.prefix
+    }
+
+    pub fn set_prefix(&mut self, prefix: String) {
+        self.prefix = prefix;
+    }
+
+    // Style accessors
+    pub fn style(&self) -> &InlineTextStyle {
+        &self.style
+    }
+
+    pub fn set_style(&mut self, style: InlineTextStyle) {
+        self.style = style;
+    }
+
+    // Placeholder accessors
+    pub fn placeholder(&self) -> Option<&str> {
+        self.placeholder.as_deref()
+    }
+
+    pub fn set_placeholder(&mut self, placeholder: Option<String>) {
+        self.placeholder = placeholder;
+    }
+
+    pub fn placeholder_style(&self) -> Option<&InlineTextStyle> {
+        self.placeholder_style.as_ref()
+    }
+
+    pub fn set_placeholder_style(&mut self, style: Option<InlineTextStyle>) {
+        self.placeholder_style = style;
+    }
+
+    // Status accessors with validation
+    pub fn status_left(&self) -> Option<&str> {
+        self.status_left.as_deref()
+    }
+
+    pub fn set_status_left(&mut self, status: Option<String>) {
+        self.status_left = status;
+    }
+
+    pub fn status_right(&self) -> Option<&str> {
+        self.status_right.as_deref()
+    }
+
+    pub fn set_status_right(&mut self, status: Option<String>) {
+        self.status_right = status;
+    }
+
+    // Convenience methods
+    pub fn has_left_status(&self) -> bool {
         self.status_left
             .as_ref()
-            .or(self.status_right.as_ref())
             .map(|s| !s.trim().is_empty())
             .unwrap_or(false)
+    }
+
+    pub fn has_right_status(&self) -> bool {
+        self.status_right
+            .as_ref()
+            .map(|s| !s.trim().is_empty())
+            .unwrap_or(false)
+    }
+
+    pub fn has_any_status(&self) -> bool {
+        self.has_left_status() || self.has_right_status()
+    }
+
+    /// Legacy method for compatibility
+    pub fn has_status(&self) -> bool {
+        self.has_any_status()
     }
 }
 
 /// Manages UI state flags and dimensions
-#[derive(Debug)]
 pub struct UIState {
     /// Whether input is currently enabled
-    pub input_enabled: bool,
+    input_enabled: bool,
     /// Whether cursor should be visible
-    pub cursor_visible: bool,
+    cursor_visible: bool,
     /// Whether a full redraw is needed
-    pub needs_redraw: bool,
+    needs_redraw: bool,
     /// Whether a complete clear is needed
-    pub needs_full_clear: bool,
+    needs_full_clear: bool,
     /// Whether the session should exit
-    pub should_exit: bool,
+    should_exit: bool,
     /// Total rows available for the view
-    pub view_rows: u16,
+    view_rows: u16,
     /// Height of the input area in rows
-    pub input_height: u16,
+    input_height: u16,
     /// Number of rows for the transcript area
-    pub transcript_rows: u16,
+    transcript_rows: u16,
     /// Width of the transcript area
-    pub transcript_width: u16,
+    transcript_width: u16,
     /// Top line of the transcript view
-    pub transcript_view_top: usize,
+    transcript_view_top: usize,
     /// Whether to show the timeline pane
-    pub show_timeline_pane: bool,
+    show_timeline_pane: bool,
 }
 
 impl UIState {
@@ -133,27 +253,126 @@ impl UIState {
             show_timeline_pane,
         }
     }
+
+    // Boolean flags accessors
+    pub fn is_input_enabled(&self) -> bool {
+        self.input_enabled
+    }
+
+    pub fn set_input_enabled(&mut self, enabled: bool) {
+        self.input_enabled = enabled;
+    }
+
+    pub fn is_cursor_visible(&self) -> bool {
+        self.cursor_visible
+    }
+
+    pub fn set_cursor_visible(&mut self, visible: bool) {
+        self.cursor_visible = visible;
+    }
+
+    pub fn needs_redraw(&self) -> bool {
+        self.needs_redraw
+    }
+
+    pub fn request_redraw(&mut self) {
+        self.needs_redraw = true;
+    }
+
+    pub fn clear_redraw_flag(&mut self) {
+        self.needs_redraw = false;
+    }
+
+    pub fn take_redraw(&mut self) -> bool {
+        let needs = self.needs_redraw;
+        self.needs_redraw = false;
+        needs
+    }
+
+    pub fn needs_full_clear(&self) -> bool {
+        self.needs_full_clear
+    }
+
+    pub fn set_needs_full_clear(&mut self, needs: bool) {
+        self.needs_full_clear = needs;
+    }
+
+    pub fn should_exit(&self) -> bool {
+        self.should_exit
+    }
+
+    pub fn request_exit(&mut self) {
+        self.should_exit = true;
+    }
+
+    // Dimension accessors
+    pub fn view_rows(&self) -> u16 {
+        self.view_rows
+    }
+
+    pub fn set_view_rows(&mut self, rows: u16) {
+        self.view_rows = rows;
+    }
+
+    pub fn input_height(&self) -> u16 {
+        self.input_height
+    }
+
+    pub fn set_input_height(&mut self, height: u16) {
+        self.input_height = height;
+    }
+
+    pub fn transcript_rows(&self) -> u16 {
+        self.transcript_rows
+    }
+
+    pub fn set_transcript_rows(&mut self, rows: u16) {
+        self.transcript_rows = rows;
+    }
+
+    pub fn transcript_width(&self) -> u16 {
+        self.transcript_width
+    }
+
+    pub fn set_transcript_width(&mut self, width: u16) {
+        self.transcript_width = width;
+    }
+
+    pub fn transcript_view_top(&self) -> usize {
+        self.transcript_view_top
+    }
+
+    pub fn set_transcript_view_top(&mut self, top: usize) {
+        self.transcript_view_top = top;
+    }
+
+    pub fn show_timeline_pane(&self) -> bool {
+        self.show_timeline_pane
+    }
+
+    pub fn set_show_timeline_pane(&mut self, show: bool) {
+        self.show_timeline_pane = show;
+    }
 }
 
 /// Manages palette-related state (file browser, prompt browser, slash commands)
-#[derive(Debug)]
 pub struct PaletteState {
     /// Slash command palette
-    pub slash_palette: SlashPalette,
+    slash_palette: SlashPalette,
     /// File browser palette (optional, lazy-loaded)
-    pub file_palette: Option<FilePalette>,
+    file_palette: Option<FilePalette>,
     /// Whether file palette is currently active
-    pub file_palette_active: bool,
+    file_palette_active: bool,
     /// Whether to trigger file browser on next update
-    pub deferred_file_browser_trigger: bool,
+    deferred_file_browser_trigger: bool,
     /// Prompt browser palette (optional, lazy-loaded)
-    pub prompt_palette: Option<PromptPalette>,
+    prompt_palette: Option<PromptPalette>,
     /// Whether prompt palette is currently active
-    pub prompt_palette_active: bool,
+    prompt_palette_active: bool,
     /// Whether to trigger prompt browser on next update
-    pub deferred_prompt_browser_trigger: bool,
+    deferred_prompt_browser_trigger: bool,
     /// Registry of custom prompts
-    pub custom_prompts: Option<CustomPromptRegistry>,
+    custom_prompts: Option<CustomPromptRegistry>,
 }
 
 impl PaletteState {
@@ -169,29 +388,108 @@ impl PaletteState {
             custom_prompts: None,
         }
     }
+
+    // Slash palette accessors
+    pub fn slash_palette(&self) -> &SlashPalette {
+        &self.slash_palette
+    }
+
+    pub fn slash_palette_mut(&mut self) -> &mut SlashPalette {
+        &mut self.slash_palette
+    }
+
+    // File palette accessors
+    pub fn file_palette(&self) -> Option<&FilePalette> {
+        self.file_palette.as_ref()
+    }
+
+    pub fn file_palette_mut(&mut self) -> Option<&mut FilePalette> {
+        self.file_palette.as_mut()
+    }
+
+    pub fn set_file_palette(&mut self, palette: Option<FilePalette>) {
+        self.file_palette = palette;
+    }
+
+    pub fn is_file_palette_active(&self) -> bool {
+        self.file_palette_active
+    }
+
+    pub fn set_file_palette_active(&mut self, active: bool) {
+        self.file_palette_active = active;
+    }
+
+    pub fn has_deferred_file_browser_trigger(&self) -> bool {
+        self.deferred_file_browser_trigger
+    }
+
+    pub fn set_deferred_file_browser_trigger(&mut self, trigger: bool) {
+        self.deferred_file_browser_trigger = trigger;
+    }
+
+    // Prompt palette accessors
+    pub fn prompt_palette(&self) -> Option<&PromptPalette> {
+        self.prompt_palette.as_ref()
+    }
+
+    pub fn prompt_palette_mut(&mut self) -> Option<&mut PromptPalette> {
+        self.prompt_palette.as_mut()
+    }
+
+    pub fn set_prompt_palette(&mut self, palette: Option<PromptPalette>) {
+        self.prompt_palette = palette;
+    }
+
+    pub fn is_prompt_palette_active(&self) -> bool {
+        self.prompt_palette_active
+    }
+
+    pub fn set_prompt_palette_active(&mut self, active: bool) {
+        self.prompt_palette_active = active;
+    }
+
+    pub fn has_deferred_prompt_browser_trigger(&self) -> bool {
+        self.deferred_prompt_browser_trigger
+    }
+
+    pub fn set_deferred_prompt_browser_trigger(&mut self, trigger: bool) {
+        self.deferred_prompt_browser_trigger = trigger;
+    }
+
+    // Custom prompts accessors
+    pub fn custom_prompts(&self) -> Option<&CustomPromptRegistry> {
+        self.custom_prompts.as_ref()
+    }
+
+    pub fn custom_prompts_mut(&mut self) -> Option<&mut CustomPromptRegistry> {
+        self.custom_prompts.as_mut()
+    }
+
+    pub fn set_custom_prompts(&mut self, prompts: Option<CustomPromptRegistry>) {
+        self.custom_prompts = prompts;
+    }
 }
 
 /// Manages rendering caches and overlays
-#[derive(Debug)]
 pub struct RenderState {
     /// Header context for rendering
-    pub header_context: InlineHeaderContext,
+    header_context: InlineHeaderContext,
     /// Number of rows used by the header
-    pub header_rows: u16,
+    header_rows: u16,
     /// Cached transcript reflow data
-    pub transcript_cache: Option<TranscriptReflowCache>,
+    transcript_cache: Option<TranscriptReflowCache>,
     /// Queued inputs to display
-    pub queued_inputs: Vec<String>,
+    queued_inputs: Vec<String>,
     /// Cached queue overlay rendering
-    pub queue_overlay_cache: Option<QueueOverlay>,
+    queue_overlay_cache: Option<QueueOverlay>,
     /// Version number for queue overlay cache
-    pub queue_overlay_version: u64,
+    queue_overlay_version: u64,
     /// Current modal state (if any)
-    pub modal: Option<ModalState>,
+    modal: Option<ModalState>,
     /// Current task plan
-    pub plan: TaskPlan,
+    plan: TaskPlan,
     /// Navigation list state
-    pub navigation_state: ListState,
+    navigation_state: ListState,
 }
 
 impl RenderState {
@@ -204,8 +502,111 @@ impl RenderState {
             queue_overlay_cache: None,
             queue_overlay_version: 0,
             modal: None,
-            plan: TaskPlan::empty(),
+            plan: TaskPlan::default(),
             navigation_state: ListState::default(),
         }
+    }
+
+    // Header accessors
+    pub fn header_context(&self) -> &InlineHeaderContext {
+        &self.header_context
+    }
+
+    pub fn header_context_mut(&mut self) -> &mut InlineHeaderContext {
+        &mut self.header_context
+    }
+
+    pub fn set_header_context(&mut self, context: InlineHeaderContext) {
+        self.header_context = context;
+    }
+
+    pub fn header_rows(&self) -> u16 {
+        self.header_rows
+    }
+
+    pub fn set_header_rows(&mut self, rows: u16) {
+        self.header_rows = rows;
+    }
+
+    // Transcript cache accessors
+    pub fn transcript_cache(&self) -> Option<&TranscriptReflowCache> {
+        self.transcript_cache.as_ref()
+    }
+
+    pub fn transcript_cache_mut(&mut self) -> &mut Option<TranscriptReflowCache> {
+        &mut self.transcript_cache
+    }
+
+    pub fn take_transcript_cache(&mut self) -> Option<TranscriptReflowCache> {
+        self.transcript_cache.take()
+    }
+
+    pub fn set_transcript_cache(&mut self, cache: Option<TranscriptReflowCache>) {
+        self.transcript_cache = cache;
+    }
+
+    // Queued inputs accessors
+    pub fn queued_inputs(&self) -> &[String] {
+        &self.queued_inputs
+    }
+
+    pub fn queued_inputs_mut(&mut self) -> &mut Vec<String> {
+        &mut self.queued_inputs
+    }
+
+    // Queue overlay cache accessors
+    pub fn queue_overlay_cache(&self) -> Option<&QueueOverlay> {
+        self.queue_overlay_cache.as_ref()
+    }
+
+    pub fn set_queue_overlay_cache(&mut self, cache: Option<QueueOverlay>) {
+        self.queue_overlay_cache = cache;
+    }
+
+    pub fn queue_overlay_version(&self) -> u64 {
+        self.queue_overlay_version
+    }
+
+    pub fn set_queue_overlay_version(&mut self, version: u64) {
+        self.queue_overlay_version = version;
+    }
+
+    // Modal accessors
+    pub fn modal(&self) -> Option<&ModalState> {
+        self.modal.as_ref()
+    }
+
+    pub fn modal_mut(&mut self) -> Option<&mut ModalState> {
+        self.modal.as_mut()
+    }
+
+    pub fn set_modal(&mut self, modal: Option<ModalState>) {
+        self.modal = modal;
+    }
+
+    pub fn take_modal(&mut self) -> Option<ModalState> {
+        self.modal.take()
+    }
+
+    // Plan accessors
+    pub fn plan(&self) -> &TaskPlan {
+        &self.plan
+    }
+
+    pub fn plan_mut(&mut self) -> &mut TaskPlan {
+        &mut self.plan
+    }
+
+    pub fn set_plan(&mut self, plan: TaskPlan) {
+        self.plan = plan;
+    }
+
+    // Navigation state accessors
+    pub fn navigation_state(&self) -> &ListState {
+        &self.navigation_state
+    }
+
+    pub fn navigation_state_mut(&mut self) -> &mut ListState {
+        &mut self.navigation_state
     }
 }

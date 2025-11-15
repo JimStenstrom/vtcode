@@ -20,13 +20,13 @@ use super::{
 
 impl Session {
     pub(super) fn render_slash_palette(&mut self, frame: &mut Frame<'_>, viewport: Rect) {
-        if viewport.height == 0 || viewport.width == 0 || self.modal.is_some() {
-            self.slash_palette.clear_visible_rows();
+        if viewport.height == 0 || viewport.width == 0 || self.render.modal().is_some() {
+            self.palette.slash_palette_mut().clear_visible_rows();
             return;
         }
-        let suggestions = self.slash_palette.suggestions();
+        let suggestions = self.palette.slash_palette().suggestions();
         if suggestions.is_empty() {
-            self.slash_palette.clear_visible_rows();
+            self.palette.slash_palette_mut().clear_visible_rows();
             return;
         }
 
@@ -68,7 +68,7 @@ impl Session {
         let inner = block.inner(area);
         frame.render_widget(block, area);
         if inner.height == 0 || inner.width == 0 {
-            self.slash_palette.clear_visible_rows();
+            self.palette.slash_palette_mut().clear_visible_rows();
             return;
         }
 
@@ -78,7 +78,7 @@ impl Session {
             frame.render_widget(paragraph, text_area);
         }
 
-        self.slash_palette
+        self.palette.slash_palette_mut()
             .set_visible_rows(layout.list_area.height as usize);
 
         // Get all list items (scrollable via ListState)
@@ -88,7 +88,7 @@ impl Session {
             .style(self.default_style())
             .highlight_style(self.slash_highlight_style());
 
-        frame.render_stateful_widget(list, layout.list_area, self.slash_palette.list_state_mut());
+        frame.render_stateful_widget(list, layout.list_area, self.palette.slash_palette_mut().list_state_mut());
     }
 
     fn slash_palette_instructions(&self) -> Vec<Line<'static>> {
@@ -111,13 +111,13 @@ impl Session {
     }
 
     pub(super) fn clear_slash_suggestions(&mut self) {
-        if self.slash_palette.clear() {
+        if self.palette.slash_palette_mut().clear() {
             self.handle_slash_palette_change();
         }
     }
 
     pub(super) fn update_slash_suggestions(&mut self) {
-        if !self.input_enabled {
+        if !self.ui.is_input_enabled() {
             self.clear_slash_suggestions();
             return;
         }
@@ -130,13 +130,13 @@ impl Session {
         };
 
         // Update slash palette with custom prompts if available
-        if let Some(ref custom_prompts) = self.custom_prompts {
-            self.slash_palette
-                .set_custom_prompts(custom_prompts.clone());
+        if let Some(custom_prompts) = self.palette.custom_prompts().cloned() {
+            self.palette.slash_palette_mut()
+                .set_custom_prompts(custom_prompts);
         }
 
         match self
-            .slash_palette
+            .palette.slash_palette_mut()
             .update(Some(&prefix), ui::SLASH_SUGGESTION_LIMIT)
         {
             SlashPaletteUpdate::NoChange => {}
@@ -147,40 +147,40 @@ impl Session {
     }
 
     pub(super) fn slash_navigation_available(&self) -> bool {
-        self.input_enabled
-            && !self.slash_palette.is_empty()
-            && self.modal.is_none()
-            && !self.file_palette_active
-            && !self.prompt_palette_active
+        self.ui.is_input_enabled()
+            && !self.palette.slash_palette().is_empty()
+            && self.render.modal().is_none()
+            && !self.palette.is_file_palette_active()
+            && !self.palette.is_prompt_palette_active()
     }
 
     pub(super) fn move_slash_selection_up(&mut self) -> bool {
-        let changed = self.slash_palette.move_up();
+        let changed = self.palette.slash_palette_mut().move_up();
         self.handle_slash_selection_change(changed)
     }
 
     pub(super) fn move_slash_selection_down(&mut self) -> bool {
-        let changed = self.slash_palette.move_down();
+        let changed = self.palette.slash_palette_mut().move_down();
         self.handle_slash_selection_change(changed)
     }
 
     pub(super) fn select_first_slash_suggestion(&mut self) -> bool {
-        let changed = self.slash_palette.select_first();
+        let changed = self.palette.slash_palette_mut().select_first();
         self.handle_slash_selection_change(changed)
     }
 
     pub(super) fn select_last_slash_suggestion(&mut self) -> bool {
-        let changed = self.slash_palette.select_last();
+        let changed = self.palette.slash_palette_mut().select_last();
         self.handle_slash_selection_change(changed)
     }
 
     pub(super) fn page_up_slash_suggestion(&mut self) -> bool {
-        let changed = self.slash_palette.page_up();
+        let changed = self.palette.slash_palette_mut().page_up();
         self.handle_slash_selection_change(changed)
     }
 
     pub(super) fn page_down_slash_suggestion(&mut self) -> bool {
-        let changed = self.slash_palette.page_down();
+        let changed = self.palette.slash_palette_mut().page_down();
         self.handle_slash_selection_change(changed)
     }
 
@@ -197,7 +197,7 @@ impl Session {
     }
 
     fn preview_selected_slash_suggestion(&mut self) {
-        let Some(command) = self.slash_palette.selected_command() else {
+        let Some(command) = self.palette.slash_palette().selected_command() else {
             return;
         };
         let Some(range) = command_range(self.input_manager.content(), self.input_manager.cursor())
@@ -229,7 +229,7 @@ impl Session {
     }
 
     pub(super) fn apply_selected_slash_suggestion(&mut self) -> bool {
-        if let Some(custom_prompt) = self.slash_palette.selected_custom_prompt() {
+        if let Some(custom_prompt) = self.palette.slash_palette().selected_custom_prompt() {
             let input_content = self.input_manager.content();
             let cursor_pos = self.input_manager.cursor();
             let Some(range) = command_range(input_content, cursor_pos) else {
@@ -258,7 +258,7 @@ impl Session {
             return true;
         }
 
-        let Some(command) = self.slash_palette.selected_command() else {
+        let Some(command) = self.palette.slash_palette().selected_command() else {
             return false;
         };
 
@@ -291,12 +291,12 @@ impl Session {
         if command_name == "files" {
             self.clear_slash_suggestions();
             self.mark_dirty();
-            self.deferred_file_browser_trigger = true;
+            self.palette.set_deferred_file_browser_trigger(true);
         } else if command_name == PROMPT_COMMAND_NAME || command_name == LEGACY_PROMPT_COMMAND_NAME
         {
             self.clear_slash_suggestions();
             self.mark_dirty();
-            self.deferred_prompt_browser_trigger = true;
+            self.palette.set_deferred_prompt_browser_trigger(true);
         } else {
             self.clear_slash_suggestions();
             self.mark_dirty();
@@ -347,7 +347,7 @@ impl Session {
     }
 
     fn slash_list_items(&self) -> Vec<ListItem<'static>> {
-        self.slash_palette
+        self.palette.slash_palette()
             .suggestions()
             .iter()
             .map(|suggestion| match suggestion {
@@ -376,7 +376,7 @@ impl Session {
 
     fn slash_highlight_style(&self) -> Style {
         let mut style = Style::default().add_modifier(Modifier::REVERSED | Modifier::BOLD);
-        if let Some(primary) = self.theme.primary.or(self.theme.secondary) {
+        if let Some(primary) = self.display.theme().primary.or(self.display.theme().secondary) {
             style = style.fg(ratatui_color_from_ansi(primary));
         }
         style
@@ -385,8 +385,8 @@ impl Session {
     fn slash_name_style(&self) -> Style {
         let style = InlineTextStyle::default()
             .bold()
-            .with_color(self.theme.primary.or(self.theme.foreground));
-        ratatui_style_from_inline(&style, self.theme.foreground)
+            .with_color(self.display.theme().primary.or(self.display.theme().foreground));
+        ratatui_style_from_inline(&style, self.display.theme().foreground)
     }
 
     fn slash_description_style(&self) -> Style {
