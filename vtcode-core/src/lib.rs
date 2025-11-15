@@ -140,6 +140,7 @@ pub mod metrics;
 pub mod models;
 pub mod project_doc;
 pub mod prompts;
+pub mod sop;
 pub mod tool_policy;
 pub mod tools;
 pub mod types;

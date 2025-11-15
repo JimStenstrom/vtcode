@@ -12,6 +12,7 @@ use crate::core::agent::snapshots::{
 use crate::core::decision_tracker::DecisionTracker;
 use crate::core::error_recovery::{ErrorRecoveryManager, ErrorType};
 use crate::llm::AnyClient;
+use crate::sop::SopManager;
 use crate::tools::ToolRegistry;
 use crate::tools::tree_sitter::{CodeAnalysis, TreeSitterAnalyzer};
 use crate::utils::colors::style;
@@ -28,6 +29,7 @@ pub struct Agent {
     error_recovery: ErrorRecoveryManager,
 
     tree_sitter_analyzer: TreeSitterAnalyzer,
+    sop_manager: Option<Arc<SopManager>>,
     session_info: SessionInfo,
     start_time: std::time::Instant,
 }
@@ -52,6 +54,7 @@ impl Agent {
             decision_tracker: components.decision_tracker,
             error_recovery: components.error_recovery,
             tree_sitter_analyzer: components.tree_sitter_analyzer,
+            sop_manager: components.sop_manager,
             session_info: components.session_info,
             start_time: std::time::Instant::now(),
         }
@@ -164,6 +167,26 @@ impl Agent {
     /// Get mutable tree-sitter analyzer reference
     pub fn tree_sitter_analyzer_mut(&mut self) -> &mut TreeSitterAnalyzer {
         &mut self.tree_sitter_analyzer
+    }
+
+    /// Get SOP manager reference
+    pub fn sop_manager(&self) -> Option<Arc<SopManager>> {
+        self.sop_manager.as_ref().map(Arc::clone)
+    }
+
+    /// Retrieve relevant SOPs for a given query
+    ///
+    /// # Arguments
+    /// * `query` - The search query (e.g., "how to edit files")
+    /// * `top_k` - Number of top results to return
+    ///
+    /// # Returns
+    /// A vector of relevant SOP content chunks, or empty if SOP manager is not available
+    pub async fn get_relevant_sops(&self, query: &str, top_k: usize) -> Result<Vec<String>> {
+        match &self.sop_manager {
+            Some(manager) => manager.get_relevant_sops(query, top_k).await,
+            None => Ok(Vec::new()),
+        }
     }
 
     /// Analyze a file using tree-sitter
