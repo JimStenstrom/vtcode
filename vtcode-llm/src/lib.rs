@@ -67,7 +67,7 @@ pub mod providers {
     #[cfg(feature = "ollama")]
     pub use vtcode_core::llm::providers::ollama::*;
     #[cfg(feature = "openai")]
-    pub use vtcode_core::llm::providers::openai::*;
+    pub use vtcode_llm_openai::*;
     #[cfg(feature = "openrouter")]
     pub use vtcode_llm_openrouter::*;
     #[cfg(feature = "xai")]

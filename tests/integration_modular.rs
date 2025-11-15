@@ -81,15 +81,15 @@ fn test_code_quality_integration() {
 }
 
 #[test]
-fn test_backward_compatibility() {
-    // Test that all the old import patterns still work
+fn test_provider_integration() {
+    // Test that the new provider system works with existing code
     use vtcode_core::code::code_completion::CompletionEngine;
     use vtcode_core::code::code_quality::FormattingOrchestrator;
     use vtcode_core::config::VTCodeConfig;
-    use vtcode_core::gemini::Client;
+    use vtcode_core::llm::factory::create_provider_for_model;
 
     // These should all compile and work as before
-    let _client = Client::new("key".to_string(), "model".to_string());
+    let _provider = create_provider_for_model("gemini-2.5-flash", "key".to_string(), None);
     let _config = VTCodeConfig::default();
     let _engine = CompletionEngine::new();
     let _formatter = FormattingOrchestrator::new();

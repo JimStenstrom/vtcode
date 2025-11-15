@@ -116,7 +116,7 @@ fn test_backward_compatibility() {
     let model = ModelId::from_str("gemini-2.5-flash").unwrap();
     let client = make_client("test_key".to_string(), model);
 
-    // Should be able to get model ID
-    let model_id = client.model_id();
-    assert!(!model_id.is_empty());
+    // Should be able to get provider name
+    let provider_name = client.name();
+    assert_eq!(provider_name, "gemini");
 }

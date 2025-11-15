@@ -29,7 +29,8 @@ fn test_provider_factory_creation() {
     assert!(providers.contains(&"ollama".to_string()));
     assert!(providers.contains(&"lmstudio".to_string()));
     assert!(providers.contains(&"minimax".to_string()));
-    assert_eq!(providers.len(), 11);
+    assert!(providers.contains(&"microsoft".to_string()));
+    assert_eq!(providers.len(), 12);
 }
 
 #[test]
@@ -495,9 +496,9 @@ fn test_backward_compatibility() {
     let model = ModelId::from_str("gemini-2.5-flash-preview-05-20").unwrap();
     let client = make_client("test_key".to_string(), model);
 
-    // Should be able to get model ID
-    let model_id = client.model_id();
-    assert!(!model_id.is_empty());
+    // Should be able to get provider name
+    let provider_name = client.name();
+    assert_eq!(provider_name, "gemini");
 }
 
 #[test]

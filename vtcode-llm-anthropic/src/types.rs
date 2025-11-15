@@ -317,7 +317,7 @@ impl Default for PromptCachingConfig {
 }
 
 /// LLM errors
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, Clone, thiserror::Error)]
 pub enum LLMError {
     #[error("Authentication failed: {0}")]
     Authentication(String),
