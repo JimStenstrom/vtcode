@@ -18,14 +18,13 @@ pub fn override_base_url(
         }
     }
 
-    if let Some(var_name) = env_var_name {
-        if let Ok(value) = std::env::var(var_name) {
+    if let Some(var_name) = env_var_name
+        && let Ok(value) = std::env::var(var_name) {
             let trimmed = value.trim();
             if !trimmed.is_empty() {
                 return trimmed.to_string();
             }
         }
-    }
 
     default_base_url.to_string()
 }

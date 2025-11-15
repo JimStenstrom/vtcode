@@ -571,13 +571,12 @@ impl StreamingProcessor {
                     }
                 }
 
-                if let Some(text_value) = map.get("text").and_then(Value::as_str) {
-                    if !text_value.trim().is_empty() {
+                if let Some(text_value) = map.get("text").and_then(Value::as_str)
+                    && !text_value.trim().is_empty() {
                         on_chunk(text_value)?;
                         self.append_text_candidate(accumulated_response, text_value);
                         has_valid = true;
                     }
-                }
 
                 Ok(has_valid)
             }
@@ -601,7 +600,7 @@ impl StreamingProcessor {
     ) {
         let index = candidate
             .index
-            .unwrap_or_else(|| accumulated_response.candidates.len());
+            .unwrap_or(accumulated_response.candidates.len());
 
         if let Some(existing) = accumulated_response
             .candidates
@@ -662,26 +661,23 @@ impl StreamingProcessor {
                 }
             }
             Value::Object(map) => {
-                if let Some(text) = map.get("text").and_then(Value::as_str) {
-                    if !text.trim().is_empty() {
+                if let Some(text) = map.get("text").and_then(Value::as_str)
+                    && !text.trim().is_empty() {
                         return Some(text.to_string());
                     }
-                }
 
-                if let Some(parts) = map.get("parts").and_then(Value::as_array) {
-                    if let Some(parts_text) =
+                if let Some(parts) = map.get("parts").and_then(Value::as_array)
+                    && let Some(parts_text) =
                         Self::extract_text_from_value(&Value::Array(parts.clone()))
                     {
                         return Some(parts_text);
                     }
-                }
 
                 for nested in map.values() {
-                    if let Some(nested_text) = Self::extract_text_from_value(nested) {
-                        if !nested_text.trim().is_empty() {
+                    if let Some(nested_text) = Self::extract_text_from_value(nested)
+                        && !nested_text.trim().is_empty() {
                             return Some(nested_text);
                         }
-                    }
                 }
 
                 None

@@ -23,12 +23,17 @@
 //! ```
 
 pub mod common;
+pub mod config;
+pub mod error;
 pub mod gemini;
 pub mod provider;
+pub mod request;
+pub mod response;
+pub mod tools;
 
 // Re-export main types
 pub use provider::GeminiProvider;
-pub use provider::sanitize_function_parameters;
+pub use tools::sanitize_function_parameters;
 
 // Re-export gemini API types for consumers who need them
 pub use gemini::{
