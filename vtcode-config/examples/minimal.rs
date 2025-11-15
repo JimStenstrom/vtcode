@@ -1,7 +1,7 @@
 use assert_fs::TempDir;
 use std::path::PathBuf;
 use std::sync::Arc;
-use vtcode_commons::reference::StaticWorkspacePaths;
+use vtcode_commons::StaticWorkspacePaths;
 use vtcode_config::ConfigManager;
 use vtcode_config::defaults::{
     ConfigDefaultsProvider, WorkspacePathsDefaults, install_config_defaults_provider,

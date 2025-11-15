@@ -16,7 +16,7 @@ use std::path::PathBuf;
 /// use std::env;
 /// use vtcode_config::loader::env_resolver::resolve_env_vars;
 ///
-/// env::set_var("TEST_VAR", "hello");
+/// unsafe { env::set_var("TEST_VAR", "hello"); }
 /// let result = resolve_env_vars("Value is: $TEST_VAR");
 /// assert_eq!(result, "Value is: hello");
 /// ```
@@ -42,7 +42,7 @@ pub fn resolve_env_vars(value: &str) -> String {
 /// use std::env;
 /// use vtcode_config::loader::env_resolver::resolve_path;
 ///
-/// env::set_var("MY_DIR", "/tmp/test");
+/// unsafe { env::set_var("MY_DIR", "/tmp/test"); }
 /// let path = resolve_path("$MY_DIR/config.toml");
 /// assert_eq!(path.to_str().unwrap(), "/tmp/test/config.toml");
 /// ```
