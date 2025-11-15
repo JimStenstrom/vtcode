@@ -13,7 +13,7 @@
 //! ## Example
 //!
 //! ```no_run
-//! use vtcode_llm_anthropic::{AnthropicProvider, LLMProvider, LLMRequest, Message, MessageRole, MessageContent};
+//! use vtcode_llm_anthropic::{AnthropicProvider, LLMProvider, LLMRequest, Message};
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -41,10 +41,18 @@
 //! ```
 
 pub mod types;
-pub mod provider;
 pub mod anthropic;
 
-// Re-export main types and traits
-pub use types::*;
-pub use provider::{LLMProvider, LLMStream, LLMStreamEvent};
+// Re-export Anthropic-specific types
+pub use types::PromptCachingConfig;
+
+// Re-export universal LLM types from vtcode_llm_types
+pub use vtcode_llm_types::{
+    ContentPart, FinishReason, FunctionCall, FunctionDefinition, LLMError, LLMProvider,
+    LLMRequest, LLMResponse, LLMResult, LLMStream, LLMStreamEvent, Message, MessageContent,
+    MessageRole, ParallelToolConfig, ReasoningEffortLevel, SpecificFunctionChoice,
+    SpecificToolChoice, ToolCall, ToolChoice, ToolDefinition, Usage,
+};
+
+// Re-export the provider implementation
 pub use anthropic::AnthropicProvider;

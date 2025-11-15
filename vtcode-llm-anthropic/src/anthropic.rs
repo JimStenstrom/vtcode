@@ -1,11 +1,14 @@
 //! Anthropic provider implementation for Claude models
 
-use crate::provider::LLMProvider;
-use crate::types::*;
+use crate::types::PromptCachingConfig;
 use async_trait::async_trait;
 use reqwest::Client as HttpClient;
 use serde_json::{json, Value};
 use std::env;
+use vtcode_llm_types::{
+    FinishReason, LLMError, LLMProvider, LLMRequest, LLMResponse, LLMStream, MessageRole,
+    ToolCall, Usage,
+};
 
 // Constants
 const ANTHROPIC_API_BASE: &str = "https://api.anthropic.com/v1";
@@ -313,7 +316,7 @@ impl AnthropicProvider {
         }
 
         if let Some(tool_choice) = &request.tool_choice {
-            anthropic_request["tool_choice"] = tool_choice.to_anthropic_format();
+            anthropic_request["tool_choice"] = tool_choice.to_provider_format("anthropic");
         }
 
         Ok(anthropic_request)
@@ -384,33 +387,33 @@ impl AnthropicProvider {
             .and_then(|sr| sr.as_str())
             .unwrap_or("end_turn");
 
-        let finish_reason = Some(match stop_reason {
+        let finish_reason = match stop_reason {
             "end_turn" => FinishReason::Stop,
             "max_tokens" => FinishReason::Length,
             "stop_sequence" => FinishReason::Stop,
             "tool_use" => FinishReason::ToolCalls,
             other => FinishReason::Error(other.to_string()),
-        });
+        };
 
         let usage = response_json.get("usage").map(|usage_value| {
             let cache_creation_tokens = usage_value
                 .get("cache_creation_input_tokens")
                 .and_then(|value| value.as_u64())
-                .map(|value| value as usize);
+                .map(|value| value as u32);
             let cache_read_tokens = usage_value
                 .get("cache_read_input_tokens")
                 .and_then(|value| value.as_u64())
-                .map(|value| value as usize);
+                .map(|value| value as u32);
 
             Usage {
                 prompt_tokens: usage_value
                     .get("input_tokens")
                     .and_then(|it| it.as_u64())
-                    .unwrap_or(0) as usize,
+                    .unwrap_or(0) as u32,
                 completion_tokens: usage_value
                     .get("output_tokens")
                     .and_then(|ot| ot.as_u64())
-                    .unwrap_or(0) as usize,
+                    .unwrap_or(0) as u32,
                 total_tokens: (usage_value
                     .get("input_tokens")
                     .and_then(|it| it.as_u64())
@@ -418,22 +421,15 @@ impl AnthropicProvider {
                     + usage_value
                         .get("output_tokens")
                         .and_then(|ot| ot.as_u64())
-                        .unwrap_or(0)) as usize,
+                        .unwrap_or(0)) as u32,
                 cached_prompt_tokens: cache_read_tokens,
                 cache_creation_tokens,
                 cache_read_tokens,
             }
         });
 
-        let model = response_json
-            .get("model")
-            .and_then(|m| m.as_str())
-            .unwrap_or(&self.model)
-            .to_string();
-
         Ok(LLMResponse {
-            content: text_parts.join(""),
-            model,
+            content: Some(text_parts.join("")),
             usage,
             reasoning,
             tool_calls: if tool_calls.is_empty() {
@@ -442,6 +438,7 @@ impl AnthropicProvider {
                 Some(tool_calls)
             },
             finish_reason,
+            reasoning_details: None,
         })
     }
 }
@@ -496,7 +493,7 @@ impl LLMProvider for AnthropicProvider {
             .json(&anthropic_request)
             .send()
             .await
-            .map_err(|e| LLMError::Network(format!("Network error: {}", e)))?;
+            .map_err(|e| LLMError::NetworkError(format!("Network error: {}", e)))?;
 
         if !response.status().is_success() {
             let status = response.status();
@@ -530,6 +527,12 @@ impl LLMProvider for AnthropicProvider {
             .map_err(|e| LLMError::Provider(format!("Failed to parse response: {}", e)))?;
 
         self.parse_anthropic_response(anthropic_response)
+    }
+
+    async fn stream(&self, _request: LLMRequest) -> Result<LLMStream, LLMError> {
+        Err(LLMError::Provider(
+            "Streaming not yet implemented for Anthropic provider".to_string(),
+        ))
     }
 
     fn supported_models(&self) -> Vec<String> {
