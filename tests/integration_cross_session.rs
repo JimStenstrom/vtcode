@@ -1,5 +1,6 @@
 //! Integration tests for cross-session persistence
 
+use std::time::Duration;
 use tempfile::TempDir;
 use vtcode_llm_types::Message;
 use vtcode_memory::{ConversationTurn, MemoryConfig, MemoryManager, SessionLog, SimpleMemory};
@@ -9,13 +10,13 @@ async fn test_session_save_and_restore() {
     let temp_dir = TempDir::new().unwrap();
 
     let config = MemoryConfig {
-        enabled: true,
         working_memory_limit: 10,
         summary_limit: 20,
         enable_background_summarization: false,
         auto_checkpoint: true,
-        checkpoint_interval_seconds: 300,
+        checkpoint_interval: Duration::from_secs(300),
         log_directory: temp_dir.path().to_path_buf(),
+        summarization_model: None,
     };
 
     // Create session
@@ -50,10 +51,6 @@ async fn test_session_save_and_restore() {
         stats1.summary_count, stats2.summary_count,
         "Summary count should match"
     );
-    assert_eq!(
-        stats1.total_turns, stats2.total_turns,
-        "Total turns should match"
-    );
 
     println!("✅ Session save/restore works");
 }
@@ -62,13 +59,13 @@ async fn test_session_save_and_restore() {
 async fn test_session_log_listing() {
     let temp_dir = TempDir::new().unwrap();
     let config = MemoryConfig {
-        enabled: true,
         working_memory_limit: 10,
         summary_limit: 20,
         enable_background_summarization: false,
         auto_checkpoint: true,
-        checkpoint_interval_seconds: 300,
+        checkpoint_interval: Duration::from_secs(300),
         log_directory: temp_dir.path().to_path_buf(),
+        summarization_model: None,
     };
 
     // Create multiple sessions
@@ -101,13 +98,13 @@ async fn test_session_persistence_with_summaries() {
     let temp_dir = TempDir::new().unwrap();
 
     let config = MemoryConfig {
-        enabled: true,
         working_memory_limit: 3,
         summary_limit: 10,
         enable_background_summarization: false,
         auto_checkpoint: true,
-        checkpoint_interval_seconds: 300,
+        checkpoint_interval: Duration::from_secs(300),
         log_directory: temp_dir.path().to_path_buf(),
+        summarization_model: None,
     };
 
     // Create session with overflow (triggers summarization)
@@ -134,7 +131,6 @@ async fn test_session_persistence_with_summaries() {
 
     assert_eq!(stats_before.working_memory_turns, stats_after.working_memory_turns);
     assert_eq!(stats_before.summary_count, stats_after.summary_count);
-    assert_eq!(stats_before.total_turns, stats_after.total_turns);
 
     println!("✅ Session persistence with summaries works");
 }
@@ -144,13 +140,13 @@ async fn test_empty_session_save_restore() {
     let temp_dir = TempDir::new().unwrap();
 
     let config = MemoryConfig {
-        enabled: true,
         working_memory_limit: 10,
         summary_limit: 20,
         enable_background_summarization: false,
         auto_checkpoint: true,
-        checkpoint_interval_seconds: 300,
+        checkpoint_interval: Duration::from_secs(300),
         log_directory: temp_dir.path().to_path_buf(),
+        summarization_model: None,
     };
 
     // Create empty session
@@ -166,7 +162,6 @@ async fn test_empty_session_save_restore() {
     let stats = memory2.stats();
     assert_eq!(stats.working_memory_turns, 0);
     assert_eq!(stats.summary_count, 0);
-    assert_eq!(stats.total_turns, 0);
 
     println!("✅ Empty session save/restore works");
 }
@@ -176,13 +171,13 @@ async fn test_session_with_workspace_path() {
     let temp_dir = TempDir::new().unwrap();
 
     let config = MemoryConfig {
-        enabled: true,
         working_memory_limit: 10,
         summary_limit: 20,
         enable_background_summarization: false,
         auto_checkpoint: true,
-        checkpoint_interval_seconds: 300,
+        checkpoint_interval: Duration::from_secs(300),
         log_directory: temp_dir.path().to_path_buf(),
+        summarization_model: None,
     };
 
     let workspace_path = Some(std::path::PathBuf::from("/home/user/project"));
@@ -222,13 +217,13 @@ async fn test_session_json_format() {
     let temp_dir = TempDir::new().unwrap();
 
     let config = MemoryConfig {
-        enabled: true,
         working_memory_limit: 5,
         summary_limit: 10,
         enable_background_summarization: false,
         auto_checkpoint: true,
-        checkpoint_interval_seconds: 300,
+        checkpoint_interval: Duration::from_secs(300),
         log_directory: temp_dir.path().to_path_buf(),
+        summarization_model: None,
     };
 
     let mut memory = SimpleMemory::new(config.clone(), None);

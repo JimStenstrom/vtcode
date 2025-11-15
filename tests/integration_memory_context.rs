@@ -1,5 +1,6 @@
 //! Integration tests for Memory + Context integration
 
+use std::time::Duration;
 use vtcode_llm_types::Message;
 use vtcode_memory::{ConversationTurn, MemoryConfig, MemoryManager, SimpleMemory};
 
@@ -7,13 +8,13 @@ use vtcode_memory::{ConversationTurn, MemoryConfig, MemoryManager, SimpleMemory}
 async fn test_memory_context_building() {
     // Setup
     let config = MemoryConfig {
-        enabled: true,
         working_memory_limit: 5,
         summary_limit: 10,
         enable_background_summarization: false, // Sync for testing
         auto_checkpoint: false,
-        checkpoint_interval_seconds: 300,
+        checkpoint_interval: Duration::from_secs(300),
         log_directory: std::env::temp_dir().join("vtcode_test_sessions"),
+        summarization_model: None,
     };
 
     let mut memory = SimpleMemory::new(config, None);
@@ -37,7 +38,6 @@ async fn test_memory_context_building() {
         "Should have 5 in working memory"
     );
     assert!(stats.summary_count > 0, "Should have summaries");
-    assert_eq!(stats.total_turns, 10, "Should have 10 total turns");
 
     // Build context
     let context = memory.build_context("What did we discuss?");
@@ -97,13 +97,13 @@ async fn test_historical_query_detection() {
 #[tokio::test]
 async fn test_memory_overflow_to_summaries() {
     let config = MemoryConfig {
-        enabled: true,
         working_memory_limit: 3,
         summary_limit: 10,
         enable_background_summarization: false,
         auto_checkpoint: false,
-        checkpoint_interval_seconds: 300,
+        checkpoint_interval: Duration::from_secs(300),
         log_directory: std::env::temp_dir().join("vtcode_test_overflow"),
+        summarization_model: None,
     };
 
     let mut memory = SimpleMemory::new(config, None);
@@ -120,7 +120,6 @@ async fn test_memory_overflow_to_summaries() {
         "Should have 3 in working memory"
     );
     assert_eq!(stats.summary_count, 3, "Should have 3 summaries");
-    assert_eq!(stats.total_turns, 6, "Should have 6 total turns");
 
     println!("✅ Memory overflow to summaries works");
 }
@@ -128,13 +127,13 @@ async fn test_memory_overflow_to_summaries() {
 #[tokio::test]
 async fn test_memory_context_with_tool_calls() {
     let config = MemoryConfig {
-        enabled: true,
         working_memory_limit: 10,
         summary_limit: 20,
         enable_background_summarization: false,
         auto_checkpoint: false,
-        checkpoint_interval_seconds: 300,
+        checkpoint_interval: Duration::from_secs(300),
         log_directory: std::env::temp_dir().join("vtcode_test_tools"),
+        summarization_model: None,
     };
 
     let mut memory = SimpleMemory::new(config, None);
@@ -181,7 +180,6 @@ async fn test_empty_memory_context() {
     let stats = memory.stats();
     assert_eq!(stats.working_memory_turns, 0);
     assert_eq!(stats.summary_count, 0);
-    assert_eq!(stats.total_turns, 0);
 
     println!("✅ Empty memory context works");
 }
