@@ -1,0 +1,38 @@
+[package]
+name = "vtcode-llm-ollama"
+version = "0.43.6"
+edition = "2024"
+authors = ["vinhnx <vinhnx@users.noreply.github.com>"]
+description = "Ollama provider implementation for VTCode"
+license = "MIT"
+publish = false
+categories = ["api-bindings", "science::ml"]
+keywords = ["vtcode", "llm", "ai", "ollama"]
+
+[dependencies]
+# Core vtcode dependencies
+vtcode-commons = { path = "../vtcode-commons", version = "0.43.6" }
+vtcode-config = { path = "../vtcode-config", version = "0.43.6" }
+vtcode-llm-types = { path = "../vtcode-llm-types", version = "0.43.6" }
+vtcode-llm-common = { path = "../vtcode-llm-common", version = "0.43.6" }
+
+# Async runtime
+async-stream = "0.3"
+async-trait = "0.1"
+tokio = { version = "1.48", features = ["sync", "macros"] }
+futures = "0.3"
+
+# HTTP client
+reqwest = { version = "0.12", features = ["json", "stream"] }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Error handling
+anyhow = "1.0"
+thiserror = "2.0"
+
+[dev-dependencies]
+tempfile = "3"
+assert_fs = "1.1"

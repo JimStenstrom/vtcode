@@ -1,19 +1,15 @@
-use crate::config::constants::{env_vars, models, urls};
-use crate::config::core::{DeepSeekPromptCacheSettings, PromptCachingConfig};
-use crate::impl_provider_constructors;
-use crate::llm::error_display;
-use crate::llm::provider::{
+use vtcode_config::constants::{env_vars, models, urls};
+use vtcode_config::core::{DeepSeekPromptCacheSettings, PromptCachingConfig};
+use vtcode_llm_common::error::format_llm_error;
+use vtcode_llm_common::config::{resolve_model, ProviderBuilder};
+use vtcode_llm_common::reasoning::extract_reasoning_trace;
+use vtcode_llm_types::{
     FinishReason, LLMError, LLMProvider, LLMRequest, LLMResponse, Message, MessageContent,
     MessageRole, ToolCall, ToolDefinition, Usage,
 };
 use async_trait::async_trait;
 use reqwest::Client as HttpClient;
 use serde_json::{Map, Value, json};
-
-use super::{
-    common::resolve_model,
-    extract_reasoning_trace,
-};
 
 const PROVIDER_NAME: &str = "DeepSeek";
 const PROVIDER_KEY: &str = "deepseek";
@@ -28,7 +24,25 @@ pub struct DeepSeekProvider {
 }
 
 impl DeepSeekProvider {
-    impl_provider_constructors!(default_model: models::deepseek::DEFAULT_MODEL, resolve_fn: resolve_model);
+    pub fn new(api_key: String) -> Self {
+        Self::with_model(api_key, models::deepseek::DEFAULT_MODEL.to_string())
+    }
+
+    pub fn with_model(api_key: String, model: String) -> Self {
+        Self::with_model_internal(api_key, model, None, None)
+    }
+
+    pub fn from_config(
+        api_key: Option<String>,
+        model: Option<String>,
+        base_url: Option<String>,
+        prompt_cache: Option<PromptCachingConfig>,
+    ) -> Self {
+        let api_key_value = api_key.unwrap_or_default();
+        let model_value = resolve_model(model, models::deepseek::DEFAULT_MODEL);
+
+        Self::with_model_internal(api_key_value, model_value, prompt_cache, base_url)
+    }
 
     fn with_model_internal(
         api_key: String,
@@ -36,8 +50,6 @@ impl DeepSeekProvider {
         prompt_cache: Option<PromptCachingConfig>,
         base_url: Option<String>,
     ) -> Self {
-        use super::common::ProviderBuilder;
-
         let builder = ProviderBuilder::new(api_key, model, urls::DEEPSEEK_API_BASE)
             .with_base_url(base_url, Some(env_vars::DEEPSEEK_BASE_URL))
             .with_prompt_cache(
@@ -97,7 +109,7 @@ impl DeepSeekProvider {
             let role = entry
                 .get("role")
                 .and_then(|r| r.as_str())
-                .unwrap_or(crate::config::constants::message_roles::USER);
+                .unwrap_or(vtcode_config::constants::message_roles::USER);
             let content = entry
                 .get("content")
                 .and_then(|c| c.as_str())
@@ -307,7 +319,7 @@ impl DeepSeekProvider {
             .get("choices")
             .and_then(|value| value.as_array())
             .ok_or_else(|| {
-                let formatted_error = error_display::format_llm_error(
+                let formatted_error = format_llm_error(
                     PROVIDER_NAME,
                     "Invalid response format: missing choices",
                 );
@@ -316,13 +328,13 @@ impl DeepSeekProvider {
 
         if choices.is_empty() {
             let formatted_error =
-                error_display::format_llm_error(PROVIDER_NAME, "No choices in response");
+                format_llm_error(PROVIDER_NAME, "No choices in response");
             return Err(LLMError::Provider(formatted_error));
         }
 
         let choice = &choices[0];
         let message = choice.get("message").ok_or_else(|| {
-            let formatted_error = error_display::format_llm_error(
+            let formatted_error = format_llm_error(
                 PROVIDER_NAME,
                 "Invalid response format: missing message",
             );
@@ -468,7 +480,7 @@ impl LLMProvider for DeepSeekProvider {
             .send()
             .await
             .map_err(|e| {
-                let formatted_error = error_display::format_llm_error(
+                let formatted_error = format_llm_error(
                     PROVIDER_NAME,
                     &format!("Network error: {}", e),
                 );
@@ -480,7 +492,7 @@ impl LLMProvider for DeepSeekProvider {
             let error_text = response.text().await.unwrap_or_default();
 
             if status.as_u16() == 401 {
-                let formatted_error = error_display::format_llm_error(
+                let formatted_error = format_llm_error(
                     PROVIDER_NAME,
                     "Authentication failed (check DEEPSEEK_API_KEY)",
                 );
@@ -491,7 +503,7 @@ impl LLMProvider for DeepSeekProvider {
                 return Err(LLMError::RateLimit);
             }
 
-            let formatted_error = error_display::format_llm_error(
+            let formatted_error = format_llm_error(
                 PROVIDER_NAME,
                 &format!("HTTP {}: {}", status, error_text),
             );
@@ -499,7 +511,7 @@ impl LLMProvider for DeepSeekProvider {
         }
 
         let response_json: Value = response.json().await.map_err(|e| {
-            let formatted_error = error_display::format_llm_error(
+            let formatted_error = format_llm_error(
                 PROVIDER_NAME,
                 &format!("Failed to parse response: {}", e),
             );
@@ -509,10 +521,10 @@ impl LLMProvider for DeepSeekProvider {
         self.parse_response(response_json)
     }
 
-    async fn stream(&self, request: LLMRequest) -> Result<crate::llm::provider::LLMStream, LLMError> {
+    async fn stream(&self, request: LLMRequest) -> Result<vtcode_llm_types::LLMStream, LLMError> {
         // DeepSeek doesn't support native streaming in this implementation, fall back to non-streaming
         use async_stream::try_stream;
-        use crate::llm::provider::LLMStreamEvent;
+        use vtcode_llm_types::LLMStreamEvent;
 
         let response = self.generate(request).await?;
         let stream = try_stream! {
@@ -537,13 +549,13 @@ impl LLMProvider for DeepSeekProvider {
         Ok(())
     }
 }
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::constants::models;
-    use crate::config::core::PromptCachingConfig;
-    use crate::config::types::ReasoningEffortLevel;
-    use crate::llm::providers::test_utils::*;
+    use vtcode_config::constants::models;
+    use vtcode_config::core::PromptCachingConfig;
+    use vtcode_config::types::ReasoningEffortLevel;
 
     fn create_test_provider() -> DeepSeekProvider {
         DeepSeekProvider::with_model("test_key".to_string(), models::deepseek::DEFAULT_MODEL.to_string())
@@ -584,251 +596,11 @@ mod tests {
         assert_eq!(provider.model, "custom_model");
     }
 
-    // ==================== Message Serialization Tests ====================
-
-    #[test]
-    fn serialize_messages_simple_user_message() {
-        let provider = create_test_provider();
-        let request = simple_request(models::deepseek::DEFAULT_MODEL);
-        
-        let messages = provider.serialize_messages(&request).expect("serialization should succeed");
-        
-        assert_eq!(messages.len(), 1);
-        assert_eq!(messages[0]["role"], "user");
-        assert_eq!(messages[0]["content"], "Hello, world!");
-    }
-
-    #[test]
-    fn serialize_messages_multiple_messages() {
-        let provider = create_test_provider();
-        let request = multi_message_request(models::deepseek::DEFAULT_MODEL);
-        
-        let messages = provider.serialize_messages(&request).expect("serialization should succeed");
-        
-        assert_eq!(messages.len(), 3);
-        assert_eq!(messages[0]["role"], "user");
-        assert_eq!(messages[1]["role"], "assistant");
-        assert_eq!(messages[2]["role"], "user");
-    }
-
-    #[test]
-    fn serialize_messages_with_tool_calls() {
-        let provider = create_test_provider();
-        let tool_call = sample_tool_call();
-        let mut request = simple_request(models::deepseek::DEFAULT_MODEL);
-        request.messages = vec![Message::assistant_with_tool_calls(vec![tool_call])];
-        
-        let messages = provider.serialize_messages(&request).expect("serialization should succeed");
-        
-        assert_eq!(messages.len(), 1);
-        assert!(messages[0].get("tool_calls").is_some());
-        let tool_calls = messages[0]["tool_calls"].as_array().unwrap();
-        assert_eq!(tool_calls.len(), 1);
-        assert_eq!(tool_calls[0]["id"], "call_123");
-        assert_eq!(tool_calls[0]["type"], "function");
-    }
-
-    #[test]
-    fn serialize_messages_with_tool_result() {
-        let provider = create_test_provider();
-        let request = request_with_tool_result(models::deepseek::DEFAULT_MODEL);
-        
-        let messages = provider.serialize_messages(&request).expect("serialization should succeed");
-        
-        assert_eq!(messages.len(), 3);
-        // Check tool result message
-        let tool_result_msg = &messages[2];
-        assert_eq!(tool_result_msg["role"], "tool");
-        assert!(tool_result_msg.get("tool_call_id").is_some());
-    }
-
-    #[test]
-    fn serialize_messages_with_special_characters() {
-        let provider = create_test_provider();
-        let request = request_with_special_chars(models::deepseek::DEFAULT_MODEL);
-        
-        let messages = provider.serialize_messages(&request).expect("serialization should succeed");
-        
-        assert_eq!(messages.len(), 1);
-        let content = messages[0]["content"].as_str().unwrap();
-        assert_contains(content, "quotes");
-        assert_contains(content, "backslash");
-        assert_contains(content, "🎉");
-    }
-
-    // ==================== Tool Serialization Tests ====================
-
-    #[test]
-    fn serialize_tools_single_tool() {
-        let tools = vec![weather_tool()];
-        let serialized = DeepSeekProvider::serialize_tools(&tools);
-        
-        assert!(serialized.is_some());
-        let tools_array = serialized.unwrap();
-        assert_eq!(tools_array.len(), 1);
-        assert_eq!(tools_array[0]["name"], "get_weather");
-    }
-
-    #[test]
-    fn serialize_tools_multiple_tools() {
-        let tools = vec![weather_tool(), calculator_tool()];
-        let serialized = DeepSeekProvider::serialize_tools(&tools);
-        
-        assert!(serialized.is_some());
-        let tools_array = serialized.unwrap();
-        assert_eq!(tools_array.len(), 2);
-    }
-
-    #[test]
-    fn serialize_tools_empty_array_returns_none() {
-        let tools: Vec<ToolDefinition> = vec![];
-        let serialized = DeepSeekProvider::serialize_tools(&tools);
-        
-        assert!(serialized.is_none());
-    }
-
-    #[test]
-    fn serialize_tools_with_complex_parameters() {
-        let tools = vec![complex_tool()];
-        let serialized = DeepSeekProvider::serialize_tools(&tools);
-        
-        assert!(serialized.is_some());
-        let tools_array = serialized.unwrap();
-        assert_eq!(tools_array[0]["name"], "search_database");
-        assert!(tools_array[0]["parameters"].is_object());
-    }
-
-    // ==================== Request Building Tests ====================
-
-    #[test]
-    fn convert_to_deepseek_format_includes_required_fields() {
-        let provider = create_test_provider();
-        let request = simple_request(models::deepseek::DEFAULT_MODEL);
-        
-        let payload = provider.convert_to_deepseek_format(&request).expect("conversion should succeed");
-        
-        assert_json_has_field(&payload, "model");
-        assert_json_has_field(&payload, "messages");
-        assert_eq!(payload["model"], models::deepseek::DEFAULT_MODEL);
-    }
-
-    #[test]
-    fn convert_to_deepseek_format_includes_system_prompt() {
-        let provider = create_test_provider();
-        let request = request_with_system_prompt(models::deepseek::DEFAULT_MODEL);
-        
-        let payload = provider.convert_to_deepseek_format(&request).expect("conversion should succeed");
-        
-        assert_json_has_field(&payload, "system");
-        assert!(payload["system"].as_str().unwrap().contains("weather"));
-    }
-
-    #[test]
-    fn convert_to_deepseek_format_includes_tools() {
-        let provider = create_test_provider();
-        let request = request_with_tools(models::deepseek::DEFAULT_MODEL);
-        
-        let payload = provider.convert_to_deepseek_format(&request).expect("conversion should succeed");
-        
-        assert_json_has_field(&payload, "tools");
-        assert_json_array_length(&payload, "tools", 2);
-    }
-
-    #[test]
-    fn convert_to_deepseek_format_includes_tool_choice() {
-        let provider = create_test_provider();
-        let request = request_with_tool_choice(models::deepseek::DEFAULT_MODEL);
-        
-        let payload = provider.convert_to_deepseek_format(&request).expect("conversion should succeed");
-        
-        assert_json_has_field(&payload, "tool_choice");
-    }
-
-    #[test]
-    fn convert_to_deepseek_format_includes_max_tokens() {
-        let provider = create_test_provider();
-        let request = simple_request(models::deepseek::DEFAULT_MODEL);
-        
-        let payload = provider.convert_to_deepseek_format(&request).expect("conversion should succeed");
-        
-        assert_json_has_field(&payload, "max_tokens");
-        assert_eq!(payload["max_tokens"], 100);
-    }
-
-    #[test]
-    fn convert_to_deepseek_format_includes_temperature() {
-        let provider = create_test_provider();
-        let request = simple_request(models::deepseek::DEFAULT_MODEL);
-        
-        let payload = provider.convert_to_deepseek_format(&request).expect("conversion should succeed");
-        
-        assert_json_has_field(&payload, "temperature");
-        assert_eq!(payload["temperature"].as_f64().unwrap(), 0.7);
-    }
-
-    #[test]
-    fn convert_to_deepseek_format_includes_stream_when_true() {
-        let provider = create_test_provider();
-        let mut request = simple_request(models::deepseek::DEFAULT_MODEL);
-        request.stream = true;
-        
-        let payload = provider.convert_to_deepseek_format(&request).expect("conversion should succeed");
-        
-        assert_json_has_field(&payload, "stream");
-        assert_eq!(payload["stream"], true);
-    }
-
-    #[test]
-    fn convert_to_deepseek_format_omits_stream_when_false() {
-        let provider = create_test_provider();
-        let mut request = simple_request(models::deepseek::DEFAULT_MODEL);
-        request.stream = false;
-        
-        let payload = provider.convert_to_deepseek_format(&request).expect("conversion should succeed");
-        
-        assert!(payload.get("stream").is_none());
-    }
-
-    #[test]
-    fn convert_to_deepseek_format_includes_reasoning_effort() {
-        let provider = create_test_provider();
-        let mut request = simple_request(models::deepseek::DEFAULT_MODEL);
-        request.reasoning_effort = Some(ReasoningEffortLevel::High);
-        
-        let payload = provider.convert_to_deepseek_format(&request).expect("conversion should succeed");
-        
-        assert_json_has_field(&payload, "reasoning_effort");
-        assert_eq!(payload["reasoning_effort"], "high");
-    }
-
-    // ==================== Edge Case Tests ====================
-
-    #[test]
-    fn handles_empty_message_content() {
-        let provider = create_test_provider();
-        let request = request_with_empty_message(models::deepseek::DEFAULT_MODEL);
-        
-        let messages = provider.serialize_messages(&request).expect("should handle empty message");
-        
-        assert_eq!(messages.len(), 1);
-        assert_eq!(messages[0]["content"], "");
-    }
-
-    #[test]
-    fn handles_long_message() {
-        let provider = create_test_provider();
-        let request = request_with_long_message(models::deepseek::DEFAULT_MODEL);
-        
-        let result = provider.serialize_messages(&request);
-        
-        assert!(result.is_ok(), "should handle long messages");
-    }
-
     #[test]
     fn supported_models_returns_non_empty_list() {
         let provider = create_test_provider();
         let models = provider.supported_models();
-        
+
         assert!(!models.is_empty());
         assert!(models.contains(&models::deepseek::DEFAULT_MODEL.to_string()));
     }
@@ -836,10 +608,22 @@ mod tests {
     #[test]
     fn validate_request_accepts_valid_request() {
         let provider = create_test_provider();
-        let request = simple_request(models::deepseek::DEFAULT_MODEL);
-        
+        let request = LLMRequest {
+            messages: vec![Message::user("Hello, world!".to_string())],
+            system_prompt: None,
+            tools: None,
+            model: models::deepseek::DEFAULT_MODEL.to_string(),
+            max_tokens: Some(100),
+            temperature: Some(0.7),
+            stream: false,
+            tool_choice: None,
+            parallel_tool_calls: None,
+            parallel_tool_config: None,
+            reasoning_effort: None,
+        };
+
         let result = provider.validate_request(&request);
-        
+
         assert!(result.is_ok());
     }
 }

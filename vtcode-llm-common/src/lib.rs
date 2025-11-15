@@ -20,5 +20,5 @@ pub mod reasoning;
 
 // Re-export commonly used functions
 pub use error::format_llm_error;
-pub use config::{resolve_model, override_base_url, ProviderBuilder};
+pub use config::{resolve_model, override_base_url, forward_prompt_cache_with_state, ProviderBuilder};
 pub use reasoning::{extract_reasoning_trace, split_reasoning_from_text, ReasoningBuffer};

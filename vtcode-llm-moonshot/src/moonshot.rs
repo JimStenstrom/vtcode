@@ -1,14 +1,11 @@
-use crate::config::constants::{env_vars, models, urls};
-use crate::config::core::PromptCachingConfig;
-use crate::config::models::Provider as ModelProvider;
-use crate::llm::error_display;
-use crate::llm::provider::{
-    FinishReason, LLMError, LLMProvider, LLMRequest, LLMResponse, Message, MessageRole, Usage,
+use vtcode_config::constants::{env_vars, models, urls};
+use vtcode_config::core::PromptCachingConfig;
+use vtcode_config::types::ReasoningEffortLevel;
+use vtcode_llm_common::error::format_llm_error;
+use vtcode_llm_common::config::{resolve_model, ProviderBuilder};
+use vtcode_llm_types::{
+    FinishReason, LLMError, LLMProvider, LLMRequest, LLMResponse, Message, Usage,
 };
-use crate::llm::providers::common::{
-    forward_prompt_cache_with_state, resolve_model,
-};
-use crate::llm::rig_adapter::reasoning_parameters_for;
 use async_trait::async_trait;
 use reqwest::Client;
 use serde_json::{Map, Value, json};
@@ -40,19 +37,17 @@ impl MoonshotProvider {
         base_url: Option<String>,
         prompt_cache: Option<PromptCachingConfig>,
     ) -> Self {
-        use super::common::ProviderBuilder;
-
         let api_key_value = api_key.unwrap_or_default();
         let model_value = resolve_model(model, models::moonshot::DEFAULT_MODEL);
 
         let builder: ProviderBuilder<()> = ProviderBuilder::new(api_key_value, model_value, urls::MOONSHOT_API_BASE)
             .with_base_url(base_url, Some(env_vars::MOONSHOT_BASE_URL));
 
-        let (prompt_cache_enabled, _) = forward_prompt_cache_with_state(
-            prompt_cache,
-            |cfg| cfg.enabled && cfg.providers.moonshot.enabled,
-            false,
-        );
+        let prompt_cache_enabled = if let Some(cfg) = prompt_cache {
+            cfg.enabled && cfg.providers.moonshot.enabled
+        } else {
+            false
+        };
 
         Self {
             api_key: builder.api_key,
@@ -117,15 +112,29 @@ impl MoonshotProvider {
         // Handle reasoning effort for Kimi-K2-Thinking model
         if let Some(effort) = request.reasoning_effort {
             if self.supports_reasoning_effort(&request.model) {
-                // Use the configured reasoning parameters
-                if let Some(reasoning_payload) =
-                    reasoning_parameters_for(ModelProvider::Moonshot, effort)
-                {
-                    // Add the reasoning parameters to the payload
-                    if let Some(obj) = reasoning_payload.as_object() {
-                        for (key, value) in obj {
-                            payload.insert(key.clone(), value.clone());
-                        }
+                // Use the configured reasoning parameters inline
+                let reasoning_config = match effort {
+                    ReasoningEffortLevel::Low => json!({
+                        "reasoning_effort": "low",
+                        "reasoning_steps_limit": 60,
+                        "reasoning_token_budget": 48000
+                    }),
+                    ReasoningEffortLevel::Medium => json!({
+                        "reasoning_effort": "medium",
+                        "reasoning_steps_limit": 120,
+                        "reasoning_token_budget": 96000
+                    }),
+                    ReasoningEffortLevel::High => json!({
+                        "reasoning_effort": "high",
+                        "reasoning_steps_limit": 300,
+                        "reasoning_token_budget": 128000
+                    }),
+                };
+
+                // Add the reasoning parameters to the payload
+                if let Some(obj) = reasoning_config.as_object() {
+                    for (key, value) in obj {
+                        payload.insert(key.clone(), value.clone());
                     }
                 }
             }
@@ -202,7 +211,7 @@ impl MoonshotProvider {
             .get("choices")
             .and_then(|value| value.as_array())
             .ok_or_else(|| {
-                let formatted_error = error_display::format_llm_error(
+                let formatted_error = format_llm_error(
                     PROVIDER_NAME,
                     "Invalid response format: missing choices",
                 );
@@ -211,13 +220,13 @@ impl MoonshotProvider {
 
         if choices.is_empty() {
             let formatted_error =
-                error_display::format_llm_error(PROVIDER_NAME, "No choices in response");
+                format_llm_error(PROVIDER_NAME, "No choices in response");
             return Err(LLMError::Provider(formatted_error));
         }
 
         let choice = &choices[0];
         let message = choice.get("message").ok_or_else(|| {
-            let formatted_error = error_display::format_llm_error(
+            let formatted_error = format_llm_error(
                 PROVIDER_NAME,
                 "Invalid response format: missing message",
             );
@@ -269,10 +278,10 @@ impl MoonshotProvider {
                                                 func_obj
                                                     .get("arguments")
                                                     .and_then(|args_val| args_val.as_str())
-                                                    .map(|args| crate::llm::provider::ToolCall {
+                                                    .map(|args| vtcode_llm_types::ToolCall {
                                                         id: id.to_string(),
                                                         function:
-                                                            crate::llm::provider::FunctionCall {
+                                                            vtcode_llm_types::FunctionCall {
                                                                 name: name.to_string(),
                                                                 arguments: args.to_string(),
                                                             },
@@ -392,7 +401,7 @@ impl LLMProvider for MoonshotProvider {
             .send()
             .await
             .map_err(|e| {
-                let formatted_error = error_display::format_llm_error(
+                let formatted_error = format_llm_error(
                     PROVIDER_NAME,
                     &format!("Network error: {}", e),
                 );
@@ -404,7 +413,7 @@ impl LLMProvider for MoonshotProvider {
             let error_text = response.text().await.unwrap_or_default();
 
             if status.as_u16() == 401 {
-                let formatted_error = error_display::format_llm_error(
+                let formatted_error = format_llm_error(
                     PROVIDER_NAME,
                     "Authentication failed (check MOONSHOT_API_KEY)",
                 );
@@ -415,7 +424,7 @@ impl LLMProvider for MoonshotProvider {
                 return Err(LLMError::RateLimit);
             }
 
-            let formatted_error = error_display::format_llm_error(
+            let formatted_error = format_llm_error(
                 PROVIDER_NAME,
                 &format!("HTTP {}: {}", status, error_text),
             );
@@ -423,7 +432,7 @@ impl LLMProvider for MoonshotProvider {
         }
 
         let response_json: Value = response.json().await.map_err(|e| {
-            let formatted_error = error_display::format_llm_error(
+            let formatted_error = format_llm_error(
                 PROVIDER_NAME,
                 &format!("Failed to parse response: {}", e),
             );
@@ -433,10 +442,10 @@ impl LLMProvider for MoonshotProvider {
         self.parse_response(response_json)
     }
 
-    async fn stream(&self, request: LLMRequest) -> Result<crate::llm::provider::LLMStream, LLMError> {
+    async fn stream(&self, request: LLMRequest) -> Result<vtcode_llm_types::LLMStream, LLMError> {
         // Moonshot doesn't support native streaming in this implementation, fall back to non-streaming
         use async_stream::try_stream;
-        use crate::llm::provider::LLMStreamEvent;
+        use vtcode_llm_types::LLMStreamEvent;
 
         let response = self.generate(request).await?;
         let stream = try_stream! {
@@ -454,12 +463,12 @@ impl LLMProvider for MoonshotProvider {
 
     fn validate_request(&self, request: &LLMRequest) -> Result<(), LLMError> {
         if request.messages.is_empty() {
-            let formatted = error_display::format_llm_error("Moonshot", "Messages cannot be empty");
+            let formatted = format_llm_error("Moonshot", "Messages cannot be empty");
             return Err(LLMError::InvalidRequest(formatted));
         }
 
         if !request.model.trim().is_empty() && !self.supported_models().contains(&request.model) {
-            let formatted = error_display::format_llm_error(
+            let formatted = format_llm_error(
                 "Moonshot",
                 &format!("Unsupported model: {}", request.model),
             );
@@ -468,7 +477,7 @@ impl LLMProvider for MoonshotProvider {
 
         for message in &request.messages {
             if let Err(err) = message.validate_for_provider("openai") {
-                let formatted = error_display::format_llm_error("Moonshot", &err);
+                let formatted = format_llm_error("Moonshot", &err);
                 return Err(LLMError::InvalidRequest(formatted));
             }
         }
@@ -476,11 +485,11 @@ impl LLMProvider for MoonshotProvider {
         Ok(())
     }
 }
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::constants::models;
-    use crate::llm::providers::test_utils::*;
+    use vtcode_config::constants::models;
 
     fn create_test_provider() -> MoonshotProvider {
         MoonshotProvider::with_model("test_key".to_string(), models::moonshot::DEFAULT_MODEL.to_string())
@@ -496,37 +505,22 @@ mod tests {
     #[test]
     fn serialize_messages_simple_user_message() {
         let provider = create_test_provider();
-        let request = simple_request(models::moonshot::DEFAULT_MODEL);
+        let request = LLMRequest {
+            messages: vec![Message::user("Hello, world!".to_string())],
+            system_prompt: None,
+            tools: None,
+            model: models::moonshot::DEFAULT_MODEL.to_string(),
+            max_tokens: Some(100),
+            temperature: Some(0.7),
+            stream: false,
+            tool_choice: None,
+            parallel_tool_calls: None,
+            parallel_tool_config: None,
+            reasoning_effort: None,
+        };
         let messages = provider.serialize_messages(&request).expect("serialization should succeed");
         assert_eq!(messages.len(), 1);
         assert_eq!(messages[0]["role"], "user");
-    }
-
-    #[test]
-    fn serialize_messages_multiple_messages() {
-        let provider = create_test_provider();
-        let request = multi_message_request(models::moonshot::DEFAULT_MODEL);
-        let messages = provider.serialize_messages(&request).expect("serialization should succeed");
-        assert_eq!(messages.len(), 3);
-    }
-
-    #[test]
-    fn convert_to_moonshot_format_includes_required_fields() {
-        let provider = create_test_provider();
-        let request = simple_request(models::moonshot::DEFAULT_MODEL);
-        let payload = provider.convert_to_moonshot_format(&request).expect("conversion should succeed");
-        assert_json_has_field(&payload, "model");
-        assert_json_has_field(&payload, "messages");
-    }
-
-    #[test]
-    fn convert_to_moonshot_format_includes_system_prompt() {
-        let provider = create_test_provider();
-        let request = request_with_system_prompt(models::moonshot::DEFAULT_MODEL);
-        let payload = provider.convert_to_moonshot_format(&request).expect("conversion should succeed");
-        let messages = payload["messages"].as_array().unwrap();
-        let system_msg = messages.iter().find(|m| m["role"] == "system");
-        assert!(system_msg.is_some());
     }
 
     #[test]

@@ -1,0 +1,23 @@
+[package]
+name = "vtcode-llm-xai"
+version = "0.43.6"
+edition = "2024"
+authors = ["vinhnx <vinhnx@users.noreply.github.com>"]
+description = "Standalone xAI LLM provider for VTCode (wraps OpenAI)"
+license = "MIT"
+publish = false
+categories = ["api-bindings", "science::ml"]
+keywords = ["vtcode", "llm", "ai", "xai", "grok"]
+
+[dependencies]
+async-trait = "0.1"
+tokio = { version = "1", features = ["full"] }
+
+# VTCode dependencies
+vtcode-config = { path = "../vtcode-config", version = "0.43.6" }
+vtcode-llm-types = { path = "../vtcode-llm-types", version = "0.43.6" }
+vtcode-llm-common = { path = "../vtcode-llm-common", version = "0.43.6" }
+vtcode-llm-openai = { path = "../vtcode-llm-openai", version = "0.43.6" }
+
+[dev-dependencies]
+tokio-test = "0.4"

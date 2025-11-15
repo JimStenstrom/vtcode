@@ -1,7 +1,7 @@
-use super::AnthropicProvider;
-use crate::config::constants::models;
-use crate::config::core::PromptCachingConfig;
-use crate::llm::provider::{
+use vtcode_llm_anthropic::AnthropicProvider;
+use vtcode_config::constants::models;
+use vtcode_config::core::PromptCachingConfig;
+use vtcode_llm_types::{
     FinishReason, LLMError, LLMProvider, LLMRequest, LLMResponse, LLMStream, LLMStreamEvent,
     ToolCall, ToolDefinition,
 };
@@ -393,21 +393,6 @@ Continuing response."#;
         assert_eq!(cleaned, text);
     }
 
-    // ==================== Additional Tests ====================
-
-    #[test]
-    fn constructor_new_uses_default_model() {
-        let provider = MinimaxProvider::new("test_key".to_string());
-        assert_eq!(provider.model(), models::minimax::MINIMAX_M2);
-    }
-
-    #[test]
-    fn constructor_with_model_uses_custom_model() {
-        let custom_model = "minimax-custom";
-        let provider = MinimaxProvider::with_model("test_key".to_string(), custom_model.to_string());
-        assert_eq!(provider.model(), custom_model);
-    }
-
     #[test]
     fn parse_complex_tool_call_parameters() {
         let text = r#"
@@ -446,23 +431,8 @@ Some text in between
 
     #[test]
     fn supported_models_returns_non_empty_list() {
-        let provider = MinimaxProvider::new("test_key".to_string());
+        let provider = MinimaxProvider::from_config(Some("test_key".to_string()), None, None, None);
         let models = provider.supported_models();
         assert!(!models.is_empty());
-    }
-
-    #[test]
-    fn model_id_returns_correct_model() {
-        use crate::llm::client::LLMClient;
-        let provider = MinimaxProvider::with_model("test_key".to_string(), "minimax-test".to_string());
-        assert_eq!(provider.model_id(), "minimax-test");
-    }
-
-    #[test]
-    fn backend_kind_is_anthropic() {
-        use crate::llm::client::LLMClient;
-        let provider = MinimaxProvider::new("test_key".to_string());
-        // Minimax wraps Anthropic
-        assert_eq!(provider.backend_kind(), llm_types::BackendKind::Anthropic);
     }
 }

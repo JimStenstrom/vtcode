@@ -91,6 +91,31 @@ where
     }
 }
 
+/// Forward prompt cache configuration with state tracking
+///
+/// Returns (enabled_state, optional_config) tuple where:
+/// - enabled_state: true if predicate matches, false otherwise (or default_enabled if no config)
+/// - optional_config: Some(config) if predicate matches, None otherwise
+pub fn forward_prompt_cache_with_state<PredicateFn>(
+    prompt_cache: Option<PromptCachingConfig>,
+    predicate: PredicateFn,
+    default_enabled: bool,
+) -> (bool, Option<PromptCachingConfig>)
+where
+    PredicateFn: Fn(&PromptCachingConfig) -> bool,
+{
+    match prompt_cache {
+        Some(cfg) => {
+            if predicate(&cfg) {
+                (true, Some(cfg))
+            } else {
+                (false, None)
+            }
+        }
+        None => (default_enabled, None),
+    }
+}
+
 /// Generic builder for LLM providers with common initialization logic
 ///
 /// This builder eliminates duplication across all provider implementations by

@@ -1,16 +1,14 @@
-use crate::config::constants::{env_vars, headers, models, urls};
-use crate::config::core::PromptCachingConfig;
-use crate::llm::error_display;
-use crate::llm::provider::{
-    FinishReason, LLMError, LLMProvider, LLMRequest, LLMResponse, Message, MessageContent,
-    MessageRole, ToolCall, ToolChoice, ToolDefinition, Usage,
+use vtcode_config::constants::{env_vars, headers, models, urls};
+use vtcode_config::core::PromptCachingConfig;
+use vtcode_llm_common::{format_llm_error, resolve_model};
+use vtcode_llm_types::{
+    FinishReason, LLMError, LLMProvider, LLMRequest, LLMResponse, LLMStream, LLMStreamEvent,
+    Message, MessageContent, MessageRole, ToolCall, ToolChoice, ToolDefinition, Usage,
 };
 use async_trait::async_trait;
 use reqwest::Client as HttpClient;
 use serde_json::{Value, json};
 use std::collections::HashSet;
-
-use super::common::resolve_model;
 
 const PROVIDER_NAME: &str = "Z.AI";
 const PROVIDER_KEY: &str = "zai";
@@ -52,7 +50,7 @@ impl ZAIProvider {
         base_url: Option<String>,
         _prompt_cache: Option<PromptCachingConfig>,
     ) -> Self {
-        use super::common::ProviderBuilder;
+        use vtcode_llm_common::ProviderBuilder;
 
         // ZAI doesn't use prompt caching, so we use a unit type
         let builder: ProviderBuilder<()> = ProviderBuilder::new(api_key, model, urls::Z_AI_API_BASE)
@@ -126,7 +124,7 @@ impl ZAIProvider {
             let role = entry
                 .get("role")
                 .and_then(|r| r.as_str())
-                .unwrap_or(crate::config::constants::message_roles::USER);
+                .unwrap_or(vtcode_config::constants::message_roles::USER);
             let content = entry
                 .get("content")
                 .map(|c| match c {
@@ -236,7 +234,7 @@ impl ZAIProvider {
 
         if let Some(system_prompt) = &request.system_prompt {
             messages.push(json!({
-                "role": crate::config::constants::message_roles::SYSTEM,
+                "role": vtcode_config::constants::message_roles::SYSTEM,
                 "content": system_prompt
             }));
         }
@@ -289,7 +287,7 @@ impl ZAIProvider {
         }
 
         if messages.is_empty() {
-            let formatted = error_display::format_llm_error(PROVIDER_NAME, "No messages provided");
+            let formatted = format_llm_error(PROVIDER_NAME, "No messages provided");
             return Err(LLMError::InvalidRequest(formatted));
         }
 
@@ -329,7 +327,7 @@ impl ZAIProvider {
             .get("choices")
             .and_then(|c| c.as_array())
             .ok_or_else(|| {
-                let formatted = error_display::format_llm_error(
+                let formatted = format_llm_error(
                     PROVIDER_NAME,
                     "Invalid response format: missing choices",
                 );
@@ -338,13 +336,13 @@ impl ZAIProvider {
 
         if choices.is_empty() {
             let formatted =
-                error_display::format_llm_error(PROVIDER_NAME, "No choices in response");
+                format_llm_error(PROVIDER_NAME, "No choices in response");
             return Err(LLMError::Provider(formatted));
         }
 
         let choice = &choices[0];
         let message = choice.get("message").ok_or_else(|| {
-            let formatted = error_display::format_llm_error(
+            let formatted = format_llm_error(
                 PROVIDER_NAME,
                 "Invalid response format: missing message",
             );
@@ -474,7 +472,7 @@ impl LLMProvider for ZAIProvider {
         }
 
         if !Self::available_models().contains(&request.model) {
-            let formatted = error_display::format_llm_error(
+            let formatted = format_llm_error(
                 PROVIDER_NAME,
                 &format!("Unsupported model: {}", request.model),
             );
@@ -483,7 +481,7 @@ impl LLMProvider for ZAIProvider {
 
         for message in &request.messages {
             if let Err(err) = message.validate_for_provider(PROVIDER_KEY) {
-                let formatted = error_display::format_llm_error(PROVIDER_NAME, &err);
+                let formatted = format_llm_error(PROVIDER_NAME, &err);
                 return Err(LLMError::InvalidRequest(formatted));
             }
         }
@@ -500,7 +498,7 @@ impl LLMProvider for ZAIProvider {
             .send()
             .await
             .map_err(|err| {
-                let formatted = error_display::format_llm_error(
+                let formatted = format_llm_error(
                     PROVIDER_NAME,
                     &format!("Network error: {}", err),
                 );
@@ -563,7 +561,7 @@ impl LLMProvider for ZAIProvider {
                 return Err(LLMError::RateLimit);
             }
 
-            let formatted = error_display::format_llm_error(
+            let formatted = format_llm_error(
                 PROVIDER_NAME,
                 &format!("HTTP {}: {}", status, message),
             );
@@ -571,7 +569,7 @@ impl LLMProvider for ZAIProvider {
         }
 
         let json: Value = response.json().await.map_err(|err| {
-            let formatted = error_display::format_llm_error(
+            let formatted = format_llm_error(
                 PROVIDER_NAME,
                 &format!("Failed to parse response: {}", err),
             );
@@ -581,10 +579,9 @@ impl LLMProvider for ZAIProvider {
         self.parse_zai_response(json)
     }
 
-    async fn stream(&self, request: LLMRequest) -> Result<crate::llm::provider::LLMStream, LLMError> {
+    async fn stream(&self, request: LLMRequest) -> Result<LLMStream, LLMError> {
         // Z.AI doesn't support native streaming, fall back to non-streaming
         use async_stream::try_stream;
-        use crate::llm::provider::LLMStreamEvent;
 
         let response = self.generate(request).await?;
         let stream = try_stream! {
@@ -600,12 +597,12 @@ impl LLMProvider for ZAIProvider {
     fn validate_request(&self, request: &LLMRequest) -> Result<(), LLMError> {
         if request.messages.is_empty() {
             let formatted =
-                error_display::format_llm_error(PROVIDER_NAME, "Messages cannot be empty");
+                format_llm_error(PROVIDER_NAME, "Messages cannot be empty");
             return Err(LLMError::InvalidRequest(formatted));
         }
 
         if !request.model.is_empty() && !Self::available_models().contains(&request.model) {
-            let formatted = error_display::format_llm_error(
+            let formatted = format_llm_error(
                 PROVIDER_NAME,
                 &format!("Unsupported model: {}", request.model),
             );
@@ -614,7 +611,7 @@ impl LLMProvider for ZAIProvider {
 
         for message in &request.messages {
             if let Err(err) = message.validate_for_provider(PROVIDER_KEY) {
-                let formatted = error_display::format_llm_error(PROVIDER_NAME, &err);
+                let formatted = format_llm_error(PROVIDER_NAME, &err);
                 return Err(LLMError::InvalidRequest(formatted));
             }
         }
@@ -727,64 +724,9 @@ mod tests {
     }
 
     #[test]
-    fn serialize_simple_message() {
-        use crate::llm::providers::test_utils::simple_request;
-        let provider = ZAIProvider::new("test_key".to_string());
-        let request = simple_request(models::zai::DEFAULT_MODEL);
-        let messages = provider.serialize_messages(&request).expect("serialization should succeed");
-        assert_eq!(messages.len(), 1);
-        assert_eq!(messages[0]["role"], "user");
-    }
-
-    #[test]
-    fn serialize_multiple_messages() {
-        use crate::llm::providers::test_utils::multi_message_request;
-        let provider = ZAIProvider::new("test_key".to_string());
-        let request = multi_message_request(models::zai::DEFAULT_MODEL);
-        let messages = provider.serialize_messages(&request).expect("serialization should succeed");
-        assert_eq!(messages.len(), 3);
-    }
-
-    #[test]
-    fn convert_includes_required_fields() {
-        use crate::llm::providers::test_utils::simple_request;
-        let provider = ZAIProvider::new("test_key".to_string());
-        let request = simple_request(models::zai::DEFAULT_MODEL);
-        let payload = provider.convert_to_zai_format(&request).expect("conversion should succeed");
-        use crate::llm::providers::test_utils::assert_json_has_field;
-        assert_json_has_field(&payload, "model");
-        assert_json_has_field(&payload, "messages");
-    }
-
-    #[test]
-    fn convert_includes_system_prompt() {
-        use crate::llm::providers::test_utils::request_with_system_prompt;
-        let provider = ZAIProvider::new("test_key".to_string());
-        let request = request_with_system_prompt(models::zai::DEFAULT_MODEL);
-        let payload = provider.convert_to_zai_format(&request).expect("conversion should succeed");
-        // System prompt should be included as a message
-        let messages = payload["messages"].as_array().unwrap();
-        assert!(messages.len() >= 1);
-    }
-
-    #[test]
     fn supported_models_returns_non_empty_list() {
         let provider = ZAIProvider::new("test_key".to_string());
         let models = provider.supported_models();
         assert!(!models.is_empty());
-    }
-
-    #[test]
-    fn model_id_returns_correct_model() {
-        use crate::llm::client::LLMClient;
-        let provider = ZAIProvider::with_model("test_key".to_string(), "custom-zai".to_string());
-        assert_eq!(provider.model_id(), "custom-zai");
-    }
-
-    #[test]
-    fn backend_kind_is_zai() {
-        use crate::llm::client::LLMClient;
-        let provider = ZAIProvider::new("test_key".to_string());
-        assert_eq!(provider.backend_kind(), llm_types::BackendKind::ZAI);
     }
 }

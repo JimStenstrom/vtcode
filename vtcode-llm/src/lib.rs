@@ -57,23 +57,27 @@ pub mod providers {
     #[cfg(feature = "anthropic")]
     pub use vtcode_llm_anthropic::*;
     #[cfg(feature = "deepseek")]
-    pub use vtcode_core::llm::providers::deepseek::*;
+    pub use vtcode_llm_deepseek::*;
     #[cfg(feature = "google")]
     pub use vtcode_llm_gemini::*;
+    #[cfg(feature = "lmstudio")]
+    pub use vtcode_llm_lmstudio::*;
     #[cfg(feature = "microsoft")]
     pub use vtcode_llm_microsoft::*;
+    #[cfg(feature = "minimax")]
+    pub use vtcode_llm_minimax::*;
     #[cfg(feature = "moonshot")]
-    pub use vtcode_core::llm::providers::moonshot::*;
+    pub use vtcode_llm_moonshot::*;
     #[cfg(feature = "ollama")]
-    pub use vtcode_core::llm::providers::ollama::*;
+    pub use vtcode_llm_ollama::*;
     #[cfg(feature = "openai")]
     pub use vtcode_llm_openai::*;
     #[cfg(feature = "openrouter")]
     pub use vtcode_llm_openrouter::*;
     #[cfg(feature = "xai")]
-    pub use vtcode_core::llm::providers::xai::*;
+    pub use vtcode_llm_xai::*;
     #[cfg(feature = "zai")]
-    pub use vtcode_core::llm::providers::zai::*;
+    pub use vtcode_llm_zai::*;
 }
 
 // Re-export modular providers when their features are enabled

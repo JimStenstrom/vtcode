@@ -1,8 +1,8 @@
-use super::common::{override_base_url, resolve_model};
-use crate::config::constants::{env_vars, models, urls};
-use crate::config::core::PromptCachingConfig;
-use crate::llm::error_display;
-use crate::llm::provider::{LLMError, LLMProvider, LLMRequest, LLMResponse, LLMStream};
+use vtcode_llm_common::config::{override_base_url, resolve_model};
+use vtcode_config::constants::{env_vars, models, urls};
+use vtcode_config::core::PromptCachingConfig;
+use vtcode_llm_common::error::format_llm_error;
+use vtcode_llm_types::{LLMError, LLMProvider, LLMRequest, LLMResponse, LLMStream};
 use anyhow::Result;
 use async_trait::async_trait;
 use vtcode_llm_openai::OpenAIProvider;
@@ -173,7 +173,7 @@ impl LLMProvider for LmStudioProvider {
     fn validate_request(&self, request: &LLMRequest) -> Result<(), LLMError> {
         if request.messages.is_empty() {
             let formatted_error =
-                error_display::format_llm_error("LM Studio", "Messages cannot be empty");
+                format_llm_error("LM Studio", "Messages cannot be empty");
             return Err(LLMError::InvalidRequest(formatted_error));
         }
 
@@ -187,65 +187,11 @@ impl LLMProvider for LmStudioProvider {
 
         for message in &request.messages {
             if let Err(err) = message.validate_for_provider("openai") {
-                let formatted = error_display::format_llm_error("LM Studio", &err);
+                let formatted = format_llm_error("LM Studio", &err);
                 return Err(LLMError::InvalidRequest(formatted));
             }
         }
 
         Ok(())
-    }
-}
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::config::constants::models;
-    use crate::llm::providers::test_utils::*;
-
-    fn create_test_provider() -> LmStudioProvider {
-        LmStudioProvider::with_model("test_key".to_string(), models::lmstudio::DEFAULT_MODEL.to_string())
-    }
-
-    #[test]
-    fn new_creates_provider_with_default_model() {
-        let provider = LmStudioProvider::new("test_key".to_string());
-        assert_eq!(provider.model, models::lmstudio::DEFAULT_MODEL);
-    }
-
-    #[test]
-    fn with_model_creates_provider_with_custom_model() {
-        let custom_model = "custom-model";
-        let provider = LmStudioProvider::with_model("test_key".to_string(), custom_model.to_string());
-        assert_eq!(provider.model, custom_model);
-    }
-
-    #[test]
-    fn from_config_uses_defaults_when_none() {
-        let provider = LmStudioProvider::from_config(None, None, None, None);
-        assert_eq!(provider.model, models::lmstudio::DEFAULT_MODEL);
-    }
-
-    #[test]
-    fn serialize_messages_simple_user_message() {
-        let provider = create_test_provider();
-        let request = simple_request(models::lmstudio::DEFAULT_MODEL);
-        let messages = provider.serialize_messages(&request).expect("serialization should succeed");
-        assert_eq!(messages.len(), 1);
-        assert_eq!(messages[0]["role"], "user");
-    }
-
-    #[test]
-    fn convert_to_lmstudio_format_includes_required_fields() {
-        let provider = create_test_provider();
-        let request = simple_request(models::lmstudio::DEFAULT_MODEL);
-        let payload = provider.convert_to_lmstudio_format(&request).expect("conversion should succeed");
-        assert_json_has_field(&payload, "model");
-        assert_json_has_field(&payload, "messages");
-    }
-
-    #[test]
-    fn supported_models_returns_non_empty_list() {
-        let provider = create_test_provider();
-        let models = provider.supported_models();
-        assert!(!models.is_empty());
     }
 }

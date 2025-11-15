@@ -5912,10 +5912,17 @@ dependencies = [
  "vtcode-execution",
  "vtcode-indexer",
  "vtcode-llm-anthropic",
+ "vtcode-llm-deepseek",
  "vtcode-llm-gemini",
+ "vtcode-llm-lmstudio",
+ "vtcode-llm-minimax",
+ "vtcode-llm-moonshot",
+ "vtcode-llm-ollama",
  "vtcode-llm-openai",
  "vtcode-llm-openrouter",
  "vtcode-llm-types",
+ "vtcode-llm-xai",
+ "vtcode-llm-zai",
  "vtcode-markdown-store",
  "vtcode-mcp",
  "vtcode-prompts",
@@ -5983,12 +5990,20 @@ dependencies = [
  "futures",
  "tempfile",
  "vtcode-commons",
+ "vtcode-core",
  "vtcode-llm-anthropic",
+ "vtcode-llm-deepseek",
  "vtcode-llm-directline",
  "vtcode-llm-gemini",
+ "vtcode-llm-lmstudio",
+ "vtcode-llm-minimax",
+ "vtcode-llm-moonshot",
+ "vtcode-llm-ollama",
  "vtcode-llm-openai",
  "vtcode-llm-openrouter",
  "vtcode-llm-types",
+ "vtcode-llm-xai",
+ "vtcode-llm-zai",
 ]
 
 [[package]]
@@ -6010,6 +6025,42 @@ dependencies = [
  "tracing",
  "vtcode-commons",
  "vtcode-config",
+ "vtcode-llm-types",
+]
+
+[[package]]
+name = "vtcode-llm-common"
+version = "0.43.6"
+dependencies = [
+ "anyhow",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.17",
+ "vtcode-config",
+ "vtcode-llm-types",
+]
+
+[[package]]
+name = "vtcode-llm-deepseek"
+version = "0.43.6"
+dependencies = [
+ "anyhow",
+ "assert_fs",
+ "async-stream",
+ "async-trait",
+ "futures",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.17",
+ "tokio",
+ "tokio-util",
+ "vtcode-commons",
+ "vtcode-config",
+ "vtcode-llm-common",
  "vtcode-llm-types",
 ]
 
@@ -6044,6 +6095,83 @@ dependencies = [
  "tokio-util",
  "vtcode-commons",
  "vtcode-config",
+ "vtcode-llm-types",
+]
+
+[[package]]
+name = "vtcode-llm-lmstudio"
+version = "0.43.6"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "vtcode-config",
+ "vtcode-llm-common",
+ "vtcode-llm-openai",
+ "vtcode-llm-types",
+]
+
+[[package]]
+name = "vtcode-llm-minimax"
+version = "0.43.6"
+dependencies = [
+ "anyhow",
+ "async-stream",
+ "async-trait",
+ "futures",
+ "regex",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tokio-test",
+ "vtcode-config",
+ "vtcode-llm-anthropic",
+ "vtcode-llm-common",
+ "vtcode-llm-types",
+]
+
+[[package]]
+name = "vtcode-llm-moonshot"
+version = "0.43.6"
+dependencies = [
+ "anyhow",
+ "assert_fs",
+ "async-stream",
+ "async-trait",
+ "futures",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.17",
+ "tokio",
+ "tokio-util",
+ "vtcode-commons",
+ "vtcode-config",
+ "vtcode-llm-common",
+ "vtcode-llm-types",
+]
+
+[[package]]
+name = "vtcode-llm-ollama"
+version = "0.43.6"
+dependencies = [
+ "anyhow",
+ "assert_fs",
+ "async-stream",
+ "async-trait",
+ "futures",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.17",
+ "tokio",
+ "vtcode-commons",
+ "vtcode-config",
+ "vtcode-llm-common",
  "vtcode-llm-types",
 ]
 
@@ -6098,6 +6226,40 @@ dependencies = [
  "serde_json",
  "thiserror 2.0.17",
  "tokio",
+]
+
+[[package]]
+name = "vtcode-llm-xai"
+version = "0.43.6"
+dependencies = [
+ "async-trait",
+ "tokio",
+ "tokio-test",
+ "vtcode-config",
+ "vtcode-llm-common",
+ "vtcode-llm-openai",
+ "vtcode-llm-types",
+]
+
+[[package]]
+name = "vtcode-llm-zai"
+version = "0.43.6"
+dependencies = [
+ "anyhow",
+ "assert_fs",
+ "async-stream",
+ "async-trait",
+ "futures",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.17",
+ "tokio",
+ "vtcode-commons",
+ "vtcode-config",
+ "vtcode-llm-common",
+ "vtcode-llm-types",
 ]
 
 [[package]]

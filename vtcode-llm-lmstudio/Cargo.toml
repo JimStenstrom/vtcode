@@ -1,0 +1,26 @@
+[package]
+name = "vtcode-llm-lmstudio"
+version = "0.43.6"
+edition = "2021"
+license = "MIT"
+description = "LM Studio LLM provider for VT Code (wraps OpenAI)"
+repository = "https://github.com/vtcodestudio/vtcode"
+
+[dependencies]
+# External dependencies
+anyhow = "1.0"
+async-trait = "0.1"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+reqwest = { version = "0.12", features = ["json"] }
+
+# Internal dependencies
+vtcode-llm-openai = { path = "../vtcode-llm-openai", version = "0.43.6" }
+vtcode-llm-common = { path = "../vtcode-llm-common", version = "0.43.6" }
+vtcode-llm-types = { path = "../vtcode-llm-types", version = "0.43.6" }
+vtcode-config = { path = "../vtcode-config", version = "0.43.6" }
+
+[dev-dependencies]
+
+[lib]
+path = "src/lib.rs"

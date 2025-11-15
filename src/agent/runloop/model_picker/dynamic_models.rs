@@ -9,8 +9,7 @@ use tokio::fs;
 
 use vtcode_core::config::constants::{env_vars, urls};
 use vtcode_core::config::models::Provider;
-use vtcode_core::llm::providers::lmstudio::fetch_lmstudio_models;
-use vtcode_core::llm::providers::ollama::fetch_ollama_models;
+use vtcode_core::llm::providers::{fetch_lmstudio_models, fetch_ollama_models};
 use vtcode_core::utils::dot_config::{DotConfig, get_dot_manager, load_user_config};
 
 use super::options::ModelOption;

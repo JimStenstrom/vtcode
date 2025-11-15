@@ -15,6 +15,8 @@ default = [
     "deepseek",
     "google",
     "directline",
+    "lmstudio",
+    "minimax",
     "moonshot",
     "ollama",
     "openai",
@@ -25,15 +27,17 @@ default = [
 ]
 
 anthropic = ["dep:vtcode-llm-anthropic"]
-deepseek = []
+deepseek = ["dep:vtcode-llm-deepseek"]
 google = ["dep:vtcode-llm-gemini"]
 directline = ["dep:vtcode-llm-directline"]
-moonshot = []
-ollama = []
+lmstudio = ["dep:vtcode-llm-lmstudio"]
+minimax = ["dep:vtcode-llm-minimax"]
+moonshot = ["dep:vtcode-llm-moonshot"]
+ollama = ["dep:vtcode-llm-ollama"]
 openai = ["dep:vtcode-llm-openai"]
 openrouter = ["dep:vtcode-llm-openrouter"]
-xai = []
-zai = []
+xai = ["dep:vtcode-llm-xai"]
+zai = ["dep:vtcode-llm-zai"]
 functions = []
 telemetry = []
 mock = ["dep:async-trait"]
@@ -42,12 +46,20 @@ mock = ["dep:async-trait"]
 anyhow = "1.0"
 async-trait = { version = "0.1", optional = true }
 vtcode-commons = { path = "../vtcode-commons", version = "0.43.6" }
+vtcode-core = { path = "../vtcode-core", version = "0.43.6" }
 vtcode-llm-types = { path = "../vtcode-llm-types", version = "0.43.6" }
 vtcode-llm-anthropic = { path = "../vtcode-llm-anthropic", version = "0.43.6", optional = true }
+vtcode-llm-deepseek = { path = "../vtcode-llm-deepseek", version = "0.43.6", optional = true }
 vtcode-llm-gemini = { path = "../vtcode-llm-gemini", version = "0.43.6", optional = true }
 vtcode-llm-directline = { path = "../vtcode-llm-directline", version = "0.43.6", optional = true }
+vtcode-llm-lmstudio = { path = "../vtcode-llm-lmstudio", version = "0.43.6", optional = true }
+vtcode-llm-minimax = { path = "../vtcode-llm-minimax", version = "0.43.6", optional = true }
+vtcode-llm-moonshot = { path = "../vtcode-llm-moonshot", version = "0.43.6", optional = true }
+vtcode-llm-ollama = { path = "../vtcode-llm-ollama", version = "0.43.6", optional = true }
 vtcode-llm-openai = { path = "../vtcode-llm-openai", version = "0.43.6", optional = true }
 vtcode-llm-openrouter = { path = "../vtcode-llm-openrouter", version = "0.43.6", optional = true }
+vtcode-llm-xai = { path = "../vtcode-llm-xai", version = "0.43.6", optional = true }
+vtcode-llm-zai = { path = "../vtcode-llm-zai", version = "0.43.6", optional = true }
 
 [dev-dependencies]
 futures = "0.3"
