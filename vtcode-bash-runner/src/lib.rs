@@ -14,9 +14,10 @@ pub use executor::DryRunCommandExecutor;
 pub use executor::EventfulExecutor;
 #[cfg(feature = "pure-rust")]
 pub use executor::PureRustCommandExecutor;
+#[cfg(feature = "std-process")]
+pub use executor::ProcessCommandExecutor;
 pub use executor::{
-    CommandCategory, CommandExecutor, CommandInvocation, CommandOutput, CommandStatus,
-    ProcessCommandExecutor, ShellKind,
+    CommandCategory, CommandExecutor, CommandInvocation, CommandOutput, CommandStatus, ShellKind,
 };
 pub use policy::{AllowAllPolicy, CommandPolicy, WorkspaceGuardPolicy};
 pub use runner::BashRunner;
