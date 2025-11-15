@@ -149,11 +149,11 @@ Document retrieval system for RAG (Retrieval-Augmented Generation) capabilities.
 use vtcode_rag::{Document, IndexingPipeline, QueryPipeline};
 
 // Index documents
-let indexing = IndexingPipeline::new(vectordb, embedder, chunker, "collection");
+let indexing = IndexingPipeline::new(vectordb, embedder, chunker, "collection".to_string());
 indexing.index_document(doc).await?;
 
 // Query
-let query = QueryPipeline::new(vectordb, embedder, "collection");
+let query = QueryPipeline::new(vectordb, embedder, "collection".to_string());
 let results = query.retrieve("search query", 5, None).await?;
 ```
 
