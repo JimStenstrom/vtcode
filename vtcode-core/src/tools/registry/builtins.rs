@@ -1,8 +1,9 @@
 use crate::config::constants::tools;
 use crate::config::types::CapabilityLevel;
 
+use super::inventory::ToolInventory;
 use super::registration::ToolRegistration;
-use super::{ToolInventory, ToolRegistry};
+use super::ToolRegistry;
 
 pub(super) fn register_builtin_tools(inventory: &mut ToolInventory, todo_planning_enabled: bool) {
     for registration in builtin_tool_registrations() {

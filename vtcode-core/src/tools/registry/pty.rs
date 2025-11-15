@@ -5,8 +5,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use anyhow::{Result, anyhow};
 
 use crate::config::PtyConfig;
-
-use super::PtyManager;
+use crate::tools::pty::PtyManager;
 
 #[derive(Clone)]
 pub(super) struct PtySessionManager {
