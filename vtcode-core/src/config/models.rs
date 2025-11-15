@@ -23,6 +23,7 @@ pub struct OpenRouterMetadata {
 
 /// Supported AI model providers
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
 pub enum Provider {
     /// Google Gemini models
     #[default]

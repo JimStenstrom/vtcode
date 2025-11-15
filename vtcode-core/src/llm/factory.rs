@@ -4,8 +4,9 @@ use super::providers::{
     XAIProvider, ZAIProvider,
 };
 use crate::config::core::PromptCachingConfig;
-use crate::config::models::{ModelId, Provider};
+use crate::config::models::ModelId;
 use crate::llm::provider::{LLMError, LLMProvider};
+use vtcode_config::models::Provider;
 use std::collections::HashMap;
 use std::str::FromStr;
 
@@ -146,7 +147,9 @@ pub fn infer_provider(override_provider: Option<&str>, model: &str) -> Option<Pr
     }
 
     if let Ok(model_id) = ModelId::from_str(model) {
-        return Some(model_id.provider());
+        // Convert from vtcode-core Provider to vtcode-config Provider via string
+        let provider_str = model_id.provider().to_string();
+        return Provider::from_str(&provider_str).ok();
     }
 
     let factory = get_factory().lock().unwrap();

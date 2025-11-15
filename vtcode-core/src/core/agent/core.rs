@@ -1,8 +1,9 @@
 //! Core agent implementation and orchestration
 
 use crate::config::core::PromptCachingConfig;
-use crate::config::models::{ModelId, Provider};
+use crate::config::models::ModelId;
 use crate::config::types::*;
+use vtcode_config::models::Provider;
 use crate::core::agent::bootstrap::{AgentComponentBuilder, AgentComponentSet};
 
 use crate::core::agent::snapshots::{
@@ -376,7 +377,7 @@ impl AgentBuilder {
             config: AgentConfig {
                 model: ModelId::default().as_str().to_string(),
                 api_key: String::new(),
-                provider: Provider::Gemini.to_string(),
+                provider: Provider::Gemini,
                 api_key_env: Provider::Gemini.default_api_key_env().to_string(),
                 workspace: std::env::current_dir()
                     .unwrap_or_else(|_| std::path::PathBuf::from(".")),
@@ -395,9 +396,16 @@ impl AgentBuilder {
         }
     }
 
-    pub fn with_provider<S: Into<String>>(mut self, provider: S) -> Self {
-        self.config.provider = provider.into();
+    pub fn with_provider(mut self, provider: Provider) -> Self {
+        self.config.provider = provider;
         self
+    }
+
+    pub fn with_provider_str(mut self, provider_str: &str) -> Result<Self> {
+        use std::str::FromStr;
+        self.config.provider = Provider::from_str(provider_str)
+            .map_err(|e| anyhow::anyhow!("Invalid provider: {}", e))?;
+        Ok(self)
     }
 
     pub fn with_model<S: Into<String>>(mut self, model: S) -> Self {

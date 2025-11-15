@@ -44,7 +44,7 @@ pub use mcp::{
     McpAllowListConfig, McpAllowListRules, McpClientConfig, McpHttpServerConfig, McpProviderConfig,
     McpStdioServerConfig, McpTransportConfig, McpUiConfig, McpUiMode,
 };
-pub use models::{ModelId, OpenRouterMetadata};
+pub use models::{ModelId, OpenRouterMetadata, Provider};
 pub use router::{ComplexityModelMap, HeuristicSettings, ResourceBudget, RouterConfig};
 pub use telemetry::TelemetryConfig;
 pub use types::{ReasoningEffortLevel, UiSurfacePreference};

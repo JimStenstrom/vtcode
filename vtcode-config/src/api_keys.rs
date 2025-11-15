@@ -5,6 +5,7 @@
 //! prioritizing security by checking environment variables first, then .env files, and finally
 //! falling back to configuration file values.
 
+use crate::models::Provider;
 use anyhow::Result;
 use std::env;
 
@@ -175,6 +176,50 @@ pub fn load_dotenv() -> Result<()> {
     }
 }
 
+/// Get API key for a specific provider using the type-safe Provider enum
+///
+/// This is the preferred method for getting API keys. It uses the Provider enum
+/// for compile-time safety and automatic environment variable inference.
+///
+/// # Arguments
+///
+/// * `provider` - The Provider enum variant
+/// * `sources` - Configuration for where to look for API keys
+///
+/// # Returns
+///
+/// * `Ok(String)` - The API key if found
+/// * `Err` - If no API key could be found for the provider
+pub fn get_api_key_for_provider(provider: Provider, sources: &ApiKeySources) -> Result<String> {
+    let env_var = provider.default_api_key_env();
+
+    // Try the provider's default environment variable first
+    if let Ok(key) = env::var(env_var)
+        && !key.is_empty()
+    {
+        return Ok(key);
+    }
+
+    // Fall back to provider-specific logic
+    match provider {
+        Provider::Gemini => get_gemini_api_key(sources),
+        Provider::Anthropic => get_anthropic_api_key(sources),
+        Provider::OpenAI => get_openai_api_key(sources),
+        Provider::DeepSeek => get_deepseek_api_key(sources),
+        Provider::OpenRouter => get_openrouter_api_key(sources),
+        Provider::XAI => get_xai_api_key(sources),
+        Provider::ZAI => get_zai_api_key(sources),
+        Provider::Ollama => get_ollama_api_key(sources),
+        Provider::LmStudio => get_lmstudio_api_key(sources),
+        Provider::Moonshot => {
+            get_api_key_with_fallback("MOONSHOT_API_KEY", None, "Moonshot")
+        }
+        Provider::Microsoft => {
+            get_api_key_with_fallback("MICROSOFT_DIRECTLINE_SECRET", None, "Microsoft")
+        }
+    }
+}
+
 /// Get API key for a specific provider with secure fallback mechanism
 ///
 /// This function implements a secure retrieval mechanism that:
@@ -193,6 +238,10 @@ pub fn load_dotenv() -> Result<()> {
 ///
 /// * `Ok(String)` - The API key if found
 /// * `Err` - If no API key could be found for the provider
+///
+/// # Note
+///
+/// This function is deprecated. Use `get_api_key_for_provider` with the Provider enum instead.
 pub fn get_api_key(provider: &str, sources: &ApiKeySources) -> Result<String> {
     // Automatically infer the correct environment variable based on provider
     let inferred_env = match provider.to_lowercase().as_str() {

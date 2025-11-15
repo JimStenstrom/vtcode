@@ -1,4 +1,5 @@
 use crate::constants::{defaults, instructions, llm_generation, project_doc, prompts};
+use crate::models::Provider;
 use crate::types::{ReasoningEffortLevel, UiSurfacePreference};
 use crate::utils::default_true;
 use serde::{Deserialize, Serialize};
@@ -11,9 +12,9 @@ const DEFAULT_MAX_AGE_DAYS: u64 = 30;
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct AgentConfig {
-    /// AI provider for single agent mode (gemini, openai, anthropic, openrouter, xai, zai)
+    /// AI provider for single agent mode
     #[serde(default = "default_provider")]
-    pub provider: String,
+    pub provider: Provider,
 
     /// Environment variable that stores the API key for the active provider
     #[serde(default = "default_api_key_env")]
@@ -189,8 +190,8 @@ impl AgentConfig {
     }
 }
 
-fn default_provider() -> String {
-    defaults::DEFAULT_PROVIDER.to_string()
+fn default_provider() -> Provider {
+    Provider::OpenAI
 }
 
 fn default_api_key_env() -> String {

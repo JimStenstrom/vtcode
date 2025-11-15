@@ -1,7 +1,7 @@
 //! Common types and interfaces used throughout the application
 
-use crate::constants::reasoning;
 use crate::core::PromptCachingConfig;
+use crate::models::Provider;
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 use std::collections::{BTreeMap, HashMap};
@@ -11,6 +11,97 @@ use std::path::PathBuf;
 // Re-export ReasoningEffortLevel from vtcode-llm-types for backward compatibility
 pub use vtcode_llm_types::ReasoningEffortLevel;
 
+/// Model tier for selecting appropriate model based on task complexity
+///
+/// This enum categorizes models by their capabilities and cost:
+/// - Primary: Most capable models for complex reasoning and multi-step tasks
+/// - Small: Efficient models for simple operations (parsing, summarization, file reads)
+/// - Reasoning: Specialized models with enhanced reasoning capabilities (o1, o3, deepseek-reasoner)
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ModelTier {
+    /// Primary/flagship model for complex tasks (GPT-5, Claude Opus, Gemini Pro)
+    Primary,
+    /// Smaller/efficient model for simple tasks (GPT-5 Nano, Claude Haiku, Gemini Flash)
+    /// Typically 70-80% cheaper; used for ~50% of operations
+    Small,
+    /// Specialized reasoning models (o1, o3, DeepSeek Reasoner)
+    Reasoning,
+}
+
+impl ModelTier {
+    /// String representation used in configuration and logging
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Primary => "primary",
+            Self::Small => "small",
+            Self::Reasoning => "reasoning",
+        }
+    }
+
+    /// Parse a model tier from configuration input
+    pub fn parse(value: &str) -> Option<Self> {
+        let normalized = value.trim().to_lowercase();
+        match normalized.as_str() {
+            "primary" | "main" | "flagship" => Some(Self::Primary),
+            "small" | "efficient" | "fast" => Some(Self::Small),
+            "reasoning" | "reasoner" => Some(Self::Reasoning),
+            _ => None,
+        }
+    }
+
+    /// Enumerate the accepted configuration values
+    pub fn allowed_values() -> &'static [&'static str] {
+        &["primary", "small", "reasoning"]
+    }
+
+    /// Check if this is the small/efficient tier
+    pub fn is_small(&self) -> bool {
+        matches!(self, Self::Small)
+    }
+
+    /// Check if this is a reasoning-specialized model
+    pub fn is_reasoning(&self) -> bool {
+        matches!(self, Self::Reasoning)
+    }
+
+    /// Check if this is the primary tier
+    pub fn is_primary(&self) -> bool {
+        matches!(self, Self::Primary)
+    }
+}
+
+impl Default for ModelTier {
+    fn default() -> Self {
+        Self::Primary
+    }
+}
+
+impl fmt::Display for ModelTier {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+impl<'de> Deserialize<'de> for ModelTier {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let raw = String::deserialize(deserializer)?;
+        if let Some(parsed) = Self::parse(&raw) {
+            Ok(parsed)
+        } else {
+            tracing::warn!(
+                input = raw,
+                allowed = ?Self::allowed_values(),
+                "Invalid model tier provided; falling back to primary"
+            );
+            Ok(Self::default())
+        }
+    }
+}
 
 /// Preferred rendering surface for the interactive chat UI
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
@@ -105,7 +196,7 @@ impl Default for ModelSelectionSource {
 pub struct AgentConfig {
     pub model: String,
     pub api_key: String,
-    pub provider: String,
+    pub provider: Provider,
     pub api_key_env: String,
     pub workspace: std::path::PathBuf,
     pub verbose: bool,

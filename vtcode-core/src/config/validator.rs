@@ -7,8 +7,7 @@ use serde_json::Value as JsonValue;
 use std::collections::HashMap;
 use std::path::Path;
 
-use crate::config::api_keys::ApiKeySources;
-use crate::config::api_keys::get_api_key;
+use crate::config::api_keys::{ApiKeySources, get_api_key, get_api_key_for_provider};
 use crate::config::loader::VTCodeConfig;
 
 /// Loaded models database from docs/models.json
@@ -113,9 +112,10 @@ impl ConfigValidator {
         let mut result = ValidationResult::default();
 
         // Check if configured model exists
+        let provider_str = config.agent.provider.to_string();
         if !self
             .models_db
-            .model_exists(&config.agent.provider, &config.agent.default_model)
+            .model_exists(&provider_str, &config.agent.default_model)
         {
             result.errors.push(format!(
                 "Model '{}' not found for provider '{}'. Check docs/models.json.",
@@ -124,19 +124,19 @@ impl ConfigValidator {
         }
 
         // Check if API key is available
-        if let Err(e) = get_api_key(&config.agent.provider, &ApiKeySources::default()) {
+        if let Err(e) = get_api_key_for_provider(config.agent.provider, &ApiKeySources::default()) {
             result.errors.push(format!(
                 "API key not found for provider '{}': {}. Set {} environment variable.",
                 config.agent.provider,
                 e,
-                config.agent.provider.to_uppercase()
+                config.agent.provider.default_api_key_env()
             ));
         }
 
         // Check context window configuration
         if let Some(max_tokens) = self
             .models_db
-            .get_context_window(&config.agent.provider, &config.agent.default_model)
+            .get_context_window(&provider_str, &config.agent.default_model)
         {
             let configured_context = config.context.max_context_tokens;
             if configured_context > 0 && configured_context > max_tokens {
@@ -164,9 +164,10 @@ impl ConfigValidator {
     /// Quick validation - only critical checks
     pub fn quick_validate(&self, config: &VTCodeConfig) -> Result<()> {
         // Check model exists
+        let provider_str = config.agent.provider.to_string();
         if !self
             .models_db
-            .model_exists(&config.agent.provider, &config.agent.default_model)
+            .model_exists(&provider_str, &config.agent.default_model)
         {
             bail!(
                 "Model '{}' not found for provider '{}'. Check docs/models.json.",
@@ -176,11 +177,11 @@ impl ConfigValidator {
         }
 
         // Check API key
-        get_api_key(&config.agent.provider, &ApiKeySources::default()).with_context(|| {
+        get_api_key_for_provider(config.agent.provider, &ApiKeySources::default()).with_context(|| {
             format!(
                 "API key not found for provider '{}'. Set {} environment variable.",
                 config.agent.provider,
-                config.agent.provider.to_uppercase()
+                config.agent.provider.default_api_key_env()
             )
         })?;
 

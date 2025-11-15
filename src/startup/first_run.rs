@@ -206,12 +206,9 @@ async fn run_first_run_setup(
 }
 
 fn resolve_initial_provider(config: &VTCodeConfig) -> Provider {
-    let configured = config.agent.provider.trim();
-    if configured.is_empty() {
-        Provider::OpenAI
-    } else {
-        Provider::from_str(configured).unwrap_or(Provider::OpenAI)
-    }
+    // Provider is now an enum, so it's never "empty" - always has a value
+    // Just return the configured provider
+    config.agent.provider
 }
 
 fn prompt_provider(renderer: &mut AnsiRenderer, default: Provider) -> Result<Provider> {
@@ -593,8 +590,7 @@ fn default_model_for_provider(provider: Provider) -> &'static str {
 }
 
 fn apply_selection(config: &mut VTCodeConfig, provider: Provider, model: &str) {
-    let provider_key = provider.to_string();
-    config.agent.provider = provider_key.clone();
+    config.agent.provider = provider;
     config.agent.api_key_env = provider.default_api_key_env().to_string();
     config.agent.default_model = model.to_string();
     config.router.models.simple = model.to_string();

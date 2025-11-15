@@ -1,8 +1,8 @@
 use serde::{Deserialize, Serialize};
 
 use crate::config::loader::VTCodeConfig;
-use crate::config::models::Provider;
 use crate::config::router::{HeuristicSettings, RouterConfig};
+use vtcode_config::models::Provider;
 use crate::config::types::AgentConfig as CoreAgentConfig;
 use crate::llm::{
     factory::{create_provider_with_config, infer_provider},
@@ -79,13 +79,10 @@ impl Router {
         };
 
         if !router_cfg.llm_router_model.trim().is_empty() {
-            let provider_override = if core.provider.trim().is_empty() {
-                None
-            } else {
-                Some(core.provider.as_str())
-            };
+            let provider_str = core.provider.to_string();
+            let provider_override = Some(provider_str.as_str());
             let provider =
-                infer_provider(provider_override, &core.model).unwrap_or(Provider::Gemini);
+                infer_provider(provider_override, &core.model).unwrap_or(core.provider);
             if let Ok(provider) = create_provider_with_config(
                 &provider.to_string(),
                 Some(api_key.to_string()),

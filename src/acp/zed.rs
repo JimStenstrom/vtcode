@@ -571,7 +571,7 @@ impl ZedAgent {
             .map(|tool| {
                 let runtime = if !provider_supports_tools {
                     ToolRuntime::Disabled(ToolDisableReason::Provider {
-                        provider: self.config.provider.as_str(),
+                        provider: self.config.provider.to_string().leak(),
                         model: self.config.model.as_str(),
                     })
                 } else {
@@ -1721,7 +1721,7 @@ impl acp::Agent for ZedAgent {
         ) {
             Ok(provider) => provider,
             Err(_) => create_provider_with_config(
-                &self.config.provider,
+                &self.config.provider.to_string(),
                 Some(self.config.api_key.clone()),
                 None,
                 Some(self.config.model.clone()),
