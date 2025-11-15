@@ -11,11 +11,20 @@ use futures::StreamExt;
 use regex::Regex;
 use serde_json::{Map, Value};
 use std::collections::HashMap;
+use std::sync::LazyLock;
 
 const TOOL_CALL_BLOCK_PATTERN: &str = r"(?s)<minimax:tool_call>(.*?)</minimax:tool_call>";
 const INVOKE_BLOCK_PATTERN: &str = r#"(?s)<invoke\s+name=("[^"]*"|'[^']*'|[^\s>]+)>(.*?)</invoke>"#;
 const PARAMETER_BLOCK_PATTERN: &str =
     r#"(?s)<parameter\s+name=("[^"]*"|'[^']*'|[^\s>]+)>(.*?)</parameter>"#;
+
+// Static regex compilation for performance (compiled once at first use)
+static TOOL_CALL_REGEX: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(TOOL_CALL_BLOCK_PATTERN).expect("valid tool_call regex"));
+static INVOKE_REGEX: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(INVOKE_BLOCK_PATTERN).expect("valid invoke regex"));
+static PARAMETER_REGEX: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(PARAMETER_BLOCK_PATTERN).expect("valid parameter regex"));
 
 pub struct MinimaxProvider {
     inner: AnthropicProvider,
@@ -146,26 +155,15 @@ fn parse_minimax_tool_calls(
     text: &str,
     tools: Option<&[ToolDefinition]>,
 ) -> (Vec<ToolCall>, String) {
-    let tool_call_regex = Regex::new(TOOL_CALL_BLOCK_PATTERN).ok();
-    let invoke_regex = Regex::new(INVOKE_BLOCK_PATTERN).ok();
-    let parameter_regex = Regex::new(PARAMETER_BLOCK_PATTERN).ok();
-
-    if tool_call_regex.is_none() || invoke_regex.is_none() || parameter_regex.is_none() {
-        return (Vec::new(), text.to_string());
-    }
-
-    let tool_call_regex = tool_call_regex.unwrap();
-    let invoke_regex = invoke_regex.unwrap();
-    let parameter_regex = parameter_regex.unwrap();
-
+    // Use static regexes (compiled once at first use, not on every function call)
     let mut tool_calls = Vec::new();
     let mut call_index = 1u32;
 
     let param_types = build_parameter_type_map(tools);
 
-    for block_capture in tool_call_regex.captures_iter(text) {
+    for block_capture in TOOL_CALL_REGEX.captures_iter(text) {
         if let Some(block_inner) = block_capture.get(1) {
-            for invoke_capture in invoke_regex.captures_iter(block_inner.as_str()) {
+            for invoke_capture in INVOKE_REGEX.captures_iter(block_inner.as_str()) {
                 let function_name_raw = invoke_capture.get(1).map(|m| m.as_str()).unwrap_or("");
                 let function_name = extract_name(function_name_raw);
                 let body = invoke_capture.get(2).map(|m| m.as_str()).unwrap_or("");
@@ -177,7 +175,7 @@ fn parse_minimax_tool_calls(
                 let param_config = param_types.get(&function_name);
                 let mut arguments_map = Map::new();
 
-                for parameter_capture in parameter_regex.captures_iter(body) {
+                for parameter_capture in PARAMETER_REGEX.captures_iter(body) {
                     let param_name_raw = parameter_capture.get(1).map(|m| m.as_str()).unwrap_or("");
                     let param_name = extract_name(param_name_raw);
                     if param_name.is_empty() {
@@ -210,7 +208,7 @@ fn parse_minimax_tool_calls(
         }
     }
 
-    let cleaned = tool_call_regex.replace_all(text, "").to_string();
+    let cleaned = TOOL_CALL_REGEX.replace_all(text, "").to_string();
     (tool_calls, cleaned)
 }
 
