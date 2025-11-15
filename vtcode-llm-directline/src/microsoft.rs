@@ -1,4 +1,4 @@
-use vtcode_config::constants::{env_vars, models, urls};
+use vtcode_config::constants::{env_vars, models, provider_timeouts, streaming, urls};
 use vtcode_config::core::PromptCachingConfig;
 use vtcode_llm_common::config::override_base_url;
 use vtcode_llm_common::error::format_llm_error;
@@ -99,7 +99,7 @@ impl MicrosoftProvider {
         );
 
         let http_client = HttpClient::builder()
-            .timeout(Duration::from_secs(120))
+            .timeout(Duration::from_secs(provider_timeouts::DIRECTLINE_TIMEOUT_SECS))
             .build()
             .unwrap_or_default();
 
@@ -411,7 +411,7 @@ impl LLMProvider for MicrosoftProvider {
         );
 
         for _ in 0..max_attempts {
-            tokio::time::sleep(Duration::from_secs(1)).await;
+            tokio::time::sleep(Duration::from_secs(streaming::DIRECTLINE_POLL_INTERVAL_SECS)).await;
             poll_count += 1;
 
             let activities = self

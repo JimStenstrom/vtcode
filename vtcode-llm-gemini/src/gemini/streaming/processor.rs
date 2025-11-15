@@ -12,6 +12,7 @@ use reqwest::Response;
 use serde_json::Value;
 use std::time::Instant;
 use tokio::time::{Duration, timeout};
+use vtcode_config::constants::streaming;
 
 /// Configuration for the streaming processor
 #[derive(Debug, Clone)]
@@ -27,8 +28,8 @@ pub struct StreamingConfig {
 impl Default for StreamingConfig {
     fn default() -> Self {
         Self {
-            chunk_timeout: Duration::from_secs(30),
-            first_chunk_timeout: Duration::from_secs(60),
+            chunk_timeout: Duration::from_secs(streaming::DEFAULT_CHUNK_TIMEOUT_SECS),
+            first_chunk_timeout: Duration::from_secs(streaming::DEFAULT_FIRST_CHUNK_TIMEOUT_SECS),
             buffer_size: 1024,
         }
     }
@@ -722,8 +723,8 @@ mod tests {
         use std::time::Duration;
 
         let config = StreamingConfig {
-            chunk_timeout: Duration::from_secs(10),
-            first_chunk_timeout: Duration::from_secs(30),
+            chunk_timeout: Duration::from_secs(streaming::TEST_CHUNK_TIMEOUT_SECS),
+            first_chunk_timeout: Duration::from_secs(streaming::TEST_FIRST_CHUNK_TIMEOUT_SECS),
             buffer_size: 512,
         };
 

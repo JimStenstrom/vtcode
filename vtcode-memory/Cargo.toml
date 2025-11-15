@@ -25,6 +25,7 @@ async-trait = "0.1.89"
 
 # Workspace dependencies
 vtcode-commons = { path = "../vtcode-commons", version = "0.43.6" }
+vtcode-config = { path = "../vtcode-config", version = "0.43.6" }
 vtcode-llm-types = { path = "../vtcode-llm-types", version = "0.43.6" }
 
 # Utilities

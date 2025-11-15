@@ -1,4 +1,5 @@
 use std::time::Duration;
+use vtcode_config::constants::retry;
 
 /// Retry configuration for streaming operations
 #[derive(Debug, Clone)]
@@ -13,10 +14,10 @@ pub struct RetryConfig {
 impl Default for RetryConfig {
     fn default() -> Self {
         Self {
-            max_attempts: 3,
-            initial_delay: Duration::from_millis(500),
-            max_delay: Duration::from_secs(30),
-            backoff_multiplier: 2.0,
+            max_attempts: retry::MAX_RETRY_ATTEMPTS,
+            initial_delay: retry::initial_backoff(),
+            max_delay: retry::max_backoff(),
+            backoff_multiplier: retry::BACKOFF_MULTIPLIER as f64,
             retryable_errors: vec![
                 "timeout".to_string(),
                 "connection".to_string(),

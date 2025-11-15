@@ -10,18 +10,10 @@ use anyhow::Result;
 use once_cell::sync::Lazy;
 use reqwest::Client;
 use std::time::Duration;
-
-/// Default timeout for HTTP requests (30 seconds)
-const DEFAULT_TIMEOUT_SECS: u64 = 30;
-
-/// Default connection timeout (10 seconds)
-const DEFAULT_CONNECT_TIMEOUT_SECS: u64 = 10;
+use vtcode_config::constants::http_client;
 
 /// Default user agent for VTCode HTTP requests
 const DEFAULT_USER_AGENT: &str = concat!("VTCode/", env!("CARGO_PKG_VERSION"));
-
-/// Maximum number of idle connections per host
-const MAX_IDLE_PER_HOST: usize = 10;
 
 /// Shared default HTTP client instance
 static SHARED_CLIENT: Lazy<Client> = Lazy::new(|| {
@@ -38,11 +30,11 @@ pub fn shared_client() -> &'static Client {
 /// Creates a new HTTP client builder with VTCode defaults
 pub fn default_client_builder() -> reqwest::ClientBuilder {
     Client::builder()
-        .timeout(Duration::from_secs(DEFAULT_TIMEOUT_SECS))
-        .connect_timeout(Duration::from_secs(DEFAULT_CONNECT_TIMEOUT_SECS))
+        .timeout(http_client::default_request_timeout())
+        .connect_timeout(http_client::default_connect_timeout())
         .user_agent(DEFAULT_USER_AGENT)
-        .pool_max_idle_per_host(MAX_IDLE_PER_HOST)
-        .pool_idle_timeout(Duration::from_secs(90))
+        .pool_max_idle_per_host(http_client::DEFAULT_POOL_MAX_IDLE_PER_HOST)
+        .pool_idle_timeout(http_client::default_pool_idle_timeout())
         .http2_prior_knowledge()
         .use_rustls_tls()
 }

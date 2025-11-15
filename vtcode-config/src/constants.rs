@@ -1368,3 +1368,297 @@ pub mod diff {
     /// Number of trailing diff lines to retain when condensing previews
     pub const TAIL_LINE_COUNT: usize = 32;
 }
+
+/// HTTP client configuration constants
+pub mod http_client {
+    use std::time::Duration;
+
+    /// Default request timeout for HTTP clients (30 seconds)
+    pub const DEFAULT_REQUEST_TIMEOUT_SECS: u64 = 30;
+
+    /// Default connection timeout for HTTP clients (10 seconds)
+    pub const DEFAULT_CONNECT_TIMEOUT_SECS: u64 = 10;
+
+    /// Default pool idle timeout for connection pooling (90 seconds)
+    /// How long to keep idle connections alive before closing them
+    pub const DEFAULT_POOL_IDLE_TIMEOUT_SECS: u64 = 90;
+
+    /// Default TCP keepalive duration (60 seconds)
+    /// Keeps connections alive with periodic TCP keepalive packets
+    pub const DEFAULT_TCP_KEEPALIVE_SECS: u64 = 60;
+
+    /// Maximum number of idle connections per host in the pool (10)
+    /// Balances memory usage vs connection reuse
+    pub const DEFAULT_POOL_MAX_IDLE_PER_HOST: usize = 10;
+
+    // High throughput profile
+    /// Pool max idle per host for high throughput scenarios (20)
+    pub const HIGH_THROUGHPUT_POOL_MAX_IDLE: usize = 20;
+
+    /// Pool idle timeout for high throughput (120 seconds)
+    pub const HIGH_THROUGHPUT_POOL_IDLE_TIMEOUT_SECS: u64 = 120;
+
+    /// Request timeout for high throughput (120 seconds)
+    pub const HIGH_THROUGHPUT_REQUEST_TIMEOUT_SECS: u64 = 120;
+
+    /// Connect timeout for high throughput (15 seconds)
+    pub const HIGH_THROUGHPUT_CONNECT_TIMEOUT_SECS: u64 = 15;
+
+    // Low memory profile
+    /// Pool max idle per host for low memory scenarios (3)
+    pub const LOW_MEMORY_POOL_MAX_IDLE: usize = 3;
+
+    /// Pool idle timeout for low memory (30 seconds)
+    pub const LOW_MEMORY_POOL_IDLE_TIMEOUT_SECS: u64 = 30;
+
+    /// Connect timeout for low memory (5 seconds)
+    pub const LOW_MEMORY_CONNECT_TIMEOUT_SECS: u64 = 5;
+
+    // Ultra low memory profile
+    /// Pool max idle per host for ultra low memory scenarios (1)
+    pub const ULTRA_LOW_MEMORY_POOL_MAX_IDLE: usize = 1;
+
+    /// Pool idle timeout for ultra low memory (10 seconds)
+    pub const ULTRA_LOW_MEMORY_POOL_IDLE_TIMEOUT_SECS: u64 = 10;
+
+    /// TCP keepalive for ultra low memory (15 seconds)
+    pub const ULTRA_LOW_MEMORY_TCP_KEEPALIVE_SECS: u64 = 15;
+
+    /// Connect timeout for ultra low memory (3 seconds)
+    pub const ULTRA_LOW_MEMORY_CONNECT_TIMEOUT_SECS: u64 = 3;
+
+    // Low latency profile
+    /// Pool max idle per host for low latency scenarios (5)
+    pub const LOW_LATENCY_POOL_MAX_IDLE: usize = 5;
+
+    /// Helper function to get default request timeout
+    pub const fn default_request_timeout() -> Duration {
+        Duration::from_secs(DEFAULT_REQUEST_TIMEOUT_SECS)
+    }
+
+    /// Helper function to get default connection timeout
+    pub const fn default_connect_timeout() -> Duration {
+        Duration::from_secs(DEFAULT_CONNECT_TIMEOUT_SECS)
+    }
+
+    /// Helper function to get default pool idle timeout
+    pub const fn default_pool_idle_timeout() -> Duration {
+        Duration::from_secs(DEFAULT_POOL_IDLE_TIMEOUT_SECS)
+    }
+
+    /// Helper function to get default TCP keepalive duration
+    pub const fn default_tcp_keepalive() -> Duration {
+        Duration::from_secs(DEFAULT_TCP_KEEPALIVE_SECS)
+    }
+}
+
+/// Memory management and caching constants
+pub mod memory {
+    use std::time::Duration;
+
+    /// Default working memory limit before summarization (20 turns)
+    /// Keeps recent conversation turns in full detail
+    pub const DEFAULT_WORKING_MEMORY_LIMIT: usize = 20;
+
+    /// Default maximum number of summaries to retain (100)
+    /// Older summaries are pruned when this limit is reached
+    pub const DEFAULT_SUMMARY_LIMIT: usize = 100;
+
+    /// Default checkpoint interval (300 seconds = 5 minutes)
+    /// How often to save conversation state to disk
+    pub const DEFAULT_CHECKPOINT_INTERVAL_SECS: u64 = 300;
+
+    /// Default cache TTL for code completion (300 seconds = 5 minutes)
+    /// How long to cache code completion results
+    pub const DEFAULT_CODE_COMPLETION_CACHE_TTL_SECS: u64 = 300;
+
+    /// Default maximum contexts in context store (1000)
+    pub const DEFAULT_MAX_CONTEXTS: usize = 1000;
+
+    /// Default context store max size (100000 entries)
+    pub const DEFAULT_CONTEXT_STORE_MAX_SIZE: usize = 100000;
+
+    /// Auto cleanup threshold in days (7 days)
+    /// Remove contexts older than this
+    pub const DEFAULT_AUTO_CLEANUP_DAYS: u32 = 7;
+
+    /// High performance scenario - max contexts (2000)
+    pub const HIGH_PERF_MAX_CONTEXTS: usize = 2000;
+
+    /// High quality scenario - max contexts (1500)
+    pub const HIGH_QUALITY_MAX_CONTEXTS: usize = 1500;
+
+    /// Balanced scenario - max contexts (1250)
+    pub const BALANCED_MAX_CONTEXTS: usize = 1250;
+
+    /// Permission cache TTL for testing (50 milliseconds)
+    pub const TEST_PERMISSION_CACHE_TTL_MS: u64 = 50;
+
+    /// Helper function to get default checkpoint interval
+    pub const fn default_checkpoint_interval() -> Duration {
+        Duration::from_secs(DEFAULT_CHECKPOINT_INTERVAL_SECS)
+    }
+
+    /// Helper function to get default code completion cache TTL
+    pub const fn default_code_completion_cache_ttl() -> Duration {
+        Duration::from_secs(DEFAULT_CODE_COMPLETION_CACHE_TTL_SECS)
+    }
+}
+
+/// Retry and backoff strategy constants
+pub mod retry {
+    use std::time::Duration;
+
+    /// Initial backoff delay for retries (500 milliseconds)
+    /// First retry waits this long
+    pub const INITIAL_BACKOFF_MS: u64 = 500;
+
+    /// Maximum backoff delay for retries (30 seconds)
+    /// Caps exponential backoff to prevent excessive waits
+    pub const MAX_BACKOFF_SECS: u64 = 30;
+
+    /// Backoff multiplier for exponential backoff (2x)
+    /// Each retry doubles the wait time
+    pub const BACKOFF_MULTIPLIER: u32 = 2;
+
+    /// Maximum retry attempts for failed requests (3)
+    pub const MAX_RETRY_ATTEMPTS: u32 = 3;
+
+    /// Maximum retry attempts for git operations with network failures (4)
+    pub const MAX_GIT_RETRY_ATTEMPTS: u32 = 4;
+
+    /// Rate limiter time window (60 seconds = 1 minute)
+    /// Tracks requests within this rolling window
+    pub const RATE_LIMIT_WINDOW_SECS: u64 = 60;
+
+    /// Initial retry delay for git operations (2 seconds)
+    pub const GIT_INITIAL_RETRY_DELAY_SECS: u64 = 2;
+
+    /// Helper function to get initial backoff duration
+    pub const fn initial_backoff() -> Duration {
+        Duration::from_millis(INITIAL_BACKOFF_MS)
+    }
+
+    /// Helper function to get max backoff duration
+    pub const fn max_backoff() -> Duration {
+        Duration::from_secs(MAX_BACKOFF_SECS)
+    }
+
+    /// Helper function to get rate limit window
+    pub const fn rate_limit_window() -> Duration {
+        Duration::from_secs(RATE_LIMIT_WINDOW_SECS)
+    }
+}
+
+/// LLM provider-specific timeout constants
+pub mod provider_timeouts {
+    /// Default timeout for DirectLine/Microsoft provider (120 seconds = 2 minutes)
+    /// Bot Framework conversations can take longer to respond
+    pub const DIRECTLINE_TIMEOUT_SECS: u64 = 120;
+
+    /// Default timeout for OpenAI provider (120 seconds = 2 minutes)
+    pub const OPENAI_TIMEOUT_SECS: u64 = 120;
+
+    /// Default timeout for ACP client (30 seconds)
+    pub const ACP_CLIENT_TIMEOUT_SECS: u64 = 30;
+
+    /// Extended timeout for ACP client long operations (60 seconds)
+    pub const ACP_CLIENT_EXTENDED_TIMEOUT_SECS: u64 = 60;
+
+    /// Default timeout for MCP server initialization (30 seconds)
+    pub const MCP_INITIALIZE_TIMEOUT_SECS: u64 = 30;
+
+    /// Default timeout for IPC communication (1 second)
+    /// Fast timeout for local inter-process communication
+    pub const IPC_TIMEOUT_SECS: u64 = 1;
+}
+
+/// Streaming and chunk processing constants
+pub mod streaming {
+    /// Default chunk timeout for streaming responses (30 seconds)
+    /// How long to wait between chunks before timing out
+    pub const DEFAULT_CHUNK_TIMEOUT_SECS: u64 = 30;
+
+    /// Default first chunk timeout (60 seconds)
+    /// Initial chunk can take longer as the model starts generating
+    pub const DEFAULT_FIRST_CHUNK_TIMEOUT_SECS: u64 = 60;
+
+    /// Test chunk timeout (10 seconds)
+    /// Shorter timeout for tests
+    pub const TEST_CHUNK_TIMEOUT_SECS: u64 = 10;
+
+    /// Test first chunk timeout (30 seconds)
+    pub const TEST_FIRST_CHUNK_TIMEOUT_SECS: u64 = 30;
+
+    /// DirectLine polling sleep interval (1 second)
+    /// How often to poll for new messages
+    pub const DIRECTLINE_POLL_INTERVAL_SECS: u64 = 1;
+}
+
+/// Test-related timing constants
+pub mod test_timeouts {
+    /// Standard test sleep duration (100 milliseconds)
+    /// Used for waiting between test operations
+    pub const STANDARD_TEST_SLEEP_MS: u64 = 100;
+
+    /// Short test sleep duration (50 milliseconds)
+    pub const SHORT_TEST_SLEEP_MS: u64 = 50;
+
+    /// Medium test sleep duration (150 milliseconds)
+    pub const MEDIUM_TEST_SLEEP_MS: u64 = 150;
+
+    /// Tiny test sleep duration (10 milliseconds)
+    pub const TINY_TEST_SLEEP_MS: u64 = 10;
+
+    /// Brief test sleep duration (20 milliseconds)
+    pub const BRIEF_TEST_SLEEP_MS: u64 = 20;
+
+    /// PTY test timeout (5 seconds)
+    /// Timeout for pseudo-terminal tests
+    pub const PTY_TEST_TIMEOUT_SECS: u64 = 5;
+
+    /// Session archive test sleep (10 milliseconds)
+    pub const SESSION_ARCHIVE_TEST_SLEEP_MS: u64 = 10;
+
+    /// Thread sleep for timestamp differentiation (1 second)
+    /// Ensures timestamps differ in second-precision systems
+    pub const TIMESTAMP_DIFF_SLEEP_SECS: u64 = 1;
+}
+
+/// Execution and command timeout constants
+pub mod execution {
+    /// Default command execution timeout (2 minutes = 120 seconds)
+    /// Maximum time to wait for a command to complete
+    pub const DEFAULT_COMMAND_TIMEOUT_SECS: u64 = 120;
+
+    /// Analyze command timeout (60 seconds)
+    /// Workspace analysis can take longer
+    pub const ANALYZE_COMMAND_TIMEOUT_SECS: u64 = 60;
+
+    /// Chat/interactive command timeout (120 seconds = 2 minutes)
+    pub const CHAT_COMMAND_TIMEOUT_SECS: u64 = 120;
+
+    /// Default general command timeout (30 seconds)
+    pub const DEFAULT_GENERAL_TIMEOUT_SECS: u64 = 30;
+
+    /// Timeout detector default timeout (30 seconds)
+    pub const TIMEOUT_DETECTOR_DEFAULT_SECS: u64 = 30;
+
+    /// Timeout detector extended timeout (60 seconds)
+    pub const TIMEOUT_DETECTOR_EXTENDED_SECS: u64 = 60;
+
+    /// Initial retry delay for timeout detector (100 milliseconds)
+    pub const TIMEOUT_DETECTOR_INITIAL_RETRY_MS: u64 = 100;
+
+    /// Maximum retry delay for timeout detector (30 seconds)
+    pub const TIMEOUT_DETECTOR_MAX_RETRY_SECS: u64 = 30;
+
+    /// Agent runner delay between retries (200 milliseconds)
+    pub const AGENT_RUNNER_RETRY_DELAY_MS: u64 = 200;
+
+    /// SDK IPC polling interval (100 milliseconds)
+    pub const SDK_IPC_POLL_INTERVAL_MS: u64 = 100;
+
+    /// Code executor IPC check interval (50 milliseconds)
+    pub const CODE_EXECUTOR_IPC_CHECK_MS: u64 = 50;
+}

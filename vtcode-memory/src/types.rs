@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::time::Duration;
 use uuid::Uuid;
+use vtcode_config::constants::memory;
 use vtcode_llm_types::Message;
 
 /// A summarized conversation turn with metadata
@@ -198,11 +199,11 @@ impl Default for MemoryConfig {
 
 // Default value functions
 fn default_working_memory_limit() -> usize {
-    20
+    memory::DEFAULT_WORKING_MEMORY_LIMIT
 }
 
 fn default_summary_limit() -> usize {
-    100
+    memory::DEFAULT_SUMMARY_LIMIT
 }
 
 fn default_auto_checkpoint() -> bool {
@@ -210,11 +211,11 @@ fn default_auto_checkpoint() -> bool {
 }
 
 fn default_checkpoint_interval() -> Duration {
-    Duration::from_secs(300) // 5 minutes
+    memory::default_checkpoint_interval()
 }
 
 fn default_checkpoint_interval_seconds() -> Duration {
-    Duration::from_secs(300)
+    memory::default_checkpoint_interval()
 }
 
 fn default_log_directory() -> PathBuf {

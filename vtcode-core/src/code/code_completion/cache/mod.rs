@@ -1,6 +1,7 @@
 use super::engine::CompletionSuggestion;
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
+use vtcode_config::constants::memory;
 
 /// Completion cache for performance optimization
 pub struct CompletionCache {
@@ -20,8 +21,8 @@ impl CompletionCache {
     pub fn new() -> Self {
         Self {
             cache: HashMap::new(),
-            max_entries: 1000,
-            ttl: Duration::from_secs(300), // 5 minutes
+            max_entries: memory::DEFAULT_MAX_CONTEXTS,
+            ttl: memory::default_code_completion_cache_ttl(),
         }
     }
 
