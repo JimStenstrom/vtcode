@@ -60,8 +60,12 @@ impl FileOpsTool {
 
         let mut all_items = Vec::new();
         if base.is_file() {
+            let file_name = base
+                .file_name()
+                .ok_or_else(|| anyhow!("Invalid file path: no file name in '{}'", input.path))?
+                .to_string_lossy();
             all_items.push(json!({
-                "name": base.file_name().unwrap().to_string_lossy(),
+                "name": file_name,
                 "path": input.path,
                 "type": "file"
             }));
@@ -1210,9 +1214,9 @@ mod tests {
 
         assert_eq!(preview["skipped"], Value::Bool(false));
         assert_eq!(preview["truncated"], Value::Bool(true));
-        assert!(preview["omitted_line_count"].as_u64().unwrap() > 0);
+        assert!(preview["omitted_line_count"].as_u64().expect("omitted_line_count should be a number") > 0);
 
-        let content = preview["content"].as_str().unwrap();
+        let content = preview["content"].as_str().expect("preview content should be a string");
         assert!(content.contains("lines omitted"));
         assert!(content.lines().count() <= diff::HEAD_LINE_COUNT + diff::TAIL_LINE_COUNT + 1);
     }
@@ -1835,14 +1839,14 @@ mod paging_tests {
 
     #[tokio::test]
     async fn test_read_file_paging_lines() {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("Failed to create temp directory for test");
         let workspace_root = temp_dir.path().to_path_buf();
         let test_file = workspace_root.join("test_file.txt");
 
         // Create test content with 10 lines
         let test_content =
             "line1\nline2\nline3\nline4\nline5\nline6\nline7\nline8\nline9\nline10\n";
-        fs::write(&test_file, test_content).unwrap();
+        fs::write(&test_file, test_content).expect("Failed to write test file");
 
         let grep_manager = std::sync::Arc::new(GrepSearchManager::new(workspace_root.clone()));
         let file_ops = FileOpsTool::new(workspace_root, grep_manager);
@@ -1855,19 +1859,19 @@ mod paging_tests {
             "page_size_lines": 3
         });
 
-        let result = file_ops.read_file(args).await.unwrap();
-        assert!(result["success"].as_bool().unwrap());
-        assert_eq!(result["content"].as_str().unwrap(), "line3\nline4\nline5");
+        let result = file_ops.read_file(args).await.expect("Failed to read file");
+        assert!(result["success"].as_bool().expect("success should be a boolean"));
+        assert_eq!(result["content"].as_str().expect("content should be a string"), "line3\nline4\nline5");
     }
 
     #[tokio::test]
     async fn test_read_file_paging_bytes() {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("Failed to create temp directory for test");
         let workspace_root = temp_dir.path().to_path_buf();
         let test_file = workspace_root.join("test_file.txt");
 
         let test_content = "line1\nline2\nline3\nline4\nline5\n";
-        fs::write(&test_file, test_content).unwrap();
+        fs::write(&test_file, test_content).expect("Failed to write test file");
 
         let grep_manager = std::sync::Arc::new(GrepSearchManager::new(workspace_root.clone()));
         let file_ops = FileOpsTool::new(workspace_root, grep_manager);
@@ -1879,19 +1883,19 @@ mod paging_tests {
             "page_size_bytes": 6
         });
 
-        let result = file_ops.read_file(args).await.unwrap();
-        assert!(result["success"].as_bool().unwrap());
-        assert_eq!(result["content"].as_str().unwrap(), "line2\n");
+        let result = file_ops.read_file(args).await.expect("Failed to read file");
+        assert!(result["success"].as_bool().expect("success should be a boolean"));
+        assert_eq!(result["content"].as_str().expect("content should be a string"), "line2\n");
     }
 
     #[tokio::test]
     async fn test_read_file_offset_beyond_size() {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("Failed to create temp directory for test");
         let workspace_root = temp_dir.path().to_path_buf();
         let test_file = workspace_root.join("test_file.txt");
 
         let test_content = "line1\nline2\nline3\n";
-        fs::write(&test_file, test_content).unwrap();
+        fs::write(&test_file, test_content).expect("Failed to write test file");
 
         let grep_manager = std::sync::Arc::new(GrepSearchManager::new(workspace_root.clone()));
         let file_ops = FileOpsTool::new(workspace_root, grep_manager);
@@ -1903,18 +1907,18 @@ mod paging_tests {
             "page_size_lines": 10
         });
 
-        let result = file_ops.read_file(args).await.unwrap();
-        assert!(result["success"].as_bool().unwrap());
-        assert_eq!(result["content"].as_str().unwrap(), "");
+        let result = file_ops.read_file(args).await.expect("Failed to read file");
+        assert!(result["success"].as_bool().expect("success should be a boolean"));
+        assert_eq!(result["content"].as_str().expect("content should be a string"), "");
     }
 
     #[tokio::test]
     async fn test_read_file_empty_file() {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("Failed to create temp directory for test");
         let workspace_root = temp_dir.path().to_path_buf();
         let test_file = workspace_root.join("empty_file.txt");
 
-        fs::write(&test_file, "").unwrap();
+        fs::write(&test_file, "").expect("Failed to write empty test file");
 
         let grep_manager = std::sync::Arc::new(GrepSearchManager::new(workspace_root.clone()));
         let file_ops = FileOpsTool::new(workspace_root, grep_manager);
@@ -1926,19 +1930,19 @@ mod paging_tests {
             "page_size_lines": 10
         });
 
-        let result = file_ops.read_file(args).await.unwrap();
-        assert!(result["success"].as_bool().unwrap());
-        assert_eq!(result["content"].as_str().unwrap(), "");
+        let result = file_ops.read_file(args).await.expect("Failed to read file");
+        assert!(result["success"].as_bool().expect("success should be a boolean"));
+        assert_eq!(result["content"].as_str().expect("content should be a string"), "");
     }
 
     #[tokio::test]
     async fn test_read_file_legacy_functionality() {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("Failed to create temp directory for test");
         let workspace_root = temp_dir.path().to_path_buf();
         let test_file = workspace_root.join("test_file.txt");
 
         let test_content = "line1\nline2\nline3\nline4\nline5\n";
-        fs::write(&test_file, test_content).unwrap();
+        fs::write(&test_file, test_content).expect("Failed to write test file");
 
         let grep_manager = std::sync::Arc::new(GrepSearchManager::new(workspace_root.clone()));
         let file_ops = FileOpsTool::new(workspace_root, grep_manager);
@@ -1949,9 +1953,9 @@ mod paging_tests {
             "max_bytes": 10
         });
 
-        let result = file_ops.read_file(args).await.unwrap();
-        assert!(result["success"].as_bool().unwrap());
-        let content = result["content"].as_str().unwrap();
+        let result = file_ops.read_file(args).await.expect("Failed to read file");
+        assert!(result["success"].as_bool().expect("success should be a boolean"));
+        let content = result["content"].as_str().expect("content should be a string");
         assert!(content.len() <= 10);
         assert!(content.starts_with("line1"));
     }

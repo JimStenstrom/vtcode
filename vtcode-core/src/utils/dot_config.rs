@@ -90,7 +90,7 @@ impl Default for DotConfig {
             version: env!("CARGO_PKG_VERSION").to_string(),
             last_updated: std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
+                .expect("System time must be after UNIX_EPOCH")
                 .as_secs(),
             preferences: UserPreferences::default(),
             providers: ProviderConfigs::default(),
@@ -230,7 +230,7 @@ impl DotManager {
         updater(&mut config);
         config.last_updated = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
+            .expect("System time must be after UNIX_EPOCH")
             .as_secs();
         self.save_config(&config).await
     }
@@ -374,7 +374,7 @@ impl DotManager {
     pub async fn backup_config(&self) -> Result<PathBuf, DotError> {
         let timestamp = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
+            .expect("System time must be after UNIX_EPOCH")
             .as_secs();
 
         let backup_name = format!("config_backup_{}.toml", timestamp);
@@ -474,7 +474,7 @@ use std::sync::{LazyLock, Mutex};
 
 /// Global dot manager instance
 static DOT_MANAGER: LazyLock<Mutex<DotManager>> =
-    LazyLock::new(|| Mutex::new(DotManager::new().unwrap()));
+    LazyLock::new(|| Mutex::new(DotManager::new().expect("Failed to initialize dot manager")));
 
 /// Get global dot manager instance
 pub fn get_dot_manager() -> &'static Mutex<DotManager> {
@@ -483,25 +483,25 @@ pub fn get_dot_manager() -> &'static Mutex<DotManager> {
 
 /// Initialize dot folder (should be called at startup)
 pub async fn initialize_dot_folder() -> Result<(), DotError> {
-    let manager = get_dot_manager().lock().unwrap().clone();
+    let manager = get_dot_manager().lock().expect("Mutex should not be poisoned").clone();
     manager.initialize().await
 }
 
 /// Load user configuration
 pub async fn load_user_config() -> Result<DotConfig, DotError> {
-    let manager = get_dot_manager().lock().unwrap().clone();
+    let manager = get_dot_manager().lock().expect("Mutex should not be poisoned").clone();
     manager.load_config().await
 }
 
 /// Save user configuration
 pub async fn save_user_config(config: &DotConfig) -> Result<(), DotError> {
-    let manager = get_dot_manager().lock().unwrap().clone();
+    let manager = get_dot_manager().lock().expect("Mutex should not be poisoned").clone();
     manager.save_config(config).await
 }
 
 /// Persist the preferred UI theme in the user's dot configuration.
 pub async fn update_theme_preference(theme: &str) -> Result<(), DotError> {
-    let manager = get_dot_manager().lock().unwrap().clone();
+    let manager = get_dot_manager().lock().expect("Mutex should not be poisoned").clone();
     manager
         .update_config(|cfg| cfg.preferences.theme = theme.to_string())
         .await
@@ -509,7 +509,7 @@ pub async fn update_theme_preference(theme: &str) -> Result<(), DotError> {
 
 /// Persist the preferred provider and model combination.
 pub async fn update_model_preference(provider: &str, model: &str) -> Result<(), DotError> {
-    let manager = get_dot_manager().lock().unwrap().clone();
+    let manager = get_dot_manager().lock().expect("Mutex should not be poisoned").clone();
     manager
         .update_config(|cfg| {
             cfg.preferences.default_provider = provider.to_string();
@@ -525,7 +525,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_dot_manager_initialization() {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("Failed to create temp directory for test");
         let config_dir = temp_dir.path().join(".vtcode");
 
         // Test directory creation
@@ -537,7 +537,7 @@ mod tests {
             config_file: config_dir.join("config.toml"),
         };
 
-        manager.initialize().await.unwrap();
+        manager.initialize().await.expect("Failed to initialize manager");
         assert!(config_dir.exists());
         assert!(config_dir.join("cache").exists());
         assert!(config_dir.join("logs").exists());
@@ -545,7 +545,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_config_save_load() {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("Failed to create temp directory for test");
         let config_dir = temp_dir.path().join(".vtcode");
 
         let manager = DotManager {
@@ -554,13 +554,13 @@ mod tests {
             config_file: config_dir.join("config.toml"),
         };
 
-        manager.initialize().await.unwrap();
+        manager.initialize().await.expect("Failed to initialize manager");
 
         let mut config = DotConfig::default();
         config.preferences.default_model = "test-model".to_string();
 
-        manager.save_config(&config).await.unwrap();
-        let loaded_config = manager.load_config().await.unwrap();
+        manager.save_config(&config).await.expect("Failed to save config");
+        let loaded_config = manager.load_config().await.expect("Failed to load config");
 
         assert_eq!(loaded_config.preferences.default_model, "test-model");
     }

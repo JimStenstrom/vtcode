@@ -1600,167 +1600,167 @@ mod tests {
     fn test_model_from_string() {
         // Gemini models
         assert_eq!(
-            models::GEMINI_2_5_FLASH_PREVIEW.parse::<ModelId>().unwrap(),
+            models::GEMINI_2_5_FLASH_PREVIEW.parse::<ModelId>().expect("Test should parse valid ModelId"),
             ModelId::Gemini25FlashPreview
         );
         assert_eq!(
-            models::GEMINI_2_5_FLASH.parse::<ModelId>().unwrap(),
+            models::GEMINI_2_5_FLASH.parse::<ModelId>().expect("Test should parse valid ModelId"),
             ModelId::Gemini25Flash
         );
         assert_eq!(
-            models::GEMINI_2_5_FLASH_LITE.parse::<ModelId>().unwrap(),
+            models::GEMINI_2_5_FLASH_LITE.parse::<ModelId>().expect("Test should parse valid ModelId"),
             ModelId::Gemini25FlashLite
         );
         assert_eq!(
-            models::GEMINI_2_5_PRO.parse::<ModelId>().unwrap(),
+            models::GEMINI_2_5_PRO.parse::<ModelId>().expect("Test should parse valid ModelId"),
             ModelId::Gemini25Pro
         );
         // OpenAI models
-        assert_eq!(models::GPT_5.parse::<ModelId>().unwrap(), ModelId::GPT5);
+        assert_eq!(models::GPT_5.parse::<ModelId>().expect("Test should parse valid ModelId"), ModelId::GPT5);
         assert_eq!(
-            models::GPT_5_CODEX.parse::<ModelId>().unwrap(),
+            models::GPT_5_CODEX.parse::<ModelId>().expect("Test should parse valid ModelId"),
             ModelId::GPT5Codex
         );
         assert_eq!(
-            models::GPT_5_MINI.parse::<ModelId>().unwrap(),
+            models::GPT_5_MINI.parse::<ModelId>().expect("Test should parse valid ModelId"),
             ModelId::GPT5Mini
         );
         assert_eq!(
-            models::GPT_5_NANO.parse::<ModelId>().unwrap(),
+            models::GPT_5_NANO.parse::<ModelId>().expect("Test should parse valid ModelId"),
             ModelId::GPT5Nano
         );
         assert_eq!(
-            models::CODEX_MINI_LATEST.parse::<ModelId>().unwrap(),
+            models::CODEX_MINI_LATEST.parse::<ModelId>().expect("Test should parse valid ModelId"),
             ModelId::CodexMiniLatest
         );
         assert_eq!(
-            models::openai::GPT_OSS_20B.parse::<ModelId>().unwrap(),
+            models::openai::GPT_OSS_20B.parse::<ModelId>().expect("Test should parse valid ModelId"),
             ModelId::OpenAIGptOss20b
         );
         assert_eq!(
-            models::openai::GPT_OSS_120B.parse::<ModelId>().unwrap(),
+            models::openai::GPT_OSS_120B.parse::<ModelId>().expect("Test should parse valid ModelId"),
             ModelId::OpenAIGptOss120b
         );
         // Anthropic models
         assert_eq!(
-            models::CLAUDE_SONNET_4_5.parse::<ModelId>().unwrap(),
+            models::CLAUDE_SONNET_4_5.parse::<ModelId>().expect("Test should parse valid ModelId"),
             ModelId::ClaudeSonnet45
         );
         assert_eq!(
-            models::CLAUDE_HAIKU_4_5.parse::<ModelId>().unwrap(),
+            models::CLAUDE_HAIKU_4_5.parse::<ModelId>().expect("Test should parse valid ModelId"),
             ModelId::ClaudeHaiku45
         );
         assert_eq!(
-            models::CLAUDE_SONNET_4_20250514.parse::<ModelId>().unwrap(),
+            models::CLAUDE_SONNET_4_20250514.parse::<ModelId>().expect("Test should parse valid ModelId"),
             ModelId::ClaudeSonnet4
         );
         assert_eq!(
-            models::CLAUDE_OPUS_4_1_20250805.parse::<ModelId>().unwrap(),
+            models::CLAUDE_OPUS_4_1_20250805.parse::<ModelId>().expect("Test should parse valid ModelId"),
             ModelId::ClaudeOpus41
         );
         // DeepSeek models
         assert_eq!(
-            models::DEEPSEEK_CHAT.parse::<ModelId>().unwrap(),
+            models::DEEPSEEK_CHAT.parse::<ModelId>().expect("Test should parse valid ModelId"),
             ModelId::DeepSeekChat
         );
         assert_eq!(
-            models::DEEPSEEK_REASONER.parse::<ModelId>().unwrap(),
+            models::DEEPSEEK_REASONER.parse::<ModelId>().expect("Test should parse valid ModelId"),
             ModelId::DeepSeekReasoner
         );
         // xAI models
         assert_eq!(
-            models::xai::GROK_4.parse::<ModelId>().unwrap(),
+            models::xai::GROK_4.parse::<ModelId>().expect("Test should parse valid ModelId"),
             ModelId::XaiGrok4
         );
         assert_eq!(
-            models::xai::GROK_4_MINI.parse::<ModelId>().unwrap(),
+            models::xai::GROK_4_MINI.parse::<ModelId>().expect("Test should parse valid ModelId"),
             ModelId::XaiGrok4Mini
         );
         assert_eq!(
-            models::xai::GROK_4_CODE.parse::<ModelId>().unwrap(),
+            models::xai::GROK_4_CODE.parse::<ModelId>().expect("Test should parse valid ModelId"),
             ModelId::XaiGrok4Code
         );
         assert_eq!(
-            models::xai::GROK_4_CODE_LATEST.parse::<ModelId>().unwrap(),
+            models::xai::GROK_4_CODE_LATEST.parse::<ModelId>().expect("Test should parse valid ModelId"),
             ModelId::XaiGrok4CodeLatest
         );
         assert_eq!(
-            models::xai::GROK_4_VISION.parse::<ModelId>().unwrap(),
+            models::xai::GROK_4_VISION.parse::<ModelId>().expect("Test should parse valid ModelId"),
             ModelId::XaiGrok4Vision
         );
         // Z.AI models
         assert_eq!(
-            models::zai::GLM_4_6.parse::<ModelId>().unwrap(),
+            models::zai::GLM_4_6.parse::<ModelId>().expect("Test should parse valid ModelId"),
             ModelId::ZaiGlm46
         );
         assert_eq!(
-            models::zai::GLM_4_5.parse::<ModelId>().unwrap(),
+            models::zai::GLM_4_5.parse::<ModelId>().expect("Test should parse valid ModelId"),
             ModelId::ZaiGlm45
         );
         assert_eq!(
-            models::zai::GLM_4_5_AIR.parse::<ModelId>().unwrap(),
+            models::zai::GLM_4_5_AIR.parse::<ModelId>().expect("Test should parse valid ModelId"),
             ModelId::ZaiGlm45Air
         );
         assert_eq!(
-            models::zai::GLM_4_5_X.parse::<ModelId>().unwrap(),
+            models::zai::GLM_4_5_X.parse::<ModelId>().expect("Test should parse valid ModelId"),
             ModelId::ZaiGlm45X
         );
         assert_eq!(
-            models::zai::GLM_4_5_AIRX.parse::<ModelId>().unwrap(),
+            models::zai::GLM_4_5_AIRX.parse::<ModelId>().expect("Test should parse valid ModelId"),
             ModelId::ZaiGlm45Airx
         );
         assert_eq!(
-            models::zai::GLM_4_5_FLASH.parse::<ModelId>().unwrap(),
+            models::zai::GLM_4_5_FLASH.parse::<ModelId>().expect("Test should parse valid ModelId"),
             ModelId::ZaiGlm45Flash
         );
         assert_eq!(
-            models::zai::GLM_4_32B_0414_128K.parse::<ModelId>().unwrap(),
+            models::zai::GLM_4_32B_0414_128K.parse::<ModelId>().expect("Test should parse valid ModelId"),
             ModelId::ZaiGlm432b0414128k
         );
         assert_eq!(
             models::MOONSHOT_KIMI_K2_TURBO_PREVIEW
                 .parse::<ModelId>()
-                .unwrap(),
+                .expect("Test should parse valid ModelId"),
             ModelId::MoonshotKimiK2TurboPreview
         );
         assert_eq!(
             models::MOONSHOT_KIMI_K2_THINKING
                 .parse::<ModelId>()
-                .unwrap(),
+                .expect("Test should parse valid ModelId"),
             ModelId::MoonshotKimiK2Thinking
         );
         assert_eq!(
             models::MOONSHOT_KIMI_K2_0905_PREVIEW
                 .parse::<ModelId>()
-                .unwrap(),
+                .expect("Test should parse valid ModelId"),
             ModelId::MoonshotKimiK20905Preview
         );
         assert_eq!(
             models::MOONSHOT_KIMI_K2_0711_PREVIEW
                 .parse::<ModelId>()
-                .unwrap(),
+                .expect("Test should parse valid ModelId"),
             ModelId::MoonshotKimiK20711Preview
         );
         assert_eq!(
-            models::MOONSHOT_KIMI_LATEST.parse::<ModelId>().unwrap(),
+            models::MOONSHOT_KIMI_LATEST.parse::<ModelId>().expect("Test should parse valid ModelId"),
             ModelId::MoonshotKimiLatest
         );
         assert_eq!(
-            models::MOONSHOT_KIMI_LATEST_8K.parse::<ModelId>().unwrap(),
+            models::MOONSHOT_KIMI_LATEST_8K.parse::<ModelId>().expect("Test should parse valid ModelId"),
             ModelId::MoonshotKimiLatest8k
         );
         assert_eq!(
-            models::MOONSHOT_KIMI_LATEST_32K.parse::<ModelId>().unwrap(),
+            models::MOONSHOT_KIMI_LATEST_32K.parse::<ModelId>().expect("Test should parse valid ModelId"),
             ModelId::MoonshotKimiLatest32k
         );
         assert_eq!(
             models::MOONSHOT_KIMI_LATEST_128K
                 .parse::<ModelId>()
-                .unwrap(),
+                .expect("Test should parse valid ModelId"),
             ModelId::MoonshotKimiLatest128k
         );
         for entry in openrouter_generated::ENTRIES {
-            assert_eq!(entry.id.parse::<ModelId>().unwrap(), entry.variant);
+            assert_eq!(entry.id.parse::<ModelId>().expect("Test should parse valid ModelId"), entry.variant);
         }
         // Invalid model
         assert!("invalid-model".parse::<ModelId>().is_err());
@@ -1768,21 +1768,21 @@ mod tests {
 
     #[test]
     fn test_provider_parsing() {
-        assert_eq!("gemini".parse::<Provider>().unwrap(), Provider::Gemini);
-        assert_eq!("openai".parse::<Provider>().unwrap(), Provider::OpenAI);
+        assert_eq!("gemini".parse::<Provider>().expect("Test should parse valid Provider"), Provider::Gemini);
+        assert_eq!("openai".parse::<Provider>().expect("Test should parse valid Provider"), Provider::OpenAI);
         assert_eq!(
-            "anthropic".parse::<Provider>().unwrap(),
+            "anthropic".parse::<Provider>().expect("Test should parse valid Provider"),
             Provider::Anthropic
         );
-        assert_eq!("deepseek".parse::<Provider>().unwrap(), Provider::DeepSeek);
+        assert_eq!("deepseek".parse::<Provider>().expect("Test should parse valid Provider"), Provider::DeepSeek);
         assert_eq!(
-            "openrouter".parse::<Provider>().unwrap(),
+            "openrouter".parse::<Provider>().expect("Test should parse valid Provider"),
             Provider::OpenRouter
         );
-        assert_eq!("xai".parse::<Provider>().unwrap(), Provider::XAI);
-        assert_eq!("zai".parse::<Provider>().unwrap(), Provider::ZAI);
-        assert_eq!("moonshot".parse::<Provider>().unwrap(), Provider::Moonshot);
-        assert_eq!("lmstudio".parse::<Provider>().unwrap(), Provider::LmStudio);
+        assert_eq!("xai".parse::<Provider>().expect("Test should parse valid Provider"), Provider::XAI);
+        assert_eq!("zai".parse::<Provider>().expect("Test should parse valid Provider"), Provider::ZAI);
+        assert_eq!("moonshot".parse::<Provider>().expect("Test should parse valid Provider"), Provider::Moonshot);
+        assert_eq!("lmstudio".parse::<Provider>().expect("Test should parse valid Provider"), Provider::LmStudio);
         assert!("invalid-provider".parse::<Provider>().is_err());
     }
 

@@ -250,14 +250,14 @@ mod tests {
     #[tokio::test]
     async fn test_vtcodegitignore_integration() {
         // Create a temporary directory for testing
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("Failed to create temp directory for test");
         let gitignore_path = temp_dir.path().join(".vtcodegitignore");
 
         // Create a .vtcodegitignore file
-        let mut file = File::create(&gitignore_path).unwrap();
-        writeln!(file, "*.log").unwrap();
-        writeln!(file, "target/").unwrap();
-        writeln!(file, "!important.log").unwrap();
+        let mut file = File::create(&gitignore_path).expect("Failed to create test .vtcodegitignore file");
+        writeln!(file, "*.log").expect("Failed to write test pattern");
+        writeln!(file, "target/").expect("Failed to write test pattern");
+        writeln!(file, "!important.log").expect("Failed to write test pattern");
 
         // Test that the file was created
         assert!(gitignore_path.exists());
@@ -265,7 +265,7 @@ mod tests {
         // Test pattern matching logic
         let gitignore = VTCodeGitignore::from_directory(temp_dir.path())
             .await
-            .unwrap();
+            .expect("Failed to load gitignore from test directory");
         assert!(gitignore.is_loaded());
         assert_eq!(gitignore.pattern_count(), 3);
 
@@ -280,18 +280,18 @@ mod tests {
 
     #[tokio::test]
     async fn test_basic_pattern_matching() {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("Failed to create temp directory for test");
         let gitignore_path = temp_dir.path().join(".vtcodegitignore");
 
         // Create a simple .vtcodegitignore
-        let mut file = File::create(&gitignore_path).unwrap();
-        writeln!(file, "*.log").unwrap();
-        writeln!(file, "target/").unwrap();
-        writeln!(file, "!important.log").unwrap();
+        let mut file = File::create(&gitignore_path).expect("Failed to create test .vtcodegitignore file");
+        writeln!(file, "*.log").expect("Failed to write test pattern");
+        writeln!(file, "target/").expect("Failed to write test pattern");
+        writeln!(file, "!important.log").expect("Failed to write test pattern");
 
         let gitignore = VTCodeGitignore::from_directory(temp_dir.path())
             .await
-            .unwrap();
+            .expect("Failed to load gitignore from test directory");
         assert!(gitignore.is_loaded());
         assert_eq!(gitignore.pattern_count(), 3);
 
@@ -304,10 +304,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_no_gitignore_file() {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("Failed to create temp directory for test");
         let gitignore = VTCodeGitignore::from_directory(temp_dir.path())
             .await
-            .unwrap();
+            .expect("Failed to load gitignore from test directory");
         assert!(!gitignore.is_loaded());
         assert_eq!(gitignore.pattern_count(), 0);
         assert!(!gitignore.should_exclude(&temp_dir.path().join("anyfile.txt")));
@@ -315,35 +315,35 @@ mod tests {
 
     #[tokio::test]
     async fn test_empty_gitignore_file() {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("Failed to create temp directory for test");
         let gitignore_path = temp_dir.path().join(".vtcodegitignore");
 
         // Create an empty .vtcodegitignore
-        File::create(&gitignore_path).unwrap();
+        File::create(&gitignore_path).expect("Failed to create empty test .vtcodegitignore file");
 
         let gitignore = VTCodeGitignore::from_directory(temp_dir.path())
             .await
-            .unwrap();
+            .expect("Failed to load gitignore from test directory");
         assert!(gitignore.is_loaded());
         assert_eq!(gitignore.pattern_count(), 0);
     }
 
     #[tokio::test]
     async fn test_comments_and_empty_lines() {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("Failed to create temp directory for test");
         let gitignore_path = temp_dir.path().join(".vtcodegitignore");
 
         // Create .vtcodegitignore with comments and empty lines
-        let mut file = File::create(&gitignore_path).unwrap();
-        writeln!(file, "# This is a comment").unwrap();
-        writeln!(file, "").unwrap();
-        writeln!(file, "*.tmp").unwrap();
-        writeln!(file, "# Another comment").unwrap();
-        writeln!(file, "").unwrap();
+        let mut file = File::create(&gitignore_path).expect("Failed to create test .vtcodegitignore file");
+        writeln!(file, "# This is a comment").expect("Failed to write test pattern");
+        writeln!(file, "").expect("Failed to write test pattern");
+        writeln!(file, "*.tmp").expect("Failed to write test pattern");
+        writeln!(file, "# Another comment").expect("Failed to write test pattern");
+        writeln!(file, "").expect("Failed to write test pattern");
 
         let gitignore = VTCodeGitignore::from_directory(temp_dir.path())
             .await
-            .unwrap();
+            .expect("Failed to load gitignore from test directory");
         assert!(gitignore.is_loaded());
         assert_eq!(gitignore.pattern_count(), 1); // Only the *.tmp pattern should be loaded
 
@@ -353,17 +353,17 @@ mod tests {
 
     #[tokio::test]
     async fn test_path_filtering() {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("Failed to create temp directory for test");
         let gitignore_path = temp_dir.path().join(".vtcodegitignore");
 
         // Create .vtcodegitignore
-        let mut file = File::create(&gitignore_path).unwrap();
-        writeln!(file, "*.log").unwrap();
-        writeln!(file, "temp/").unwrap();
+        let mut file = File::create(&gitignore_path).expect("Failed to create test .vtcodegitignore file");
+        writeln!(file, "*.log").expect("Failed to write test pattern");
+        writeln!(file, "temp/").expect("Failed to write test pattern");
 
         let gitignore = VTCodeGitignore::from_directory(temp_dir.path())
             .await
-            .unwrap();
+            .expect("Failed to load gitignore from test directory");
 
         let paths = vec![
             temp_dir.path().join("app.log"),
