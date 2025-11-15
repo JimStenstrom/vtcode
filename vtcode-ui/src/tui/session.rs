@@ -126,7 +126,7 @@ impl Session {
     }
 
     pub fn should_exit(&self) -> bool {
-        self.ui.should_exit
+        self.ui.should_exit()
     }
 
     pub fn request_exit(&mut self) {
@@ -163,8 +163,8 @@ impl Session {
                 self.prompt.set_placeholder_style(style);
             }
             InlineCommand::SetMessageLabels { agent, user } => {
-                self.display.labels().agent = agent.filter(|label| !label.is_empty());
-                self.display.labels().user = user.filter(|label| !label.is_empty());
+                self.display.labels_mut().agent = agent.filter(|label| !label.is_empty());
+                self.display.labels_mut().user = user.filter(|label| !label.is_empty());
                 self.invalidate_scroll_metrics();
             }
             InlineCommand::SetHeaderContext { context } => {
@@ -543,7 +543,7 @@ impl Session {
     }
 
     fn input_reserved_rows(&self) -> u16 {
-        self.header_reserved_rows() + self.ui.input_height
+        self.header_reserved_rows() + self.ui.input_height()
     }
 
     fn recalculate_transcript_rows(&mut self) {
@@ -557,7 +557,7 @@ impl Session {
             return;
         }
 
-        let Some(palette) = self.palette.file_palette().as_ref() else {
+        let Some(palette) = self.palette.file_palette() else {
             return;
         };
 
@@ -756,7 +756,7 @@ impl Session {
             return;
         }
 
-        let Some(palette) = self.palette.prompt_palette().as_ref() else {
+        let Some(palette) = self.palette.prompt_palette() else {
             return;
         };
 
@@ -915,14 +915,12 @@ impl Session {
 
     fn has_input_status(&self) -> bool {
         let left_present = self
-            .prompt.status_left
-            .as_ref()
+            .prompt.status_left()
             .is_some_and(|value| !value.trim().is_empty());
         if left_present {
             return true;
         }
-        self.prompt.status_right
-            .as_ref()
+        self.prompt.status_right()
             .is_some_and(|value| !value.trim().is_empty())
     }
 
@@ -1395,7 +1393,7 @@ impl Session {
             }
             _ => {
                 // Use the default tool accent color for other tools
-                self.display.theme
+                self.display.theme()
                     .tool_accent
                     .or(self.display.theme().primary)
                     .or(self.display.theme().foreground)
@@ -1419,7 +1417,9 @@ impl Session {
 
     fn ensure_prompt_style_color(&mut self) {
         if self.prompt.style().color.is_none() {
-            self.prompt.style().color = self.display.theme().primary.or(self.display.theme().foreground);
+            let mut style = self.prompt.style().clone();
+            style.color = self.display.theme().primary.or(self.display.theme().foreground);
+            self.prompt.set_style(style);
         }
     }
 
@@ -1527,7 +1527,7 @@ impl Session {
         }
 
         let styles = self.modal_render_styles();
-        let Some(modal) = self.render.modal_mut().as_mut() else {
+        let Some(modal) = self.render.modal_mut() else {
             return;
         };
 
@@ -1620,7 +1620,7 @@ impl Session {
     }
 
     fn clear_screen(&mut self) {
-        self.display.lines().clear();
+        self.display.lines_mut().clear();
         self.scroll_manager.set_offset(0);
         self.invalidate_transcript_cache();
         self.invalidate_scroll_metrics();
@@ -2508,7 +2508,7 @@ impl Session {
     fn prefix_text(&self, kind: InlineMessageKind) -> Option<String> {
         match kind {
             InlineMessageKind::User => Some(
-                self.display.labels
+                self.display.labels()
                     .user
                     .clone()
                     .unwrap_or_else(|| USER_PREFIX.to_string()),
@@ -2551,7 +2551,7 @@ impl Session {
     fn push_line(&mut self, kind: InlineMessageKind, segments: Vec<InlineSegment>) {
         let previous_max_offset = self.current_max_scroll_offset();
         let revision = self.next_revision();
-        self.display.lines().push(MessageLine {
+        self.display.lines_mut().push(MessageLine {
             kind,
             segments,
             revision,
@@ -2612,11 +2612,11 @@ impl Session {
         let previous_max_offset = self.current_max_scroll_offset();
         let remove_count = min(count, self.display.lines().len());
         for _ in 0..remove_count {
-            self.display.lines().pop();
+            self.display.lines_mut().pop();
         }
         for segments in lines {
             let revision = self.next_revision();
-            self.display.lines().push(MessageLine {
+            self.display.lines_mut().push(MessageLine {
                 kind,
                 segments,
                 revision,
@@ -2675,7 +2675,7 @@ impl Session {
         }
 
         let can_reuse_last = self
-            .display.lines
+            .display.lines()
             .last()
             .map(|line| line.kind == kind && line.segments.is_empty())
             .unwrap_or(false);
@@ -2693,7 +2693,7 @@ impl Session {
         }
 
         let revision = self.next_revision();
-        self.display.lines().push(MessageLine {
+        self.display.lines_mut().push(MessageLine {
             kind,
             segments: vec![InlineSegment {
                 text: text.to_string(),
@@ -2810,8 +2810,7 @@ impl Session {
 
     fn ensure_reflow_cache(&mut self, width: u16) -> &mut TranscriptReflowCache {
         let mut cache = self
-            .render.transcript_cache
-            .take()
+            .render.take_transcript_cache()
             .unwrap_or_else(|| TranscriptReflowCache::new(width));
 
         // Update width if needed and handle width changes
@@ -2843,7 +2842,7 @@ impl Session {
             // Still need to ensure row offsets are correct
             cache.update_row_offsets();
             self.render.set_transcript_cache(Some(cache));
-            return self.render.transcript_cache().as_mut().unwrap();
+            return self.render.transcript_cache_mut().as_mut().unwrap();
         }
 
         // Update all messages from the first dirty one onwards
@@ -2860,7 +2859,7 @@ impl Session {
         // Update row offsets and total row count
         cache.update_row_offsets();
         self.render.set_transcript_cache(Some(cache));
-        self.render.transcript_cache().as_mut().unwrap()
+        self.render.transcript_cache_mut().as_mut().unwrap()
     }
 
     fn total_transcript_rows(&mut self, width: u16) -> usize {
@@ -3027,7 +3026,7 @@ impl Session {
             .iter()
             .any(|segment| segment.style.effects.contains(Effects::ITALIC));
         let next_is_tool = self
-            .display.lines
+            .display.lines()
             .get(index + 1)
             .map(|next| next.kind == InlineMessageKind::Tool)
             .unwrap_or(false);
@@ -3091,12 +3090,12 @@ impl Session {
 
     fn remove_trailing_empty_tool_line(&mut self) {
         let should_remove = self
-            .display.lines
+            .display.lines()
             .last()
             .map(|line| line.kind == InlineMessageKind::Tool && line.segments.is_empty())
             .unwrap_or(false);
         if should_remove {
-            self.display.lines().pop();
+            self.display.lines_mut().pop();
             self.invalidate_scroll_metrics();
         }
     }
@@ -3177,7 +3176,7 @@ impl Session {
             .map(|prev| prev.kind == InlineMessageKind::Pty)
             .unwrap_or(false);
         let next_is_pty = self
-            .display.lines
+            .display.lines()
             .get(index + 1)
             .map(|next| next.kind == InlineMessageKind::Pty)
             .unwrap_or(false);

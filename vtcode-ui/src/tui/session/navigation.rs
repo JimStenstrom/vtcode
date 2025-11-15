@@ -63,7 +63,7 @@ impl Session {
             .style(self.default_style())
             .highlight_style(self.navigation_highlight_style());
 
-        frame.render_stateful_widget(list, area, &mut self.render.navigation_state());
+        frame.render_stateful_widget(list, area, &mut self.render.navigation_state_mut());
     }
 
     pub(super) fn navigation_block_title(&self) -> Line<'static> {
@@ -137,7 +137,7 @@ impl Session {
             )]))];
         }
 
-        self.display.lines
+        self.display.lines()
             .iter()
             .enumerate()
             .map(|(index, line)| ListItem::new(Line::from(self.navigation_spans(index, line))))
@@ -145,7 +145,7 @@ impl Session {
     }
 
     fn plan_navigation_items(&self) -> Vec<ListItem<'static>> {
-        self.render.plan
+        self.render.plan()
             .steps
             .iter()
             .enumerate()
@@ -303,7 +303,7 @@ impl Session {
         }
 
         if let Some(index) = self
-            .render.plan
+            .render.plan()
             .steps
             .iter()
             .position(|step| matches!(step.status, StepStatus::InProgress))
@@ -312,7 +312,7 @@ impl Session {
         }
 
         if let Some(index) = self
-            .render.plan
+            .render.plan()
             .steps
             .iter()
             .position(|step| matches!(step.status, StepStatus::Pending))
