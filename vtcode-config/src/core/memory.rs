@@ -31,8 +31,8 @@ pub struct MemoryConfig {
     /// Optional: specific model for summarization
     pub summarization_model: Option<String>,
 
-    /// SOP (Standard Operating Procedure) configuration
-    pub sops: SopConfig,
+    /// Procedures configuration
+    pub procedures: ProceduresConfig,
 }
 
 impl Default for MemoryConfig {
@@ -46,7 +46,7 @@ impl Default for MemoryConfig {
             checkpoint_interval_seconds: 300,
             log_directory: None, // Will use default
             summarization_model: None,
-            sops: SopConfig::default(),
+            procedures: ProceduresConfig::default(),
         }
     }
 }
@@ -179,32 +179,32 @@ impl QdrantConfig {
     }
 }
 
-/// SOP (Standard Operating Procedure) configuration
+/// Procedures configuration
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
-pub struct SopConfig {
-    /// Enable SOP system
+pub struct ProceduresConfig {
+    /// Enable procedures system
     pub enabled: bool,
 
-    /// Directories to scan for SOPs (relative to workspace root)
+    /// Directories to scan for procedures (relative to workspace root)
     pub paths: Vec<String>,
 }
 
-impl Default for SopConfig {
+impl Default for ProceduresConfig {
     fn default() -> Self {
         Self {
             enabled: true,
             paths: vec![
-                "docs/sops".to_string(),      // Project-level SOPs (version controlled)
-                ".vtcode/sops".to_string(),   // User-specific SOPs (gitignored)
+                "docs/procedures".to_string(),      // Project-level procedures (version controlled)
+                ".vtcode/procedures".to_string(),   // User-specific procedures (gitignored)
             ],
         }
     }
 }
 
-impl SopConfig {
-    /// Validate SOP configuration
+impl ProceduresConfig {
+    /// Validate procedures configuration
     pub fn validate(&self) -> Result<()> {
         // Paths can be empty (SOPs are optional)
         // No validation needed currently

@@ -5924,6 +5924,7 @@ dependencies = [
  "vtcode-markdown-store",
  "vtcode-mcp",
  "vtcode-memory",
+ "vtcode-procedures",
  "vtcode-prompts",
  "vtcode-rag",
  "vtcode-tool-traits",
@@ -6165,6 +6166,22 @@ dependencies = [
  "uuid",
  "vtcode-commons",
  "vtcode-llm-types",
+]
+
+[[package]]
+name = "vtcode-procedures"
+version = "0.43.6"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "tracing",
+ "vtcode-config",
+ "vtcode-rag",
+ "vtcode-vectordb",
+ "walkdir",
 ]
 
 [[package]]

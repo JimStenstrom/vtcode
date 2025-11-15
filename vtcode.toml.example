@@ -491,18 +491,18 @@ checkpoint_interval_seconds = 300
 # Optional: specific model for summarization (leave empty to use default)
 # summarization_model = ""
 
-# Standard Operating Procedures (SOPs) - Procedural guidance for LLM agents
-[memory.sops]
-# Enable SOP system
+# Procedures - Procedural guidance for LLM agents
+[memory.procedures]
+# Enable procedures system
 enabled = true
 
-# Directories to scan for SOPs (relative to workspace root)
-# SOPs are markdown files that guide LLM behavior on common workflows
-# Default: docs/sops (project SOPs) and .vtcode/sops (user SOPs)
-paths = ["docs/sops", ".vtcode/sops"]
+# Directories to scan for procedures (relative to workspace root)
+# Procedures are markdown files that guide LLM behavior on common workflows
+# Default: docs/procedures (project procedures) and .vtcode/procedures (user procedures)
+paths = ["docs/procedures", ".vtcode/procedures"]
 
 # Optional: Add additional directories
-# paths = ["docs/sops", ".vtcode/sops", "docs/procedures"]
+# paths = ["docs/procedures", ".vtcode/procedures", "custom/procedures"]
 
 # Vector Database Configuration - Semantic search foundation
 [vectordb]

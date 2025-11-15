@@ -54,7 +54,8 @@ pub use context::{ContextFeaturesConfig, LedgerConfig};
 pub use core::{
     AgentConfig, AgentCustomPromptsConfig, AgentOnboardingConfig, AutomationConfig, CommandsConfig,
     FullAutoConfig, MemoryConfig, ModelConfig, PromptCachingConfig, ProviderPromptCachingConfig,
-    QdrantConfig, SecurityConfig, SopConfig, ToolPolicy, ToolsConfig, VectorDbConfig, WebFetchConfig,
+    ProceduresConfig, QdrantConfig, SecurityConfig, ToolPolicy, ToolsConfig, VectorDbConfig,
+    WebFetchConfig,
 };
 pub use debug::{DebugConfig, TraceLevel};
 pub use defaults::{

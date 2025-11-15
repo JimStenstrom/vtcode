@@ -15,6 +15,5 @@ pub mod types;
 pub use chunker::{Chunker, FixedSizeChunker, SemanticChunker};
 pub use embedder::{Embedder, MockEmbedder};
 pub use indexing::IndexingPipeline;
-pub use loaders::load_sops_from_dir;
 pub use query::QueryPipeline;
 pub use types::{Chunk, Document, RetrievedChunk};
