@@ -149,8 +149,7 @@ pub fn infer_provider(override_provider: Option<&str>, model: &str) -> Option<Pr
         return Some(model_id.provider());
     }
 
-    let factory = get_factory().lock().unwrap();
-    factory
+    get_factory()
         .provider_from_model(model)
         .and_then(|name| Provider::from_str(&name).ok())
 }
@@ -171,12 +170,12 @@ impl Default for LLMFactory {
 }
 
 /// Global factory instance
-use std::sync::{LazyLock, Mutex};
+use std::sync::LazyLock;
 
-static FACTORY: LazyLock<Mutex<LLMFactory>> = LazyLock::new(|| Mutex::new(LLMFactory::new()));
+static FACTORY: LazyLock<LLMFactory> = LazyLock::new(LLMFactory::new);
 
 /// Get global factory instance
-pub fn get_factory() -> &'static Mutex<LLMFactory> {
+pub fn get_factory() -> &'static LLMFactory {
     &FACTORY
 }
 
@@ -186,11 +185,9 @@ pub fn create_provider_for_model(
     api_key: String,
     prompt_cache: Option<PromptCachingConfig>,
 ) -> Result<Box<dyn LLMProvider>, LLMError> {
-    let factory = get_factory().lock().unwrap();
-    let provider_name = factory.provider_from_model(model).ok_or_else(|| {
+    let provider_name = get_factory().provider_from_model(model).ok_or_else(|| {
         LLMError::InvalidRequest(format!("Cannot determine provider for model: {}", model))
     })?;
-    drop(factory);
 
     create_provider_with_config(
         &provider_name,
@@ -209,7 +206,6 @@ pub fn create_provider_with_config(
     model: Option<String>,
     prompt_cache: Option<PromptCachingConfig>,
 ) -> Result<Box<dyn LLMProvider>, LLMError> {
-    let factory = get_factory().lock().unwrap();
     let config = ProviderConfig {
         api_key,
         base_url,
@@ -217,7 +213,7 @@ pub fn create_provider_with_config(
         prompt_cache,
     };
 
-    factory.create_provider(provider_name, config)
+    get_factory().create_provider(provider_name, config)
 }
 
 /// Macro to eliminate boilerplate for standard provider implementations
