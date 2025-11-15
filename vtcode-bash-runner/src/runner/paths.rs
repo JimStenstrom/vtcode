@@ -53,13 +53,13 @@ pub fn ensure_mutation_target_within_workspace(
     working_dir: &Path,
     candidate: &Path,
 ) -> Result<()> {
-    if let Ok(metadata) = fs::symlink_metadata(candidate) {
-        if metadata.file_type().is_symlink() {
-            let canonical = candidate
-                .canonicalize()
-                .with_context(|| format!("failed to canonicalize `{}`", candidate.display()))?;
-            return ensure_within_workspace(workspace_root, &canonical);
-        }
+    if let Ok(metadata) = fs::symlink_metadata(candidate)
+        && metadata.file_type().is_symlink()
+    {
+        let canonical = candidate
+            .canonicalize()
+            .with_context(|| format!("failed to canonicalize `{}`", candidate.display()))?;
+        return ensure_within_workspace(workspace_root, &canonical);
     }
 
     if candidate.exists() {

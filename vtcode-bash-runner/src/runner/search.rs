@@ -10,6 +10,7 @@ use super::formatting;
 use super::paths;
 
 /// Search for pattern in files
+#[allow(clippy::too_many_arguments)]
 pub fn grep<E, P>(
     executor: &E,
     policy: &P,

@@ -125,6 +125,7 @@ where
 }
 
 /// Remove file or directory
+#[allow(clippy::too_many_arguments)]
 pub fn rm<E, P>(
     executor: &E,
     policy: &P,
@@ -179,6 +180,7 @@ where
 }
 
 /// Copy file or directory
+#[allow(clippy::too_many_arguments)]
 pub fn cp<E, P>(
     executor: &E,
     policy: &P,
