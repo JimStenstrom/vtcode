@@ -118,7 +118,7 @@ impl Session {
             return 1;
         }
 
-        let prompt_width = UnicodeWidthStr::width(self.prompt.prefix.as_str()) as u16;
+        let prompt_width = UnicodeWidthStr::width(self.prompt.prefix()) as u16;
         let prompt_display_width = prompt_width.min(inner_width);
         let layout = self.input_layout(inner_width, prompt_display_width);
         let line_count = layout.buffers.len().max(1);
@@ -128,8 +128,8 @@ impl Session {
 
     pub(super) fn apply_input_height(&mut self, height: u16) {
         let resolved = height.max(Self::input_block_height_for_lines(1));
-        if self.ui.input_height != resolved {
-            self.ui.input_height = resolved;
+        if self.ui.input_height() != resolved {
+            self.ui.set_input_height(resolved);
             self.recalculate_transcript_rows();
         }
     }
@@ -141,7 +141,7 @@ impl Session {
     fn input_layout(&self, width: u16, prompt_display_width: u16) -> InputLayout {
         let indent_prefix = " ".repeat(prompt_display_width as usize);
         let mut buffers = vec![InputLineBuffer::new(
-            self.prompt.prefix.clone(),
+            self.prompt.prefix().to_string(),
             prompt_display_width,
         )];
         let secure_prompt_active = self.secure_prompt_active();
@@ -230,27 +230,26 @@ impl Session {
 
         let max_visible_lines = height.max(1).min(ui::INLINE_INPUT_MAX_LINES as u16) as usize;
 
-        let mut prompt_style = self.prompt.style.clone();
+        let mut prompt_style = self.prompt.style().clone();
         if prompt_style.color.is_none() {
-            prompt_style.color = self.display.theme.primary.or(self.display.theme.foreground);
+            prompt_style.color = self.display.theme().primary.or(self.display.theme().foreground);
         }
-        let prompt_style = ratatui_style_from_inline(&prompt_style, self.display.theme.foreground);
-        let prompt_width = UnicodeWidthStr::width(self.prompt.prefix.as_str()) as u16;
+        let prompt_style = ratatui_style_from_inline(&prompt_style, self.display.theme().foreground);
+        let prompt_width = UnicodeWidthStr::width(self.prompt.prefix()) as u16;
         let prompt_display_width = prompt_width.min(width);
 
         if self.input_manager.content().is_empty() {
             let mut spans = Vec::new();
-            spans.push(Span::styled(self.prompt.prefix.clone(), prompt_style));
+            spans.push(Span::styled(self.prompt.prefix().clone(), prompt_style));
 
-            if let Some(placeholder) = &self.prompt.placeholder {
-                let placeholder_style =
-                    self.prompt.placeholder_style
-                        .clone()
-                        .unwrap_or_else(|| InlineTextStyle {
-                            color: Some(AnsiColorEnum::Rgb(PLACEHOLDER_COLOR)),
-                            bg_color: None,
-                            effects: Effects::ITALIC,
-                        });
+            if let Some(placeholder) = &self.prompt.placeholder() {
+                let placeholder_style = self.prompt.placeholder_style()
+                    .cloned()
+                    .unwrap_or_else(|| InlineTextStyle {
+                        color: Some(AnsiColorEnum::Rgb(PLACEHOLDER_COLOR)),
+                        bg_color: None,
+                        effects: Effects::ITALIC,
+                    });
                 let style = ratatui_style_from_inline(
                     &placeholder_style,
                     Some(AnsiColorEnum::Rgb(PLACEHOLDER_COLOR)),
@@ -266,7 +265,7 @@ impl Session {
         }
 
         let accent_style =
-            ratatui_style_from_inline(&self.accent_inline_style(), self.display.theme.foreground);
+            ratatui_style_from_inline(&self.accent_inline_style(), self.display.theme().foreground);
         let layout = self.input_layout(width, prompt_display_width);
         let total_lines = layout.buffers.len();
         let visible_limit = max_visible_lines.max(1);
@@ -289,7 +288,7 @@ impl Session {
 
         if lines.is_empty() {
             lines.push(Line::from(vec![Span::styled(
-                self.prompt.prefix.clone(),
+                self.prompt.prefix().clone(),
                 prompt_style,
             )]));
         }
@@ -307,13 +306,11 @@ impl Session {
         }
 
         let left = self
-            .prompt.status_left
-            .as_ref()
+            .prompt.status_left()
             .map(|value| value.trim().to_string())
             .filter(|value| !value.is_empty());
         let right = self
-            .prompt.status_right
-            .as_ref()
+            .prompt.status_right()
             .map(|value| value.trim().to_string())
             .filter(|value| !value.is_empty());
 
@@ -384,7 +381,7 @@ impl Session {
     }
 
     fn cursor_should_be_visible(&self) -> bool {
-        self.ui.cursor_visible && self.ui.input_enabled
+        self.ui.is_cursor_visible() && self.ui.input_enabled
     }
 
     fn secure_prompt_active(&self) -> bool {
@@ -395,10 +392,10 @@ impl Session {
     }
 
     fn is_full_auto_trust(&self) -> bool {
-        self.render.header_context.workspace_trust.contains("full auto")
+        self.render.header_context().workspace_trust.contains("full auto")
     }
 
     fn is_tools_policy_trust(&self) -> bool {
-        self.render.header_context.workspace_trust.contains("tools policy")
+        self.render.header_context().workspace_trust.contains("tools policy")
     }
 }

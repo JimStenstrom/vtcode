@@ -73,7 +73,7 @@ impl Session {
 
     pub(super) fn header_height_from_lines(&self, width: u16, lines: &[Line<'static>]) -> u16 {
         if width == 0 {
-            return self.render.header_rows.max(ui::INLINE_HEADER_HEIGHT);
+            return self.render.header_rows().max(ui::INLINE_HEADER_HEIGHT);
         }
 
         let paragraph = self.build_header_paragraph(lines);
@@ -104,10 +104,10 @@ impl Session {
 
     pub fn header_block_title(&self) -> Line<'static> {
         let fallback = InlineHeaderContext::default();
-        let version = if self.render.header_context.version.trim().is_empty() {
+        let version = if self.render.header_context().version.trim().is_empty() {
             fallback.version
         } else {
-            self.render.header_context.version.clone()
+            self.render.header_context().version.clone()
         };
 
         let prompt = format!(
@@ -175,29 +175,29 @@ impl Session {
     }
 
     fn header_provider_value(&self) -> String {
-        let trimmed = self.render.header_context.provider.trim();
+        let trimmed = self.render.header_context().provider.trim();
         if trimmed.is_empty() {
             InlineHeaderContext::default().provider
         } else {
-            self.render.header_context.provider.clone()
+            self.render.header_context().provider.clone()
         }
     }
 
     fn header_model_value(&self) -> String {
-        let trimmed = self.render.header_context.model.trim();
+        let trimmed = self.render.header_context().model.trim();
         if trimmed.is_empty() {
             InlineHeaderContext::default().model
         } else {
-            self.render.header_context.model.clone()
+            self.render.header_context().model.clone()
         }
     }
 
     fn header_mode_label(&self) -> String {
-        let trimmed = self.render.header_context.mode.trim();
+        let trimmed = self.render.header_context().mode.trim();
         if trimmed.is_empty() {
             InlineHeaderContext::default().mode
         } else {
-            self.render.header_context.mode.clone()
+            self.render.header_context().mode.clone()
         }
     }
 
@@ -227,11 +227,11 @@ impl Session {
     }
 
     fn header_reasoning_value(&self) -> Option<String> {
-        let trimmed = self.render.header_context.reasoning.trim();
+        let trimmed = self.render.header_context().reasoning.trim();
         let value = if trimmed.is_empty() {
             InlineHeaderContext::default().reasoning
         } else {
-            self.render.header_context.reasoning.clone()
+            self.render.header_context().reasoning.clone()
         };
         if value.trim().is_empty() {
             None
@@ -265,11 +265,11 @@ impl Session {
         let defaults = InlineHeaderContext::default();
         let fields = [
             (
-                &self.render.header_context.workspace_trust,
+                &self.render.header_context().workspace_trust,
                 defaults.workspace_trust.clone(),
             ),
-            (&self.render.header_context.tools, defaults.tools.clone()),
-            (&self.render.header_context.git, defaults.git.clone()),
+            (&self.render.header_context().tools, defaults.tools.clone()),
+            (&self.render.header_context().git, defaults.git.clone()),
             // Removed MCP info from header as requested
         ];
 
@@ -349,7 +349,7 @@ impl Session {
         let mut spans = Vec::new();
         let mut first_section = true;
 
-        for highlight in &self.render.header_context.highlights {
+        for highlight in &self.render.header_context().highlights {
             let title = highlight.title.trim();
             let summary = self.header_highlight_summary(highlight);
 
@@ -496,7 +496,7 @@ impl Session {
 
     pub(super) fn section_title_style(&self) -> Style {
         let mut style = self.default_style().add_modifier(Modifier::BOLD);
-        if let Some(primary) = self.display.theme.primary.or(self.display.theme.foreground) {
+        if let Some(primary) = self.display.theme().primary.or(self.display.theme().foreground) {
             style = style.fg(ratatui_color_from_ansi(primary));
         }
         style
@@ -504,7 +504,7 @@ impl Session {
 
     fn header_primary_style(&self) -> Style {
         let mut style = self.default_style();
-        if let Some(primary) = self.display.theme.primary.or(self.display.theme.foreground) {
+        if let Some(primary) = self.display.theme().primary.or(self.display.theme().foreground) {
             style = style.fg(ratatui_color_from_ansi(primary));
         }
         style
@@ -512,7 +512,7 @@ impl Session {
 
     pub(super) fn header_secondary_style(&self) -> Style {
         let mut style = self.default_style();
-        if let Some(secondary) = self.display.theme.secondary.or(self.display.theme.foreground) {
+        if let Some(secondary) = self.display.theme().secondary.or(self.display.theme().foreground) {
             style = style.fg(ratatui_color_from_ansi(secondary));
         }
         style
