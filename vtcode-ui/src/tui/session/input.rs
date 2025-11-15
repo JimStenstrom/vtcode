@@ -240,9 +240,9 @@ impl Session {
 
         if self.input_manager.content().is_empty() {
             let mut spans = Vec::new();
-            spans.push(Span::styled(self.prompt.prefix().clone(), prompt_style));
+            spans.push(Span::styled(self.prompt.prefix().to_string(), prompt_style));
 
-            if let Some(placeholder) = &self.prompt.placeholder() {
+            if let Some(placeholder) = self.prompt.placeholder() {
                 let placeholder_style = self.prompt.placeholder_style()
                     .cloned()
                     .unwrap_or_else(|| InlineTextStyle {
@@ -254,7 +254,7 @@ impl Session {
                     &placeholder_style,
                     Some(AnsiColorEnum::Rgb(PLACEHOLDER_COLOR)),
                 );
-                spans.push(Span::styled(placeholder.clone(), style));
+                spans.push(Span::styled(placeholder.to_string(), style));
             }
 
             return InputRender {
@@ -288,7 +288,7 @@ impl Session {
 
         if lines.is_empty() {
             lines.push(Line::from(vec![Span::styled(
-                self.prompt.prefix().clone(),
+                self.prompt.prefix().to_string(),
                 prompt_style,
             )]));
         }
@@ -381,11 +381,11 @@ impl Session {
     }
 
     fn cursor_should_be_visible(&self) -> bool {
-        self.ui.is_cursor_visible() && self.ui.input_enabled
+        self.ui.is_cursor_visible() && self.ui.is_input_enabled()
     }
 
     fn secure_prompt_active(&self) -> bool {
-        self.render.modal
+        self.render.modal()
             .as_ref()
             .and_then(|modal| modal.secure_prompt.as_ref())
             .is_some()
