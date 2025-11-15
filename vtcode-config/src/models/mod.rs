@@ -12,7 +12,7 @@ pub mod registry;
 #[cfg(test)]
 mod tests;
 
-pub use model_id::ModelId;
+pub use model_id::{openrouter_generated, ModelId};
 pub use parser::ModelParseError;
 
 use serde::{Deserialize, Serialize};
