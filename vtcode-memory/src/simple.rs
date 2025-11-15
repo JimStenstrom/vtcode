@@ -221,8 +221,8 @@ impl MemoryManager for SimpleMemory {
         self.working_memory.push_back(turn.clone());
 
         // If working memory exceeds limit, move oldest to summarization queue
-        if self.working_memory.len() > self.config.working_memory_limit {
-            if let Some(old_turn) = self.working_memory.pop_front() {
+        if self.working_memory.len() > self.config.working_memory_limit
+            && let Some(old_turn) = self.working_memory.pop_front() {
                 debug!("Working memory full, queuing turn {} for summarization", old_turn.index);
 
                 if self.config.enable_background_summarization {
@@ -240,7 +240,6 @@ impl MemoryManager for SimpleMemory {
                     }
                 }
             }
-        }
 
         Ok(())
     }
@@ -319,14 +318,13 @@ impl MemoryManager for SimpleMemory {
             if matches!(
                 message.role,
                 vtcode_llm_types::MessageRole::Assistant | vtcode_llm_types::MessageRole::Tool
-            ) {
-                if !current_turn_messages.is_empty() {
+            )
+                && !current_turn_messages.is_empty() {
                     let turn = ConversationTurn::new(turn_index, current_turn_messages.clone());
                     memory.working_memory.push_back(turn);
                     current_turn_messages.clear();
                     turn_index += 1;
                 }
-            }
         }
 
         // Restore metadata
