@@ -21,10 +21,10 @@ impl PureRustCommandExecutor {
             .ok_or_else(|| anyhow!("invocation missing target path"))
     }
 
-    fn extract_source_dest_paths(
-        invocation: &CommandInvocation,
+    fn extract_source_dest_paths<'a>(
+        invocation: &'a CommandInvocation,
         operation: &str,
-    ) -> Result<(&Path, &Path)> {
+    ) -> Result<(&'a Path, &'a Path)> {
         let source = invocation
             .touched_paths
             .first()

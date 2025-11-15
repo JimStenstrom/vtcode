@@ -36,14 +36,13 @@ impl CommandExecutor for ProcessCommandExecutor {
                     );
                 }
                 #[cfg(feature = "powershell-process")]
-                let mut command = Command::new("powershell");
-                command
-                    .arg("-NoProfile")
-                    .arg("-NonInteractive")
-                    .arg("-Command")
-                    .arg(&invocation.command);
-                #[cfg(feature = "powershell-process")]
                 {
+                    let mut command = Command::new("powershell");
+                    command
+                        .arg("-NoProfile")
+                        .arg("-NonInteractive")
+                        .arg("-Command")
+                        .arg(&invocation.command);
                     command
                 }
             }

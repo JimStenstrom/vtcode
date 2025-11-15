@@ -2,10 +2,10 @@
 //!
 //! This module provides the [`CommandExecutor`] trait and several implementations:
 //!
-//! - [`ProcessCommandExecutor`]: Delegates to system shell (sh/powershell)
-//! - [`DryRunCommandExecutor`]: Logs commands without executing (testing)
-//! - [`PureRustCommandExecutor`]: Pure Rust file operations (no subprocess)
-//! - [`EventfulExecutor`]: Wrapper that emits execution events
+//! - `ProcessCommandExecutor` (feature `std-process`): Delegates to system shell (sh/powershell)
+//! - `DryRunCommandExecutor` (feature `dry-run`): Logs commands without executing (testing)
+//! - `PureRustCommandExecutor` (feature `pure-rust`): Pure Rust file operations (no subprocess)
+//! - `EventfulExecutor` (feature `exec-events`): Wrapper that emits execution events
 
 pub mod types;
 pub mod helpers;
