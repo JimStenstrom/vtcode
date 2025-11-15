@@ -257,3 +257,44 @@ async fn test_session_json_format() {
 
     println!("✅ Session JSON format is valid");
 }
+
+#[tokio::test]
+async fn test_load_nonexistent_session() {
+    use std::path::PathBuf;
+
+    let non_existent = PathBuf::from("/tmp/does_not_exist_12345.json");
+
+    // Try to load non-existent file
+    let result = SimpleMemory::load(&non_existent).await;
+    assert!(result.is_err(), "Loading non-existent file should fail");
+
+    if let Err(e) = result {
+        assert!(
+            e.to_string().contains("Failed to read session file"),
+            "Error should mention file read failure"
+        );
+    }
+
+    println!("✅ Loading non-existent session fails gracefully");
+}
+
+#[tokio::test]
+async fn test_load_invalid_json() {
+    use tempfile::NamedTempFile;
+    use std::io::Write;
+
+    let mut temp_file = NamedTempFile::new().unwrap();
+    write!(temp_file, "{{invalid json").unwrap();
+
+    let result = SimpleMemory::load(temp_file.path()).await;
+    assert!(result.is_err(), "Loading invalid JSON should fail");
+
+    if let Err(e) = result {
+        assert!(
+            e.to_string().contains("Failed to parse session file"),
+            "Error should mention parse failure"
+        );
+    }
+
+    println!("✅ Loading invalid JSON fails gracefully");
+}
