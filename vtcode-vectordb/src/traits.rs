@@ -1,3 +1,5 @@
+//! Trait definitions for vector database implementations.
+
 use crate::error::Result;
 use crate::types::*;
 use async_trait::async_trait;

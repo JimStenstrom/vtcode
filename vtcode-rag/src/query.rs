@@ -1,3 +1,5 @@
+//! Document query pipeline.
+
 use crate::embedder::Embedder;
 use crate::types::RetrievedChunk;
 use anyhow::Result;

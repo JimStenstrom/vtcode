@@ -1,3 +1,5 @@
+//! Core types for vector database operations.
+
 use serde::{Deserialize, Serialize};
 
 /// A point in vector space with associated metadata

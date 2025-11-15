@@ -1,3 +1,5 @@
+//! Error types for vector database operations.
+
 use thiserror::Error;
 
 /// Errors that can occur during vector database operations

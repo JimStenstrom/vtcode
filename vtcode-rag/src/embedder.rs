@@ -1,3 +1,5 @@
+//! Text embedding generation.
+
 use anyhow::Result;
 use async_trait::async_trait;
 
@@ -20,6 +22,7 @@ pub struct MockEmbedder {
 }
 
 impl MockEmbedder {
+    /// Create a new mock embedder with the specified dimensionality
     pub fn new(dimensions: usize) -> Self {
         Self { dimensions }
     }

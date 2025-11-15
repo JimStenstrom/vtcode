@@ -1,14 +1,19 @@
+//! Document chunking strategies.
+
 use crate::types::{Chunk, Document};
 use uuid::Uuid;
 
 /// Trait for chunking strategies
 pub trait Chunker: Send + Sync {
+    /// Split a document into chunks
     fn chunk(&self, document: &Document) -> Vec<Chunk>;
 }
 
 /// Fixed-size chunker with overlapping windows
 pub struct FixedSizeChunker {
+    /// Maximum size of each chunk in characters
     pub chunk_size: usize,
+    /// Number of overlapping characters between chunks
     pub overlap: usize,
 }
 
@@ -56,7 +61,9 @@ impl Chunker for FixedSizeChunker {
 
 /// Semantic chunker (by separators like paragraphs)
 pub struct SemanticChunker {
+    /// Separator string to split on (e.g., "\n\n" for paragraphs)
     pub separator: String,
+    /// Maximum size of each chunk in characters
     pub max_chunk_size: usize,
 }
 
@@ -139,5 +146,42 @@ mod tests {
 
         let chunks = chunker.chunk(&doc);
         assert_eq!(chunks.len(), 3);
+    }
+
+    #[test]
+    fn test_empty_document() {
+        let doc = Document::new("test", "");
+        let chunker = FixedSizeChunker::default();
+
+        let chunks = chunker.chunk(&doc);
+        assert_eq!(chunks.len(), 0);
+    }
+
+    #[test]
+    fn test_small_document_no_overlap() {
+        let doc = Document::new("test", "Small");
+        let chunker = FixedSizeChunker {
+            chunk_size: 512,
+            overlap: 128,
+        };
+
+        let chunks = chunker.chunk(&doc);
+        assert_eq!(chunks.len(), 1);
+        assert_eq!(chunks[0].content, "Small");
+    }
+
+    #[test]
+    fn test_chunk_indices() {
+        let doc = Document::new("test", "a".repeat(1000));
+        let chunker = FixedSizeChunker {
+            chunk_size: 200,
+            overlap: 50,
+        };
+
+        let chunks = chunker.chunk(&doc);
+        for (i, chunk) in chunks.iter().enumerate() {
+            assert_eq!(chunk.chunk_index, i);
+            assert_eq!(chunk.document_id, "test");
+        }
     }
 }

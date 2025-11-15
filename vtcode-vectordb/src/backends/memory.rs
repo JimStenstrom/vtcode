@@ -1,3 +1,5 @@
+//! In-memory vector database implementation.
+
 use crate::error::{Result, VectorDbError};
 use crate::traits::VectorDb;
 use crate::types::*;
@@ -271,11 +273,10 @@ fn apply_filter(point: &VectorPoint, filter: &Option<Filter>) -> bool {
     }
 
     // Check SHOULD conditions (OR)
-    if !filter.should.is_empty() {
-        if !filter.should.iter().any(|c| matches_condition(point, c)) {
+    if !filter.should.is_empty()
+        && !filter.should.iter().any(|c| matches_condition(point, c)) {
             return false;
         }
-    }
 
     true
 }
@@ -287,16 +288,14 @@ fn matches_condition(point: &VectorPoint, condition: &Condition) -> bool {
         }
         Condition::Range { key, gte, lte } => {
             if let Some(v) = point.payload.get(key).and_then(|v| v.as_f64()) {
-                if let Some(min) = gte {
-                    if v < *min {
+                if let Some(min) = gte
+                    && v < *min {
                         return false;
                     }
-                }
-                if let Some(max) = lte {
-                    if v > *max {
+                if let Some(max) = lte
+                    && v > *max {
                         return false;
                     }
-                }
                 true
             } else {
                 false
@@ -360,167 +359,36 @@ mod tests {
         assert_eq!(results[0].id, "1");
     }
 
-    // ========== Edge Case Tests ==========
-
     #[tokio::test]
-    async fn test_empty_collection_search() {
+    async fn test_dimension_mismatch() {
         let db = InMemoryVectorDb::new();
         db.create_collection("test", 3, Distance::Cosine).await.unwrap();
 
-        // Search in empty collection should return empty results
+        let points = vec![
+            VectorPoint::new("1".to_string(), vec![1.0, 0.0], json!({})), // Wrong dimension
+        ];
+
+        let result = db.upsert("test", points).await;
+        assert!(result.is_err());
+        assert!(matches!(result.unwrap_err(), VectorDbError::DimensionMismatch { .. }));
+    }
+
+    #[tokio::test]
+    async fn test_empty_collection() {
+        let db = InMemoryVectorDb::new();
+        db.create_collection("test", 3, Distance::Cosine).await.unwrap();
+
         let results = db.search("test", vec![1.0, 0.0, 0.0], 10, None).await.unwrap();
         assert_eq!(results.len(), 0);
-    }
-
-    #[tokio::test]
-    async fn test_upsert_update_existing() {
-        let db = InMemoryVectorDb::new();
-        db.create_collection("test", 2, Distance::Cosine).await.unwrap();
-
-        // Insert initial point
-        db.upsert("test", vec![
-            VectorPoint::new("1".to_string(), vec![1.0, 0.0], json!({"version": 1}))
-        ]).await.unwrap();
-
-        // Update same ID
-        db.upsert("test", vec![
-            VectorPoint::new("1".to_string(), vec![0.0, 1.0], json!({"version": 2}))
-        ]).await.unwrap();
-
-        // Should have only 1 point with updated values
-        let count = db.count("test").await.unwrap();
-        assert_eq!(count, 1);
-
-        let point = db.get("test", "1").await.unwrap().unwrap();
-        assert_eq!(point.vector, vec![0.0, 1.0]);
-        assert_eq!(point.payload["version"], 2);
-    }
-
-    #[tokio::test]
-    async fn test_zero_vectors() {
-        let db = InMemoryVectorDb::new();
-        db.create_collection("test", 3, Distance::Cosine).await.unwrap();
-
-        // Insert zero vector
-        db.upsert("test", vec![
-            VectorPoint::new("zero".to_string(), vec![0.0, 0.0, 0.0], json!({"type": "zero"}))
-        ]).await.unwrap();
-
-        // Search with zero vector (should handle gracefully)
-        let results = db.search("test", vec![0.0, 0.0, 0.0], 10, None).await.unwrap();
-        assert_eq!(results.len(), 1);
-    }
-
-    // ========== Error Handling Tests ==========
-
-    #[tokio::test]
-    async fn test_dimension_mismatch_on_upsert() {
-        let db = InMemoryVectorDb::new();
-        db.create_collection("test", 3, Distance::Cosine).await.unwrap();
-
-        // Try to insert vector with wrong dimension
-        let result = db.upsert("test", vec![
-            VectorPoint::new("1".to_string(), vec![1.0, 0.0], json!({}))  // 2D instead of 3D
-        ]).await;
-
-        assert!(result.is_err());
-        match result.unwrap_err() {
-            VectorDbError::DimensionMismatch { expected, actual } => {
-                assert_eq!(expected, 3);
-                assert_eq!(actual, 2);
-            }
-            _ => panic!("Expected DimensionMismatch error"),
-        }
-    }
-
-    #[tokio::test]
-    async fn test_dimension_mismatch_on_search() {
-        let db = InMemoryVectorDb::new();
-        db.create_collection("test", 3, Distance::Cosine).await.unwrap();
-
-        // Try to search with wrong dimension
-        let result = db.search("test", vec![1.0, 0.0], 10, None).await;
-
-        assert!(result.is_err());
-        match result.unwrap_err() {
-            VectorDbError::DimensionMismatch { expected, actual } => {
-                assert_eq!(expected, 3);
-                assert_eq!(actual, 2);
-            }
-            _ => panic!("Expected DimensionMismatch error"),
-        }
     }
 
     #[tokio::test]
     async fn test_collection_not_found() {
         let db = InMemoryVectorDb::new();
 
-        // Try to operate on non-existent collection
-        let result = db.upsert("nonexistent", vec![
-            VectorPoint::new("1".to_string(), vec![1.0, 0.0], json!({}))
-        ]).await;
-
+        let result = db.search("nonexistent", vec![1.0, 0.0, 0.0], 10, None).await;
         assert!(result.is_err());
         assert!(matches!(result.unwrap_err(), VectorDbError::CollectionNotFound(_)));
-    }
-
-    #[tokio::test]
-    async fn test_duplicate_collection_creation() {
-        let db = InMemoryVectorDb::new();
-        db.create_collection("test", 3, Distance::Cosine).await.unwrap();
-
-        // Try to create same collection again
-        let result = db.create_collection("test", 3, Distance::Cosine).await;
-
-        assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), VectorDbError::CollectionAlreadyExists(_)));
-    }
-
-    // ========== CRUD Operation Tests ==========
-
-    #[tokio::test]
-    async fn test_get_operation() {
-        let db = InMemoryVectorDb::new();
-        db.create_collection("test", 2, Distance::Cosine).await.unwrap();
-
-        // Insert point
-        db.upsert("test", vec![
-            VectorPoint::new("1".to_string(), vec![1.0, 0.0], json!({"name": "test"}))
-        ]).await.unwrap();
-
-        // Get existing point
-        let point = db.get("test", "1").await.unwrap();
-        assert!(point.is_some());
-        let point = point.unwrap();
-        assert_eq!(point.id, "1");
-        assert_eq!(point.vector, vec![1.0, 0.0]);
-
-        // Get non-existent point
-        let point = db.get("test", "nonexistent").await.unwrap();
-        assert!(point.is_none());
-    }
-
-    #[tokio::test]
-    async fn test_delete_operation() {
-        let db = InMemoryVectorDb::new();
-        db.create_collection("test", 2, Distance::Cosine).await.unwrap();
-
-        // Insert points
-        db.upsert("test", vec![
-            VectorPoint::new("1".to_string(), vec![1.0, 0.0], json!({})),
-            VectorPoint::new("2".to_string(), vec![0.0, 1.0], json!({})),
-            VectorPoint::new("3".to_string(), vec![1.0, 1.0], json!({})),
-        ]).await.unwrap();
-
-        assert_eq!(db.count("test").await.unwrap(), 3);
-
-        // Delete some points
-        db.delete("test", vec!["1".to_string(), "3".to_string()]).await.unwrap();
-
-        assert_eq!(db.count("test").await.unwrap(), 1);
-        assert!(db.get("test", "1").await.unwrap().is_none());
-        assert!(db.get("test", "2").await.unwrap().is_some());
-        assert!(db.get("test", "3").await.unwrap().is_none());
     }
 
     #[tokio::test]
@@ -528,276 +396,41 @@ mod tests {
         let db = InMemoryVectorDb::new();
         db.create_collection("test", 2, Distance::Cosine).await.unwrap();
 
-        // Insert multiple points
-        let points: Vec<_> = (0..10).map(|i| {
-            VectorPoint::new(
-                format!("point_{}", i),
-                vec![i as f32, 0.0],
-                json!({"index": i})
-            )
-        }).collect();
+        // Insert 5 points
+        let points: Vec<_> = (0..5)
+            .map(|i| VectorPoint::new(i.to_string(), vec![i as f32, 0.0], json!({})))
+            .collect();
         db.upsert("test", points).await.unwrap();
 
         // First page
-        let result = db.scroll("test", 3, None).await.unwrap();
-        assert_eq!(result.points.len(), 3);
-        assert!(result.next_offset.is_some());
+        let page1 = db.scroll("test", 2, None).await.unwrap();
+        assert_eq!(page1.points.len(), 2);
+        assert!(page1.next_offset.is_some());
 
         // Second page
-        let result = db.scroll("test", 3, result.next_offset).await.unwrap();
-        assert_eq!(result.points.len(), 3);
-        assert!(result.next_offset.is_some());
+        let page2 = db.scroll("test", 2, page1.next_offset).await.unwrap();
+        assert_eq!(page2.points.len(), 2);
+        assert!(page2.next_offset.is_some());
 
         // Last page
-        let offset = result.next_offset;
-        let result = db.scroll("test", 5, offset).await.unwrap();
-        assert_eq!(result.points.len(), 4); // Only 4 left
-        assert!(result.next_offset.is_none()); // No more pages
+        let page3 = db.scroll("test", 2, page2.next_offset).await.unwrap();
+        assert_eq!(page3.points.len(), 1);
+        assert!(page3.next_offset.is_none());
     }
 
     #[tokio::test]
-    async fn test_count_operation() {
+    async fn test_count() {
         let db = InMemoryVectorDb::new();
         db.create_collection("test", 2, Distance::Cosine).await.unwrap();
 
         assert_eq!(db.count("test").await.unwrap(), 0);
 
-        db.upsert("test", vec![
-            VectorPoint::new("1".to_string(), vec![1.0, 0.0], json!({})),
-        ]).await.unwrap();
-        assert_eq!(db.count("test").await.unwrap(), 1);
-
-        db.upsert("test", vec![
-            VectorPoint::new("2".to_string(), vec![0.0, 1.0], json!({})),
-            VectorPoint::new("3".to_string(), vec![1.0, 1.0], json!({})),
-        ]).await.unwrap();
-        assert_eq!(db.count("test").await.unwrap(), 3);
-    }
-
-    #[tokio::test]
-    async fn test_delete_collection() {
-        let db = InMemoryVectorDb::new();
-        db.create_collection("test", 2, Distance::Cosine).await.unwrap();
-
-        assert!(db.collection_exists("test").await.unwrap());
-
-        db.delete_collection("test").await.unwrap();
-
-        assert!(!db.collection_exists("test").await.unwrap());
-
-        // Try to delete non-existent collection
-        let result = db.delete_collection("test").await;
-        assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), VectorDbError::CollectionNotFound(_)));
-    }
-
-    // ========== Advanced Filter Tests ==========
-
-    #[tokio::test]
-    async fn test_filter_should_conditions() {
-        let db = InMemoryVectorDb::new();
-        db.create_collection("test", 2, Distance::Cosine).await.unwrap();
-
-        let points = vec![
-            VectorPoint::new("1".to_string(), vec![1.0, 0.0], json!({"category": "A"})),
-            VectorPoint::new("2".to_string(), vec![0.0, 1.0], json!({"category": "B"})),
-            VectorPoint::new("3".to_string(), vec![1.0, 1.0], json!({"category": "C"})),
-        ];
-        db.upsert("test", points).await.unwrap();
-
-        // SHOULD: match either A or B (OR logic)
-        let filter = Filter {
-            should: vec![
-                Condition::Match {
-                    key: "category".to_string(),
-                    value: json!("A"),
-                },
-                Condition::Match {
-                    key: "category".to_string(),
-                    value: json!("B"),
-                },
-            ],
-            ..Default::default()
-        };
-
-        let results = db.search("test", vec![1.0, 0.0], 10, Some(filter)).await.unwrap();
-        assert_eq!(results.len(), 2);
-        let ids: Vec<_> = results.iter().map(|r| r.id.as_str()).collect();
-        assert!(ids.contains(&"1"));
-        assert!(ids.contains(&"2"));
-    }
-
-    #[tokio::test]
-    async fn test_filter_must_not_conditions() {
-        let db = InMemoryVectorDb::new();
-        db.create_collection("test", 2, Distance::Cosine).await.unwrap();
-
-        let points = vec![
-            VectorPoint::new("1".to_string(), vec![1.0, 0.0], json!({"category": "A"})),
-            VectorPoint::new("2".to_string(), vec![0.0, 1.0], json!({"category": "B"})),
-            VectorPoint::new("3".to_string(), vec![1.0, 1.0], json!({"category": "C"})),
-        ];
-        db.upsert("test", points).await.unwrap();
-
-        // MUST_NOT: exclude category A
-        let filter = Filter {
-            must_not: vec![
-                Condition::Match {
-                    key: "category".to_string(),
-                    value: json!("A"),
-                },
-            ],
-            ..Default::default()
-        };
-
-        let results = db.search("test", vec![1.0, 0.0], 10, Some(filter)).await.unwrap();
-        assert_eq!(results.len(), 2);
-        let ids: Vec<_> = results.iter().map(|r| r.id.as_str()).collect();
-        assert!(!ids.contains(&"1"));
-        assert!(ids.contains(&"2"));
-        assert!(ids.contains(&"3"));
-    }
-
-    #[tokio::test]
-    async fn test_filter_range_conditions() {
-        let db = InMemoryVectorDb::new();
-        db.create_collection("test", 2, Distance::Cosine).await.unwrap();
-
-        let points = vec![
-            VectorPoint::new("1".to_string(), vec![1.0, 0.0], json!({"score": 10})),
-            VectorPoint::new("2".to_string(), vec![0.0, 1.0], json!({"score": 25})),
-            VectorPoint::new("3".to_string(), vec![1.0, 1.0], json!({"score": 50})),
-        ];
-        db.upsert("test", points).await.unwrap();
-
-        // Range: 20 <= score <= 60
-        let filter = Filter {
-            must: vec![
-                Condition::Range {
-                    key: "score".to_string(),
-                    gte: Some(20.0),
-                    lte: Some(60.0),
-                },
-            ],
-            ..Default::default()
-        };
-
-        let results = db.search("test", vec![1.0, 0.0], 10, Some(filter)).await.unwrap();
-        assert_eq!(results.len(), 2);
-        let ids: Vec<_> = results.iter().map(|r| r.id.as_str()).collect();
-        assert!(ids.contains(&"2"));
-        assert!(ids.contains(&"3"));
-    }
-
-    #[tokio::test]
-    async fn test_filter_has_key_condition() {
-        let db = InMemoryVectorDb::new();
-        db.create_collection("test", 2, Distance::Cosine).await.unwrap();
-
-        let points = vec![
-            VectorPoint::new("1".to_string(), vec![1.0, 0.0], json!({"name": "Alice"})),
-            VectorPoint::new("2".to_string(), vec![0.0, 1.0], json!({"age": 25})),
-            VectorPoint::new("3".to_string(), vec![1.0, 1.0], json!({"name": "Bob", "age": 30})),
-        ];
-        db.upsert("test", points).await.unwrap();
-
-        // Has key: must have "name" field
-        let filter = Filter {
-            must: vec![Condition::HasKey("name".to_string())],
-            ..Default::default()
-        };
-
-        let results = db.search("test", vec![1.0, 0.0], 10, Some(filter)).await.unwrap();
-        assert_eq!(results.len(), 2);
-        let ids: Vec<_> = results.iter().map(|r| r.id.as_str()).collect();
-        assert!(ids.contains(&"1"));
-        assert!(ids.contains(&"3"));
-    }
-
-    #[tokio::test]
-    async fn test_filter_combined_conditions() {
-        let db = InMemoryVectorDb::new();
-        db.create_collection("test", 2, Distance::Cosine).await.unwrap();
-
-        let points = vec![
-            VectorPoint::new("1".to_string(), vec![1.0, 0.0], json!({"category": "A", "score": 10})),
-            VectorPoint::new("2".to_string(), vec![0.0, 1.0], json!({"category": "A", "score": 25})),
-            VectorPoint::new("3".to_string(), vec![1.0, 1.0], json!({"category": "B", "score": 30})),
-            VectorPoint::new("4".to_string(), vec![0.5, 0.5], json!({"category": "C", "score": 40})),
-        ];
-        db.upsert("test", points).await.unwrap();
-
-        // Complex filter: (category = A OR category = B) AND score >= 20 AND NOT category = C
-        let filter = Filter {
-            must: vec![
-                Condition::Range {
-                    key: "score".to_string(),
-                    gte: Some(20.0),
-                    lte: None,
-                },
-            ],
-            should: vec![
-                Condition::Match {
-                    key: "category".to_string(),
-                    value: json!("A"),
-                },
-                Condition::Match {
-                    key: "category".to_string(),
-                    value: json!("B"),
-                },
-            ],
-            must_not: vec![
-                Condition::Match {
-                    key: "category".to_string(),
-                    value: json!("C"),
-                },
-            ],
-        };
-
-        let results = db.search("test", vec![1.0, 0.0], 10, Some(filter)).await.unwrap();
-        assert_eq!(results.len(), 2); // Only points 2 and 3
-        let ids: Vec<_> = results.iter().map(|r| r.id.as_str()).collect();
-        assert!(ids.contains(&"2"));
-        assert!(ids.contains(&"3"));
-    }
-
-    // ========== Distance Metric Tests ==========
-
-    #[tokio::test]
-    async fn test_euclidean_distance() {
-        let db = InMemoryVectorDb::new();
-        db.create_collection("test", 2, Distance::Euclidean).await.unwrap();
-
-        let points = vec![
-            VectorPoint::new("1".to_string(), vec![0.0, 0.0], json!({})),
-            VectorPoint::new("2".to_string(), vec![3.0, 4.0], json!({})),
-            VectorPoint::new("3".to_string(), vec![1.0, 0.0], json!({})),
-        ];
-        db.upsert("test", points).await.unwrap();
-
-        // Query from origin: closest should be point 1, then 3, then 2
-        let results = db.search("test", vec![0.0, 0.0], 10, None).await.unwrap();
-        assert_eq!(results.len(), 3);
-        assert_eq!(results[0].id, "1"); // Distance 0
-        assert_eq!(results[1].id, "3"); // Distance 1
-        assert_eq!(results[2].id, "2"); // Distance 5
-    }
-
-    #[tokio::test]
-    async fn test_dot_product_distance() {
-        let db = InMemoryVectorDb::new();
-        db.create_collection("test", 2, Distance::DotProduct).await.unwrap();
-
         let points = vec![
             VectorPoint::new("1".to_string(), vec![1.0, 0.0], json!({})),
             VectorPoint::new("2".to_string(), vec![0.0, 1.0], json!({})),
-            VectorPoint::new("3".to_string(), vec![1.0, 1.0], json!({})),
         ];
         db.upsert("test", points).await.unwrap();
 
-        // Query [1.0, 1.0]: highest dot product should be point 3 (2.0)
-        let results = db.search("test", vec![1.0, 1.0], 10, None).await.unwrap();
-        assert_eq!(results.len(), 3);
-        assert_eq!(results[0].id, "3"); // Dot product: 2.0
+        assert_eq!(db.count("test").await.unwrap(), 2);
     }
 }

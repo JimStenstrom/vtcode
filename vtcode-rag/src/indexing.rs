@@ -1,3 +1,5 @@
+//! Document indexing pipeline.
+
 use crate::chunker::Chunker;
 use crate::embedder::Embedder;
 use crate::types::Document;
