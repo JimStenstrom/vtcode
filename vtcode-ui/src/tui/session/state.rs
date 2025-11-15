@@ -16,7 +16,6 @@ use super::message::{MessageLabels, MessageLine};
 use ratatui::widgets::ListState;
 
 /// Manages display and presentation state
-#[derive(Debug)]
 pub struct DisplayState {
     /// Theme configuration for styling
     pub theme: InlineTheme,
@@ -48,7 +47,6 @@ impl DisplayState {
 }
 
 /// Manages prompt and input display configuration
-#[derive(Debug)]
 pub struct PromptState {
     /// Prefix text displayed before user input
     pub prefix: String,
@@ -91,7 +89,6 @@ impl PromptState {
 }
 
 /// Manages UI state flags and dimensions
-#[derive(Debug)]
 pub struct UIState {
     /// Whether input is currently enabled
     pub input_enabled: bool,
@@ -136,7 +133,6 @@ impl UIState {
 }
 
 /// Manages palette-related state (file browser, prompt browser, slash commands)
-#[derive(Debug)]
 pub struct PaletteState {
     /// Slash command palette
     pub slash_palette: SlashPalette,
@@ -172,7 +168,6 @@ impl PaletteState {
 }
 
 /// Manages rendering caches and overlays
-#[derive(Debug)]
 pub struct RenderState {
     /// Header context for rendering
     pub header_context: InlineHeaderContext,
@@ -204,7 +199,7 @@ impl RenderState {
             queue_overlay_cache: None,
             queue_overlay_version: 0,
             modal: None,
-            plan: TaskPlan::empty(),
+            plan: TaskPlan::default(),
             navigation_state: ListState::default(),
         }
     }
