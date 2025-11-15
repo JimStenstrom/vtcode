@@ -53,8 +53,11 @@ pub async fn parse_at_patterns(input: &str, base_dir: &Path) -> Result<MessageCo
         };
 
         // Extract the start and end positions to separate text from matches
-        let start = cap.get(0).unwrap().start();
-        let end = cap.get(0).unwrap().end();
+        let match_ref = cap
+            .get(0)
+            .context("Regex capture missing full match (this should not happen)")?;
+        let start = match_ref.start();
+        let end = match_ref.end();
 
         // Add the text before this match
         if start > last_end {

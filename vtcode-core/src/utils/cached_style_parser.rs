@@ -28,7 +28,10 @@ impl CachedStyleParser {
     pub fn parse_git_style(&self, input: &str) -> Result<AnsiStyle> {
         // Check cache first
         {
-            let cache = self.git_cache.read().unwrap();
+            let cache = self
+                .git_cache
+                .read()
+                .map_err(|e| anyhow::anyhow!("Git cache RwLock poisoned: {}", e))?;
             if let Some(cached) = cache.get(input) {
                 return Ok(*cached);
             }
@@ -39,7 +42,10 @@ impl CachedStyleParser {
             .map_err(|e| anyhow::anyhow!("Failed to parse Git style '{}': {:?}", input, e))?;
 
         {
-            let mut cache = self.git_cache.write().unwrap();
+            let mut cache = self
+                .git_cache
+                .write()
+                .map_err(|e| anyhow::anyhow!("Git cache RwLock poisoned: {}", e))?;
             cache.insert(input.to_string(), result);
         }
 
@@ -50,7 +56,10 @@ impl CachedStyleParser {
     pub fn parse_ls_colors(&self, input: &str) -> Result<AnsiStyle> {
         // Check cache first
         {
-            let cache = self.ls_colors_cache.read().unwrap();
+            let cache = self
+                .ls_colors_cache
+                .read()
+                .map_err(|e| anyhow::anyhow!("LS_COLORS cache RwLock poisoned: {}", e))?;
             if let Some(cached) = cache.get(input) {
                 return Ok(*cached);
             }
@@ -61,7 +70,10 @@ impl CachedStyleParser {
             .ok_or_else(|| anyhow::anyhow!("Failed to parse LS_COLORS '{}'", input))?;
 
         {
-            let mut cache = self.ls_colors_cache.write().unwrap();
+            let mut cache = self
+                .ls_colors_cache
+                .write()
+                .map_err(|e| anyhow::anyhow!("LS_COLORS cache RwLock poisoned: {}", e))?;
             cache.insert(input.to_string(), result);
         }
 
@@ -84,19 +96,33 @@ impl CachedStyleParser {
     /// Clear all cached styles
     pub fn clear_cache(&self) {
         {
-            let mut git_cache = self.git_cache.write().unwrap();
+            let mut git_cache = self
+                .git_cache
+                .write()
+                .expect("Git cache RwLock poisoned - this indicates a serious programming error");
             git_cache.clear();
         }
         {
-            let mut ls_colors_cache = self.ls_colors_cache.write().unwrap();
+            let mut ls_colors_cache = self
+                .ls_colors_cache
+                .write()
+                .expect("LS_COLORS cache RwLock poisoned - this indicates a serious programming error");
             ls_colors_cache.clear();
         }
     }
 
     /// Get cache statistics
     pub fn cache_stats(&self) -> (usize, usize) {
-        let git_count = self.git_cache.read().unwrap().len();
-        let ls_colors_count = self.ls_colors_cache.read().unwrap().len();
+        let git_count = self
+            .git_cache
+            .read()
+            .expect("Git cache RwLock poisoned - this indicates a serious programming error")
+            .len();
+        let ls_colors_count = self
+            .ls_colors_cache
+            .read()
+            .expect("LS_COLORS cache RwLock poisoned - this indicates a serious programming error")
+            .len();
         (git_count, ls_colors_count)
     }
 }

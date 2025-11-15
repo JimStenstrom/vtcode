@@ -66,7 +66,10 @@ impl FileCache {
 
     /// Get cached file content
     pub async fn get_file(&self, key: &str) -> Option<Value> {
-        let mut stats = self.stats.lock().unwrap();
+        let mut stats = self
+            .stats
+            .lock()
+            .expect("Cache stats mutex poisoned - this indicates a serious programming error");
 
         if let Some(entry) = self.file_cache.get(key) {
             // Check if entry is still valid
@@ -89,7 +92,10 @@ impl FileCache {
         let size_bytes = serde_json::to_string(&value).unwrap_or_default().len();
         let entry = CacheEntry::new(value, size_bytes);
 
-        let mut stats = self.stats.lock().unwrap();
+        let mut stats = self
+            .stats
+            .lock()
+            .expect("Cache stats mutex poisoned - this indicates a serious programming error");
 
         // Check memory limits (quick-cache handles eviction automatically, but we track stats)
         if stats.total_size_bytes + size_bytes > self.max_size_bytes {
@@ -103,7 +109,10 @@ impl FileCache {
 
     /// Get cached directory listing
     pub async fn get_directory(&self, key: &str) -> Option<Value> {
-        let mut stats = self.stats.lock().unwrap();
+        let mut stats = self
+            .stats
+            .lock()
+            .expect("Cache stats mutex poisoned - this indicates a serious programming error");
 
         if let Some(entry) = self.directory_cache.get(key) {
             if !entry.is_expired(self.ttl) {
@@ -124,7 +133,10 @@ impl FileCache {
         let size_bytes = serde_json::to_string(&value).unwrap_or_default().len();
         let entry = CacheEntry::new(value, size_bytes);
 
-        let mut stats = self.stats.lock().unwrap();
+        let mut stats = self
+            .stats
+            .lock()
+            .expect("Cache stats mutex poisoned - this indicates a serious programming error");
 
         self.directory_cache.insert(key, entry);
         stats.entries += self.directory_cache.len();
@@ -133,14 +145,21 @@ impl FileCache {
 
     /// Get cache statistics
     pub async fn stats(&self) -> CacheStats {
-        self.stats.lock().unwrap().clone()
+        self.stats
+            .lock()
+            .expect("Cache stats mutex poisoned - this indicates a serious programming error")
+            .clone()
     }
 
     /// Clear all caches
     pub async fn clear(&self) {
         self.file_cache.clear();
         self.directory_cache.clear();
-        *self.stats.lock().unwrap() = CacheStats::default();
+        *self
+            .stats
+            .lock()
+            .expect("Cache stats mutex poisoned - this indicates a serious programming error") =
+            CacheStats::default();
     }
 
     /// Get cache capacity information
