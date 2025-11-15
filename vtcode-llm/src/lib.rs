@@ -86,16 +86,3 @@ pub mod modular {
     //! Modular provider implementations from standalone packages
     pub use vtcode_llm_openai::*;
 }
-
-#[cfg(feature = "telemetry")]
-pub mod telemetry {
-    //! Streaming telemetry helpers shared across provider implementations.
-    pub use vtcode_core::llm::providers::shared::{
-        NoopStreamTelemetry, StreamAssemblyError, StreamDelta, StreamFragment, StreamTelemetry,
-        ToolCallBuilder, append_reasoning_segments, append_text_with_reasoning,
-        finalize_tool_calls, update_tool_calls,
-    };
-}
-
-#[cfg(feature = "telemetry")]
-pub use telemetry::{NoopStreamTelemetry, StreamTelemetry};

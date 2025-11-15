@@ -1,11 +1,5 @@
-// Internal utility modules still used by shared helpers
-mod reasoning;
-mod shared;
-
 #[cfg(test)]
 pub(crate) mod test_utils;
-
-pub(crate) use reasoning::{ReasoningBuffer, extract_reasoning_trace, split_reasoning_from_text};
 
 // Re-export all providers from standalone crates (All providers extracted - Phase 8 complete)
 pub use vtcode_llm_anthropic::AnthropicProvider;
