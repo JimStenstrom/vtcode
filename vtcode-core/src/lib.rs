@@ -132,6 +132,7 @@ pub mod commands;
 pub mod config;
 pub mod constants;
 pub mod core;
+pub mod errors;
 pub mod http_client;
 pub mod instructions;
 pub mod llm;
