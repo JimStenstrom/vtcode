@@ -5913,6 +5913,7 @@ dependencies = [
  "vtcode-indexer",
  "vtcode-llm-anthropic",
  "vtcode-llm-deepseek",
+ "vtcode-llm-directline",
  "vtcode-llm-gemini",
  "vtcode-llm-lmstudio",
  "vtcode-llm-minimax",
@@ -6070,10 +6071,18 @@ version = "0.43.6"
 dependencies = [
  "anyhow",
  "assert_fs",
+ "async-stream",
+ "async-trait",
  "futures",
+ "reqwest",
+ "serde",
+ "serde_json",
  "tempfile",
+ "tokio",
+ "tracing",
  "vtcode-commons",
- "vtcode-core",
+ "vtcode-config",
+ "vtcode-llm-common",
  "vtcode-llm-types",
 ]
 

@@ -1,9 +1,10 @@
-use crate::config::constants::{env_vars, models, urls};
-use crate::config::core::PromptCachingConfig;
-use crate::llm::error_display;
-use crate::llm::provider::{
-    ContentPart, FinishReason, LLMError, LLMProvider, LLMRequest, LLMResponse, Message,
-    MessageContent, MessageRole,
+use vtcode_config::constants::{env_vars, models, urls};
+use vtcode_config::core::PromptCachingConfig;
+use vtcode_llm_common::config::override_base_url;
+use vtcode_llm_common::error::format_llm_error;
+use vtcode_llm_types::{
+    ContentPart, FinishReason, LLMError, LLMProvider, LLMRequest, LLMResponse, LLMStream,
+    LLMStreamEvent, Message, MessageContent,
 };
 use async_trait::async_trait;
 use reqwest::Client as HttpClient;
@@ -14,8 +15,6 @@ use std::time::Duration;
 use std::time::Instant;
 #[cfg(debug_assertions)]
 use tracing::debug;
-
-use super::common::override_base_url;
 
 /// Microsoft Direct Line v3 provider for Bot Framework and M365 Copilot
 pub struct MicrosoftProvider {
@@ -139,12 +138,12 @@ impl MicrosoftProvider {
                 .await
                 .unwrap_or_else(|_| "Unknown error".to_string());
             let formatted =
-                error_display::format_llm_error("Microsoft", &format!("{}: {}", status, error_text));
+                format_llm_error("Microsoft", &format!("{}: {}", status, error_text));
             return Err(LLMError::Provider(formatted));
         }
 
         let conversation = response.json::<ConversationResponse>().await.map_err(|e| {
-            LLMError::Provider(error_display::format_llm_error(
+            LLMError::Provider(format_llm_error(
                 "Microsoft",
                 &format!("Failed to parse conversation response: {}", e),
             ))
@@ -199,7 +198,7 @@ impl MicrosoftProvider {
                 .text()
                 .await
                 .unwrap_or_else(|_| "Unknown error".to_string());
-            let formatted = error_display::format_llm_error(
+            let formatted = format_llm_error(
                 "Microsoft",
                 &format!("Failed to send activity {}: {}", status, error_text),
             );
@@ -244,7 +243,7 @@ impl MicrosoftProvider {
                 .text()
                 .await
                 .unwrap_or_else(|_| "Unknown error".to_string());
-            let formatted = error_display::format_llm_error(
+            let formatted = format_llm_error(
                 "Microsoft",
                 &format!("Failed to get activities {}: {}", status, error_text),
             );
@@ -252,7 +251,7 @@ impl MicrosoftProvider {
         }
 
         let activities_response = response.json::<ActivitiesResponse>().await.map_err(|e| {
-            LLMError::Provider(error_display::format_llm_error(
+            LLMError::Provider(format_llm_error(
                 "Microsoft",
                 &format!("Failed to parse activities response: {}", e),
             ))
@@ -477,16 +476,15 @@ impl LLMProvider for MicrosoftProvider {
             "Timeout waiting for bot response"
         );
 
-        Err(LLMError::Provider(error_display::format_llm_error(
+        Err(LLMError::Provider(format_llm_error(
             "Microsoft",
             "Timeout waiting for bot response",
         )))
     }
 
-    async fn stream(&self, request: LLMRequest) -> Result<crate::llm::provider::LLMStream, LLMError> {
+    async fn stream(&self, request: LLMRequest) -> Result<LLMStream, LLMError> {
         // Microsoft DirectLine doesn't support native streaming in this implementation, fall back to non-streaming
         use async_stream::try_stream;
-        use crate::llm::provider::LLMStreamEvent;
 
         let response = self.generate(request).await?;
         let stream = try_stream! {
@@ -505,12 +503,12 @@ impl LLMProvider for MicrosoftProvider {
     fn validate_request(&self, request: &LLMRequest) -> Result<(), LLMError> {
         if request.messages.is_empty() {
             let formatted =
-                error_display::format_llm_error("Microsoft", "Messages cannot be empty");
+                format_llm_error("Microsoft", "Messages cannot be empty");
             return Err(LLMError::InvalidRequest(formatted));
         }
 
         if self.secret.is_empty() {
-            let formatted = error_display::format_llm_error(
+            let formatted = format_llm_error(
                 "Microsoft",
                 "Direct Line secret is required. Set MICROSOFT_DIRECTLINE_SECRET environment variable.",
             );

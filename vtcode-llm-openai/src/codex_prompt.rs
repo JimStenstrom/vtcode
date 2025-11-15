@@ -42,7 +42,7 @@ fn should_skip_guidance(text: &str) -> bool {
 ///
 /// Additional system instructions provided by the caller are appended under an
 /// `Additional Guidance` section after filtering duplicates and default VTCode prompts.
-pub(crate) fn gpt5_codex_developer_prompt(additional_guidance: &[String]) -> String {
+pub fn gpt5_codex_developer_prompt(additional_guidance: &[String]) -> String {
     let mut seen = HashSet::new();
     let mut extras = Vec::new();
 

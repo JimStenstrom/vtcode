@@ -41,6 +41,7 @@
 
 pub mod types;
 pub mod openai;
+pub mod codex_prompt;
 
 // Re-export universal LLM types from vtcode_llm_types
 pub use vtcode_llm_types::{
@@ -52,3 +53,6 @@ pub use vtcode_llm_types::{
 
 // Re-export the provider implementation
 pub use openai::OpenAIProvider;
+
+// Re-export GPT-5 Codex utilities
+pub use codex_prompt::gpt5_codex_developer_prompt;

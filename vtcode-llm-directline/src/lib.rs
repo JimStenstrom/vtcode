@@ -62,10 +62,10 @@
 //! - [Azure Bot Service](https://azure.microsoft.com/services/bot-services/)
 //! - [Bot Framework SDK](https://github.com/microsoft/botframework-sdk)
 
-// Re-export MicrosoftProvider from vtcode-core as DirectLineProvider
-// NOTE: This is a temporary solution. Eventually MicrosoftProvider should be extracted
-// from vtcode-core into this crate to complete Phase 3 of the architecture transformation.
-pub use vtcode_core::llm::providers::microsoft::MicrosoftProvider as DirectLineProvider;
+pub mod microsoft;
+
+// Re-export MicrosoftProvider as DirectLineProvider for better naming
+pub use microsoft::MicrosoftProvider as DirectLineProvider;
 
 // Re-export core LLM types from vtcode_llm_types
 pub use vtcode_llm_types::{
