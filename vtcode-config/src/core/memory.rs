@@ -30,6 +30,9 @@ pub struct MemoryConfig {
 
     /// Optional: specific model for summarization
     pub summarization_model: Option<String>,
+
+    /// SOP (Standard Operating Procedure) configuration
+    pub sops: SopConfig,
 }
 
 impl Default for MemoryConfig {
@@ -43,6 +46,7 @@ impl Default for MemoryConfig {
             checkpoint_interval_seconds: 300,
             log_directory: None, // Will use default
             summarization_model: None,
+            sops: SopConfig::default(),
         }
     }
 }
@@ -171,6 +175,36 @@ impl QdrantConfig {
             self.url
         );
 
+        Ok(())
+    }
+}
+
+/// SOP (Standard Operating Procedure) configuration
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct SopConfig {
+    /// Enable SOP system
+    pub enabled: bool,
+
+    /// Directories to scan for SOPs (relative to workspace root)
+    pub paths: Vec<String>,
+}
+
+impl Default for SopConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            paths: vec![".vtcode/sops".to_string()],
+        }
+    }
+}
+
+impl SopConfig {
+    /// Validate SOP configuration
+    pub fn validate(&self) -> Result<()> {
+        // Paths can be empty (SOPs are optional)
+        // No validation needed currently
         Ok(())
     }
 }

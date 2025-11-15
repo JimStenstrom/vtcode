@@ -6196,6 +6196,7 @@ dependencies = [
  "uuid",
  "vtcode-commons",
  "vtcode-vectordb",
+ "walkdir",
 ]
 
 [[package]]
