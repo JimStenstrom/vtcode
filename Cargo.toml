@@ -56,6 +56,7 @@ members = [
     "vtcode-exec-events",
     "vtcode-tool-traits",
     "vtcode-ui",
+    "vtcode-memory",
 ]
 exclude = ["zed-extension", "third-party/mcp-types"]
 
@@ -116,7 +117,9 @@ unwrap_used = "deny"
 [dependencies]
 vtcode-acp-client = { path = "vtcode-acp-client", version = "0.43.6" }
 vtcode-core = { path = "vtcode-core", version = "0.43.6" }
+vtcode-memory = { path = "vtcode-memory", version = "0.43.6" }
 anyhow = "1.0"
+dirs = "6.0"
 clap = { version = "4.5", features = ["derive"] }
 serde_json = "1.0"
 tokio = { version = "1.48", features = [

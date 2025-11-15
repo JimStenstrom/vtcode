@@ -5641,6 +5641,7 @@ dependencies = [
  "getrandom 0.3.4",
  "js-sys",
  "rand 0.9.2",
+ "serde",
  "wasm-bindgen",
 ]
 
@@ -5725,6 +5726,7 @@ dependencies = [
  "criterion 0.7.0",
  "crossterm 0.29.0",
  "dialoguer 0.12.0",
+ "dirs",
  "dotenvy",
  "futures",
  "indexmap 2.12.0",
@@ -5754,6 +5756,7 @@ dependencies = [
  "uuid",
  "vtcode-acp-client",
  "vtcode-core",
+ "vtcode-memory",
  "walkdir",
  "webbrowser",
  "which",
@@ -5926,6 +5929,7 @@ dependencies = [
  "vtcode-llm-zai",
  "vtcode-markdown-store",
  "vtcode-mcp",
+ "vtcode-memory",
  "vtcode-prompts",
  "vtcode-tool-traits",
  "vtcode-ui",
@@ -6312,6 +6316,25 @@ dependencies = [
  "vtcode-commons",
  "vtcode-config",
  "vtcode-tool-traits",
+]
+
+[[package]]
+name = "vtcode-memory"
+version = "0.43.6"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "chrono",
+ "dirs",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.17",
+ "tokio",
+ "tracing",
+ "uuid",
+ "vtcode-commons",
+ "vtcode-llm-types",
 ]
 
 [[package]]

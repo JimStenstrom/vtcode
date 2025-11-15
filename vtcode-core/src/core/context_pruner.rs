@@ -4,8 +4,17 @@
 /// by combining token cost analysis with semantic importance scoring.
 /// Messages are evaluated on both their token expense and semantic value,
 /// allowing preservation of high-semantic-value messages even if older.
+use anyhow;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::sync::Arc;
+use tokio::sync::Mutex;
+
+// Memory system integration
+use vtcode_memory::{SimpleMemory, MemoryManager, ConversationTurn};
+
+// Import unified message type for memory integration
+use crate::llm::provider::Message;
 
 /// Semantic importance score for a message (0-1000 scale)
 /// Higher values indicate more important for context retention
@@ -76,7 +85,7 @@ pub enum RetentionDecision {
 }
 
 /// Token-aware context pruning strategy
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct ContextPruner {
     /// Maximum tokens to keep in context
     pub max_tokens: usize,
@@ -86,6 +95,21 @@ pub struct ContextPruner {
     pub recency_bonus_per_turn: u32,
     /// Minimum semantic value to always keep
     pub min_keep_semantic: u32,
+    /// Optional memory integration for non-destructive pruning
+    pub memory: Option<Arc<Mutex<SimpleMemory>>>,
+}
+
+// Manual Debug implementation because Arc<Mutex<SimpleMemory>> doesn't implement Debug
+impl std::fmt::Debug for ContextPruner {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ContextPruner")
+            .field("max_tokens", &self.max_tokens)
+            .field("semantic_threshold", &self.semantic_threshold)
+            .field("recency_bonus_per_turn", &self.recency_bonus_per_turn)
+            .field("min_keep_semantic", &self.min_keep_semantic)
+            .field("memory", &self.memory.as_ref().map(|_| "<SimpleMemory>"))
+            .finish()
+    }
 }
 
 impl ContextPruner {
@@ -96,7 +120,14 @@ impl ContextPruner {
             semantic_threshold: 300,
             recency_bonus_per_turn: 5,
             min_keep_semantic: 400,
+            memory: None,
         }
+    }
+
+    /// Inject memory for non-destructive pruning
+    pub fn with_memory(mut self, memory: Arc<Mutex<SimpleMemory>>) -> Self {
+        self.memory = Some(memory);
+        self
     }
 
     /// Decide which messages to keep based on token budget and semantic value
@@ -158,6 +189,91 @@ impl ContextPruner {
         }
 
         decisions
+    }
+
+    /// Non-destructive pruning: store in memory instead of deleting
+    ///
+    /// This method integrates with vtcode-memory to preserve conversation context.
+    /// Messages marked for removal are saved to memory (with background summarization)
+    /// before being removed from the working context window.
+    ///
+    /// # Arguments
+    /// * `history` - Mutable reference to message history (will be pruned in-place)
+    /// * `metrics` - Message metrics for pruning decisions
+    /// * `turn_number` - Current conversation turn number
+    ///
+    /// # Returns
+    /// Number of messages pruned (removed from history, saved to memory)
+    pub async fn prune_with_memory(
+        &self,
+        history: &mut Vec<Message>,
+        metrics: &[MessageMetrics],
+        turn_number: usize,
+    ) -> Result<usize, anyhow::Error> {
+        // Get pruning decisions using existing logic
+        let decisions = self.prune_messages(metrics);
+
+        // If memory is available, save before removing
+        if let Some(ref memory) = self.memory {
+            let mut messages_to_save = Vec::new();
+            let mut indices_to_remove = Vec::new();
+
+            for (idx, decision) in decisions.iter() {
+                if *decision == RetentionDecision::Remove && *idx < history.len() {
+                    messages_to_save.push(history[*idx].clone());
+                    indices_to_remove.push(*idx);
+                }
+            }
+
+            // Save to memory in a single turn
+            if !messages_to_save.is_empty() {
+                let turn = ConversationTurn::new(turn_number, messages_to_save);
+                memory
+                    .lock()
+                    .await
+                    .add_turn(turn)
+                    .await
+                    .map_err(|e| anyhow::anyhow!("Memory error: {}", e))?;
+
+                tracing::debug!(
+                    "Saved {} messages to memory (turn {})",
+                    indices_to_remove.len(),
+                    turn_number
+                );
+            }
+
+            // Remove from history in reverse order to preserve indices
+            let pruned_count = indices_to_remove.len();
+            for idx in indices_to_remove.iter().rev() {
+                history.remove(*idx);
+            }
+
+            Ok(pruned_count)
+        } else {
+            // Fallback: destructive pruning (old behavior)
+            let indices_to_remove: Vec<_> = decisions
+                .iter()
+                .filter_map(|(idx, decision)| {
+                    if *decision == RetentionDecision::Remove && *idx < history.len() {
+                        Some(*idx)
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+
+            let pruned_count = indices_to_remove.len();
+            for idx in indices_to_remove.iter().rev() {
+                history.remove(*idx);
+            }
+
+            tracing::warn!(
+                "Pruned {} messages destructively (memory not available)",
+                pruned_count
+            );
+
+            Ok(pruned_count)
+        }
     }
 
     /// Calculate priority score for message retention

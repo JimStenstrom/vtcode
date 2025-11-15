@@ -1042,7 +1042,7 @@ pub(crate) async fn run_single_agent_loop_unified(
                         &mut working_history,
                         Some(&mut *pruning_ledger_mut),
                         step_count,
-                    );
+                    ).await;
                 }
 
                 let request_history = working_history.clone();

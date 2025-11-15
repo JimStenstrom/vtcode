@@ -1,0 +1,36 @@
+[package]
+name = "vtcode-memory"
+version = "0.43.6"
+edition = "2024"
+authors = ["vinhnx <vinhnx@users.noreply.github.com>"]
+description = "Temporal-decay-based conversation memory system for VTCode agents"
+license = "MIT"
+readme = "../README.md"
+homepage = "https://github.com/vinhnx/vtcode"
+repository = "https://github.com/vinhnx/vtcode"
+documentation = "https://docs.rs/vtcode-memory"
+keywords = ["ai", "memory", "agents", "llm", "rust"]
+categories = ["development-tools"]
+
+[dependencies]
+# Core dependencies
+anyhow = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tokio = { version = "1.48", features = ["fs", "sync", "time"] }
+tracing = "0.1"
+thiserror = "2.0"
+chrono = { version = "0.4", features = ["serde"] }
+async-trait = "0.1.89"
+
+# Workspace dependencies
+vtcode-commons = { path = "../vtcode-commons", version = "0.43.6" }
+vtcode-llm-types = { path = "../vtcode-llm-types", version = "0.43.6" }
+
+# Utilities
+dirs = "6.0"
+uuid = { version = "1.8.0", features = ["v4", "fast-rng", "serde"] }
+
+[dev-dependencies]
+tempfile = "3.0"
+tokio = { version = "1.48", features = ["macros", "rt-multi-thread"] }
