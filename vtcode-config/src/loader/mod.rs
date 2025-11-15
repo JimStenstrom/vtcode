@@ -207,6 +207,14 @@ impl VTCodeConfig {
             .validate()
             .context("Invalid timeouts configuration")?;
 
+        self.memory
+            .validate()
+            .context("Invalid memory configuration")?;
+
+        self.vectordb
+            .validate()
+            .context("Invalid vectordb configuration")?;
+
         Ok(())
     }
 

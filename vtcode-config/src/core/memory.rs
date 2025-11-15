@@ -1,3 +1,4 @@
+use anyhow::{Result, ensure};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
@@ -46,6 +47,41 @@ impl Default for MemoryConfig {
     }
 }
 
+impl MemoryConfig {
+    /// Validate memory configuration
+    pub fn validate(&self) -> Result<()> {
+        ensure!(
+            self.working_memory_limit > 0,
+            "memory.working_memory_limit must be greater than 0"
+        );
+
+        ensure!(
+            self.summary_limit > 0,
+            "memory.summary_limit must be greater than 0"
+        );
+
+        ensure!(
+            self.checkpoint_interval_seconds > 0,
+            "memory.checkpoint_interval_seconds must be greater than 0"
+        );
+
+        // Reasonable upper bounds to prevent misconfiguration
+        ensure!(
+            self.working_memory_limit <= 1000,
+            "memory.working_memory_limit must be <= 1000 (found: {})",
+            self.working_memory_limit
+        );
+
+        ensure!(
+            self.summary_limit <= 10000,
+            "memory.summary_limit must be <= 10000 (found: {})",
+            self.summary_limit
+        );
+
+        Ok(())
+    }
+}
+
 /// VectorDB configuration
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -75,6 +111,41 @@ impl Default for VectorDbConfig {
     }
 }
 
+impl VectorDbConfig {
+    /// Validate vector database configuration
+    pub fn validate(&self) -> Result<()> {
+        ensure!(
+            self.backend == "memory" || self.backend == "qdrant",
+            "vectordb.backend must be 'memory' or 'qdrant' (found: '{}')",
+            self.backend
+        );
+
+        ensure!(
+            !self.collection_prefix.is_empty(),
+            "vectordb.collection_prefix must not be empty"
+        );
+
+        ensure!(
+            self.embedding_dimensions > 0,
+            "vectordb.embedding_dimensions must be greater than 0"
+        );
+
+        // Common embedding dimensions: 384, 512, 768, 1024, 1536
+        ensure!(
+            self.embedding_dimensions <= 4096,
+            "vectordb.embedding_dimensions must be <= 4096 (found: {})",
+            self.embedding_dimensions
+        );
+
+        // Validate Qdrant config if present
+        if let Some(ref qdrant) = self.qdrant {
+            qdrant.validate()?;
+        }
+
+        Ok(())
+    }
+}
+
 /// Qdrant configuration (for future use)
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -84,4 +155,22 @@ pub struct QdrantConfig {
 
     /// Optional API key for authentication
     pub api_key: Option<String>,
+}
+
+impl QdrantConfig {
+    /// Validate Qdrant configuration
+    pub fn validate(&self) -> Result<()> {
+        ensure!(
+            !self.url.is_empty(),
+            "vectordb.qdrant.url must not be empty"
+        );
+
+        ensure!(
+            self.url.starts_with("http://") || self.url.starts_with("https://"),
+            "vectordb.qdrant.url must start with http:// or https:// (found: '{}')",
+            self.url
+        );
+
+        Ok(())
+    }
 }
