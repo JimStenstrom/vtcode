@@ -4,10 +4,11 @@ use super::providers::{
     XAIProvider, ZAIProvider,
 };
 use crate::config::core::PromptCachingConfig;
-use crate::config::models::{ModelId, Provider, get_model_provider};
+use crate::config::models::{ModelId, Provider};
 use crate::llm::provider::{LLMError, LLMProvider};
 use std::collections::HashMap;
 use std::str::FromStr;
+use vtcode_config::models::get_model_provider;
 
 /// LLM provider factory and registry
 pub struct LLMFactory {

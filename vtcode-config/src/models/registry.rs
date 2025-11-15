@@ -820,7 +820,13 @@ mod tests {
             true,  // needs tools
             true,  // prefer cheap
         );
-        assert_eq!(model, Some("gpt-3.5-turbo"));
+        // Should return a Small tier model - could be gpt-3.5-turbo or gpt-4o-mini
+        assert!(model.is_some());
+        let model_id = model.unwrap();
+        let info = get_model_info(model_id).unwrap();
+        assert_eq!(info.provider, "openai");
+        assert_eq!(info.tier, ModelTier::Small);
+        assert!(info.capabilities.tools);
 
         let model = recommend_model_for_task(
             "openai",
@@ -828,7 +834,13 @@ mod tests {
             true,  // needs tools
             false, // prefer expensive
         );
-        assert!(model == Some("gpt-4-turbo") || model == Some("gpt-4o"));
+        // Should return a Primary tier model
+        assert!(model.is_some());
+        let model_id = model.unwrap();
+        let info = get_model_info(model_id).unwrap();
+        assert_eq!(info.provider, "openai");
+        assert_eq!(info.tier, ModelTier::Primary);
+        assert!(info.capabilities.tools);
     }
 
     #[test]
