@@ -7,22 +7,11 @@ use vtcode_core::{
     code::code_completion::{CompletionContext, CompletionEngine},
     code::code_quality::{FormattingOrchestrator, LintingOrchestrator, QualityMetrics},
     config::{ConfigManager, ToolPolicy, VTCodeConfig},
-    gemini::{Client, ClientConfig},
 };
 
-#[test]
-fn test_gemini_module_integration() {
-    // Test that we can create a Gemini client with different configurations
-    let client = Client::new("test_key".to_string(), "gemini-2.5-flash".to_string());
-    assert_eq!(client.config().user_agent, "vtcode/1.0.0");
-
-    // Test different client configurations
-    let high_throughput_config = ClientConfig::high_throughput();
-    assert_eq!(high_throughput_config.pool_max_idle_per_host, 20);
-
-    let low_memory_config = ClientConfig::low_memory();
-    assert_eq!(low_memory_config.pool_max_idle_per_host, 3);
-}
+// NOTE: test_gemini_module_integration removed as part of Phase 3 refactoring
+// Gemini client is now in vtcode-llm-gemini crate with different API
+// Provider creation should be tested via factory pattern (see test_provider_integration)
 
 #[test]
 fn test_config_module_integration() {
