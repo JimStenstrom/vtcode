@@ -17,7 +17,7 @@
 pub mod keyboard;
 pub mod mouse;
 
-use crossterm::event::{Event as CrosstermEvent, KeyEventKind, MouseEvent};
+use crossterm::event::{Event as CrosstermEvent, KeyEventKind};
 use tokio::sync::mpsc::UnboundedSender;
 
 use crate::tui::types::InlineEvent;
@@ -108,12 +108,12 @@ pub fn handle_event(
 /// * `content` - The pasted text content
 #[inline]
 fn handle_paste_event(session: &mut Session, content: String) {
-    if session.input_enabled {
-        session.insert_text(&content);
+    if session.ui_state.input_enabled {
+        session.input_manager.insert_text(&content);
         session.check_file_reference_trigger();
         session.check_prompt_reference_trigger();
         session.mark_dirty();
-    } else if let Some(modal) = session.modal.as_mut() {
+    } else if let Some(modal) = session.render_state.modal.as_mut() {
         if let (Some(list), Some(search)) = (modal.list.as_mut(), modal.search.as_mut()) {
             search.insert(&content);
             list.apply_search(&search.query);
@@ -132,7 +132,12 @@ fn handle_paste_event(session: &mut Session, content: String) {
 /// * `rows` - The new number of rows in the terminal
 #[inline]
 fn handle_resize_event(session: &mut Session, rows: u16) {
-    session.apply_view_rows(rows);
+    let resolved = rows.max(1);
+    if session.ui_state.view_rows != resolved {
+        session.ui_state.view_rows = resolved;
+        session.recalculate_transcript_rows();
+        session.invalidate_scroll_metrics();
+    }
     session.mark_dirty();
 }
 

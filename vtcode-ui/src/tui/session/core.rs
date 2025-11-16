@@ -7,7 +7,7 @@
 
 use vtcode_config::constants::ui;
 
-use crate::tui::types::{InlineTextStyle, InlineTheme};
+use crate::tui::types::InlineTheme;
 
 use super::input_manager::InputManager;
 use super::scroll::ScrollManager;
@@ -42,7 +42,9 @@ impl Session {
     ) -> Self {
         let resolved_rows = view_rows.max(2);
         let initial_header_rows = ui::INLINE_HEADER_HEIGHT;
-        let reserved_rows = initial_header_rows + Self::input_block_height_for_lines(1);
+        // Input block height: 1 line + 2 for borders = 3
+        let initial_input_height = 3u16;
+        let reserved_rows = initial_header_rows + initial_input_height;
         let initial_transcript_rows = resolved_rows.saturating_sub(reserved_rows).max(1);
 
         // Initialize state components
@@ -56,7 +58,7 @@ impl Session {
         let mut ui_state = UIState::new();
         ui_state.needs_redraw = true;
         ui_state.view_rows = resolved_rows;
-        ui_state.input_height = Self::input_block_height_for_lines(1);
+        ui_state.input_height = initial_input_height;
         ui_state.transcript_rows = initial_transcript_rows;
         ui_state.show_timeline_pane = show_timeline_pane;
 
@@ -123,30 +125,13 @@ impl Session {
         self.render_state.next_revision()
     }
 
-    /// Calculate input block height for a given number of lines
-    ///
-    /// Determines the total height (in terminal rows) needed for an input
-    /// block that displays the specified number of text lines. This includes
-    /// the border and padding around the input area.
-    ///
-    /// # Arguments
-    ///
-    /// * `lines` - The number of text lines to display (minimum 1)
-    ///
-    /// # Returns
-    ///
-    /// The total height in terminal rows needed for the input block
-    pub(super) fn input_block_height_for_lines(lines: u16) -> u16 {
-        // Add 2 for top and bottom borders
-        lines.max(1).saturating_add(2)
-    }
 
     /// Ensure the prompt style has a color set
     ///
     /// If the prompt style doesn't have a color, sets it to the theme's
     /// primary color, falling back to the foreground color if no primary
     /// color is defined. This ensures the prompt is always visible.
-    fn ensure_prompt_style_color(&mut self) {
+    pub(super) fn ensure_prompt_style_color(&mut self) {
         if self.prompt_state.prompt_style.color.is_none() {
             self.prompt_state.prompt_style.color = self
                 .display_state
@@ -160,15 +145,6 @@ impl Session {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_input_block_height_for_lines() {
-        // Minimum 1 line + 2 for borders = 3
-        assert_eq!(Session::input_block_height_for_lines(0), 3);
-        assert_eq!(Session::input_block_height_for_lines(1), 3);
-        assert_eq!(Session::input_block_height_for_lines(2), 4);
-        assert_eq!(Session::input_block_height_for_lines(5), 7);
-    }
 
     #[test]
     fn test_new_session_initialization() {

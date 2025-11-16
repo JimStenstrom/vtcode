@@ -159,7 +159,7 @@ impl Session {
             return 1;
         }
 
-        let prompt_width = UnicodeWidthStr::width(self.prompt_prefix.as_str()) as u16;
+        let prompt_width = UnicodeWidthStr::width(self.prompt_state.prompt_prefix.as_str()) as u16;
         let prompt_display_width = prompt_width.min(inner_width);
         let layout = self.input_layout(inner_width, prompt_display_width);
         let line_count = layout.buffers.len().max(1);
@@ -177,8 +177,8 @@ impl Session {
     /// * `height` - The new input height in rows
     pub(in crate::tui::session) fn apply_input_height(&mut self, height: u16) {
         let resolved = height.max(Self::input_block_height_for_lines(1));
-        if self.input_height != resolved {
-            self.input_height = resolved;
+        if self.ui_state.input_height != resolved {
+            self.ui_state.input_height = resolved;
             self.recalculate_transcript_rows();
         }
     }
@@ -207,13 +207,13 @@ impl Session {
     /// `true` if a status line should be displayed
     pub(in crate::tui::session) fn has_input_status(&self) -> bool {
         let left_present = self
-            .input_status_left
+            .prompt_state.input_status_left
             .as_ref()
             .is_some_and(|value| !value.trim().is_empty());
         if left_present {
             return true;
         }
-        self.input_status_right
+        self.prompt_state.input_status_right
             .as_ref()
             .is_some_and(|value| !value.trim().is_empty())
     }
@@ -236,7 +236,7 @@ impl Session {
     fn input_layout(&self, width: u16, prompt_display_width: u16) -> InputLayout {
         let indent_prefix = " ".repeat(prompt_display_width as usize);
         let mut buffers = vec![InputLineBuffer::new(
-            self.prompt_prefix.clone(),
+            self.prompt_state.prompt_prefix.clone(),
             prompt_display_width,
         )];
         let secure_prompt_active = self.secure_prompt_active();
@@ -342,21 +342,21 @@ impl Session {
 
         let max_visible_lines = height.max(1).min(ui::INLINE_INPUT_MAX_LINES as u16) as usize;
 
-        let mut prompt_style = self.prompt_style.clone();
+        let mut prompt_style = self.prompt_state.prompt_style.clone();
         if prompt_style.color.is_none() {
-            prompt_style.color = self.theme.primary.or(self.theme.foreground);
+            prompt_style.color = self.display_state.theme.primary.or(self.display_state.theme.foreground);
         }
-        let prompt_style = ratatui_style_from_inline(&prompt_style, self.theme.foreground);
-        let prompt_width = UnicodeWidthStr::width(self.prompt_prefix.as_str()) as u16;
+        let prompt_style = ratatui_style_from_inline(&prompt_style, self.display_state.theme.foreground);
+        let prompt_width = UnicodeWidthStr::width(self.prompt_state.prompt_prefix.as_str()) as u16;
         let prompt_display_width = prompt_width.min(width);
 
         if self.input_manager.content().is_empty() {
             let mut spans = Vec::new();
-            spans.push(Span::styled(self.prompt_prefix.clone(), prompt_style));
+            spans.push(Span::styled(self.prompt_state.prompt_prefix.clone(), prompt_style));
 
-            if let Some(placeholder) = &self.placeholder {
+            if let Some(placeholder) = &self.prompt_state.placeholder {
                 let placeholder_style =
-                    self.placeholder_style
+                    self.prompt_state.placeholder_style
                         .clone()
                         .unwrap_or_else(|| InlineTextStyle {
                             color: Some(AnsiColorEnum::Rgb(PLACEHOLDER_COLOR)),
@@ -378,7 +378,7 @@ impl Session {
         }
 
         let accent_style =
-            ratatui_style_from_inline(&self.accent_inline_style(), self.theme.foreground);
+            ratatui_style_from_inline(&self.accent_inline_style(), self.display_state.theme.foreground);
         let layout = self.input_layout(width, prompt_display_width);
         let total_lines = layout.buffers.len();
         let visible_limit = max_visible_lines.max(1);
@@ -401,7 +401,7 @@ impl Session {
 
         if lines.is_empty() {
             lines.push(Line::from(vec![Span::styled(
-                self.prompt_prefix.clone(),
+                self.prompt_state.prompt_prefix.clone(),
                 prompt_style,
             )]));
         }
@@ -437,12 +437,12 @@ impl Session {
         }
 
         let left = self
-            .input_status_left
+            .prompt_state.input_status_left
             .as_ref()
             .map(|value| value.trim().to_string())
             .filter(|value| !value.is_empty());
         let right = self
-            .input_status_right
+            .prompt_state.input_status_right
             .as_ref()
             .map(|value| value.trim().to_string())
             .filter(|value| !value.is_empty());
@@ -539,7 +539,7 @@ impl Session {
     ///
     /// `true` if the cursor should be displayed
     fn cursor_should_be_visible(&self) -> bool {
-        self.cursor_visible && self.input_enabled
+        self.ui_state.cursor_visible && self.ui_state.input_enabled
     }
 
     /// Checks if a secure prompt (password input) is active.
@@ -550,7 +550,7 @@ impl Session {
     ///
     /// `true` if secure prompt is active
     fn secure_prompt_active(&self) -> bool {
-        self.modal
+        self.render_state.modal
             .as_ref()
             .and_then(|modal| modal.secure_prompt.as_ref())
             .is_some()
@@ -564,7 +564,7 @@ impl Session {
     ///
     /// `true` if Full Auto Trust mode is active
     fn is_full_auto_trust(&self) -> bool {
-        self.header_context.workspace_trust.contains("full auto")
+        self.render_state.header_context.workspace_trust.contains("full auto")
     }
 
     /// Checks if the workspace is in Tools Policy Trust mode.
@@ -575,6 +575,6 @@ impl Session {
     ///
     /// `true` if Tools Policy Trust mode is active
     fn is_tools_policy_trust(&self) -> bool {
-        self.header_context.workspace_trust.contains("tools policy")
+        self.render_state.header_context.workspace_trust.contains("tools policy")
     }
 }

@@ -13,36 +13,36 @@ pub(super) struct QueueOverlay {
 
 impl Session {
     pub(super) fn set_queued_inputs_entries(&mut self, entries: Vec<String>) {
-        self.queued_inputs = entries;
+        self.render_state.queued_inputs = entries;
         self.invalidate_queue_overlay();
     }
 
     pub(super) fn invalidate_queue_overlay(&mut self) {
-        self.queue_overlay_version = self.queue_overlay_version.wrapping_add(1);
-        self.queue_overlay_cache = None;
+        self.render_state.queue_overlay_version = self.render_state.queue_overlay_version.wrapping_add(1);
+        self.render_state.queue_overlay_cache = None;
     }
 
     pub(super) fn queue_overlay_lines(&mut self, width: u16) -> Option<&[Line<'static>]> {
-        if width == 0 || self.queued_inputs.is_empty() {
-            self.queue_overlay_cache = None;
+        if width == 0 || self.render_state.queued_inputs.is_empty() {
+            self.render_state.queue_overlay_cache = None;
             return None;
         }
 
-        let version = self.queue_overlay_version;
-        let needs_rebuild = self.queue_overlay_cache.as_ref().map_or(true, |cache| {
+        let version = self.render_state.queue_overlay_version;
+        let needs_rebuild = self.render_state.queue_overlay_cache.as_ref().map_or(true, |cache| {
             cache.width != width || cache.version != version
         });
 
         if needs_rebuild {
             let lines = self.reflow_queue_lines(width);
-            self.queue_overlay_cache = Some(QueueOverlay {
+            self.render_state.queue_overlay_cache = Some(QueueOverlay {
                 width,
                 version,
                 lines,
             });
         }
 
-        self.queue_overlay_cache.as_ref().and_then(|cache| {
+        self.render_state.queue_overlay_cache.as_ref().and_then(|cache| {
             if cache.lines.is_empty() {
                 None
             } else {
@@ -74,7 +74,7 @@ impl Session {
     }
 
     fn reflow_queue_lines(&self, width: u16) -> Vec<Line<'static>> {
-        if width == 0 || self.queued_inputs.is_empty() {
+        if width == 0 || self.render_state.queued_inputs.is_empty() {
             return Vec::new();
         }
 
@@ -84,10 +84,10 @@ impl Session {
         header_style = header_style.add_modifier(Modifier::BOLD);
         let message_style = self.default_style();
 
-        let header_text = if self.queued_inputs.len() == 1 {
+        let header_text = if self.render_state.queued_inputs.len() == 1 {
             "Queued message".to_string()
         } else {
-            format!("Queued messages ({})", self.queued_inputs.len())
+            format!("Queued messages ({})", self.render_state.queued_inputs.len())
         };
 
         let mut header_lines = self.wrap_line(
@@ -100,7 +100,7 @@ impl Session {
         lines.extend(header_lines);
 
         const DISPLAY_LIMIT: usize = 2;
-        for (index, entry) in self.queued_inputs.iter().take(DISPLAY_LIMIT).enumerate() {
+        for (index, entry) in self.render_state.queued_inputs.iter().take(DISPLAY_LIMIT).enumerate() {
             let label = format!("  {}. ", index + 1);
             let mut message_lines =
                 self.wrap_queue_message(&label, entry, max_width, header_style, message_style);
@@ -110,7 +110,7 @@ impl Session {
             lines.append(&mut message_lines);
         }
 
-        let remaining = self.queued_inputs.len().saturating_sub(DISPLAY_LIMIT);
+        let remaining = self.render_state.queued_inputs.len().saturating_sub(DISPLAY_LIMIT);
         if remaining > 0 {
             let indicator = format!("  +{}...", remaining);
             let mut indicator_lines = self.wrap_line(

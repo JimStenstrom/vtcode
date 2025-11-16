@@ -37,25 +37,25 @@ impl Session {
 
         if self.should_show_plan() {
             if item_count == 0 {
-                self.navigation_state.select(None);
-                *self.navigation_state.offset_mut() = 0;
+                self.ui_state.navigation_state.select(None);
+                *self.ui_state.navigation_state.offset_mut() = 0;
             } else if let Some(selected) = self.plan_selected_index() {
-                self.navigation_state.select(Some(selected));
+                self.ui_state.navigation_state.select(Some(selected));
                 let max_offset = item_count.saturating_sub(viewport);
                 let desired_offset = selected.saturating_sub(viewport.saturating_sub(1));
-                *self.navigation_state.offset_mut() = desired_offset.min(max_offset);
+                *self.ui_state.navigation_state.offset_mut() = desired_offset.min(max_offset);
             } else {
-                self.navigation_state.select(None);
-                *self.navigation_state.offset_mut() = 0;
+                self.ui_state.navigation_state.select(None);
+                *self.ui_state.navigation_state.offset_mut() = 0;
             }
-        } else if self.lines.is_empty() {
-            self.navigation_state.select(None);
-            *self.navigation_state.offset_mut() = 0;
+        } else if self.display_state.lines.is_empty() {
+            self.ui_state.navigation_state.select(None);
+            *self.ui_state.navigation_state.offset_mut() = 0;
         } else {
-            let last_index = self.lines.len().saturating_sub(1);
-            self.navigation_state.select(Some(last_index));
+            let last_index = self.display_state.lines.len().saturating_sub(1);
+            self.ui_state.navigation_state.select(Some(last_index));
             let max_offset = item_count.saturating_sub(viewport);
-            *self.navigation_state.offset_mut() = max_offset;
+            *self.ui_state.navigation_state.offset_mut() = max_offset;
         }
 
         let list = List::new(items)
@@ -63,7 +63,7 @@ impl Session {
             .style(self.default_style())
             .highlight_style(self.navigation_highlight_style());
 
-        frame.render_stateful_widget(list, area, &mut self.navigation_state);
+        frame.render_stateful_widget(list, area, &mut self.ui_state.navigation_state);
     }
 
     pub(super) fn navigation_block_title(&self) -> Line<'static> {
@@ -97,11 +97,11 @@ impl Session {
             self.navigation_preview_style(),
         ));
 
-        if self.plan.summary.total_steps > 0 {
+        if self.render_state.plan.summary.total_steps > 0 {
             spans.push(Span::styled(
                 format!(
                     " · {}/{}",
-                    self.plan.summary.completed_steps, self.plan.summary.total_steps
+                    self.render_state.plan.summary.completed_steps, self.render_state.plan.summary.total_steps
                 ),
                 self.navigation_preview_style(),
             ));
@@ -111,7 +111,7 @@ impl Session {
     }
 
     fn plan_status_label(&self) -> &'static str {
-        match self.plan.summary.status {
+        match self.render_state.plan.summary.status {
             PlanCompletionState::Done => ui::PLAN_STATUS_DONE,
             PlanCompletionState::Completed => ui::PLAN_STATUS_DONE,
             PlanCompletionState::InProgress => ui::PLAN_STATUS_IN_PROGRESS,
@@ -130,14 +130,14 @@ impl Session {
     }
 
     fn timeline_navigation_items(&self) -> Vec<ListItem<'static>> {
-        if self.lines.is_empty() {
+        if self.display_state.lines.is_empty() {
             return vec![ListItem::new(Line::from(vec![Span::styled(
                 ui::NAVIGATION_EMPTY_LABEL.to_string(),
                 self.navigation_placeholder_style(),
             )]))];
         }
 
-        self.lines
+        self.display_state.lines
             .iter()
             .enumerate()
             .map(|(index, line)| ListItem::new(Line::from(self.navigation_spans(index, line))))
@@ -145,7 +145,7 @@ impl Session {
     }
 
     fn plan_navigation_items(&self) -> Vec<ListItem<'static>> {
-        self.plan
+        self.render_state.plan
             .steps
             .iter()
             .enumerate()
@@ -250,11 +250,11 @@ impl Session {
 
     fn navigation_label_style(&self, kind: InlineMessageKind) -> Style {
         let mut style = InlineTextStyle::default()
-            .with_color(self.text_fallback(kind).or(self.theme.foreground));
+            .with_color(self.text_fallback(kind).or(self.display_state.theme.foreground));
         if matches!(kind, InlineMessageKind::Agent | InlineMessageKind::User) {
             style = style.bold();
         }
-        ratatui_style_from_inline(&style, self.theme.foreground)
+        ratatui_style_from_inline(&style, self.display_state.theme.foreground)
     }
 
     fn navigation_preview_style(&self) -> Style {
@@ -291,19 +291,19 @@ impl Session {
 
     fn navigation_highlight_style(&self) -> Style {
         let mut style = Style::default().add_modifier(Modifier::REVERSED | Modifier::BOLD);
-        if let Some(primary) = self.theme.primary.or(self.theme.secondary) {
+        if let Some(primary) = self.display_state.theme.primary.or(self.display_state.theme.secondary) {
             style = style.fg(ratatui_color_from_ansi(primary));
         }
         style
     }
 
     fn plan_selected_index(&self) -> Option<usize> {
-        if self.plan.steps.is_empty() {
+        if self.render_state.plan.steps.is_empty() {
             return None;
         }
 
         if let Some(index) = self
-            .plan
+            .render_state.plan
             .steps
             .iter()
             .position(|step| matches!(step.status, StepStatus::InProgress))
@@ -312,7 +312,7 @@ impl Session {
         }
 
         if let Some(index) = self
-            .plan
+            .render_state.plan
             .steps
             .iter()
             .position(|step| matches!(step.status, StepStatus::Pending))
@@ -320,10 +320,10 @@ impl Session {
             return Some(index);
         }
 
-        Some(self.plan.steps.len().saturating_sub(1))
+        Some(self.render_state.plan.steps.len().saturating_sub(1))
     }
 
     pub(super) fn should_show_plan(&self) -> bool {
-        self.plan.summary.status != PlanCompletionState::Empty && !self.plan.steps.is_empty()
+        self.render_state.plan.summary.status != PlanCompletionState::Empty && !self.render_state.plan.steps.is_empty()
     }
 }

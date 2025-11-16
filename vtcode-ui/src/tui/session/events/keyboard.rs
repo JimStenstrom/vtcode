@@ -51,7 +51,7 @@ pub fn handle_key_event(session: &mut Session, key: KeyEvent) -> Option<InlineEv
     let has_command = has_super || (raw_meta && !has_alt);
 
     // Handle modal dialogs first (highest priority)
-    if let Some(modal) = session.modal.as_mut() {
+    if let Some(modal) = session.render_state.modal.as_mut() {
         let result = modal.handle_list_key_event(
             &key,
             ModalKeyModifiers {
@@ -99,7 +99,7 @@ pub fn handle_key_event(session: &mut Session, key: KeyEvent) -> Option<InlineEv
             session.mark_dirty();
             Some(InlineEvent::Interrupt)
         }
-        KeyCode::Char(c) if c == '' => {
+        KeyCode::Char(c) if c == '\u{0003}' => {
             session.mark_dirty();
             Some(InlineEvent::Interrupt)
         }
@@ -112,7 +112,7 @@ pub fn handle_key_event(session: &mut Session, key: KeyEvent) -> Option<InlineEv
 
         // Escape key
         KeyCode::Esc => {
-            if session.modal.is_some() {
+            if session.render_state.modal.is_some() {
                 session.close_modal();
                 None
             } else {
@@ -134,21 +134,21 @@ pub fn handle_key_event(session: &mut Session, key: KeyEvent) -> Option<InlineEv
 
         // Page Up/Down for scrolling
         KeyCode::PageUp => {
-            session.scroll_page_up();
+            super::mouse::scroll_page_up(session);
             session.mark_dirty();
             Some(InlineEvent::ScrollPageUp)
         }
         KeyCode::PageDown => {
-            session.scroll_page_down();
+            super::mouse::scroll_page_down(session);
             session.mark_dirty();
             Some(InlineEvent::ScrollPageDown)
         }
 
         // Up arrow - history or scroll
         KeyCode::Up => {
-            let history_requested = if session.input_enabled && (has_alt || has_command) {
+            let history_requested = if session.ui_state.input_enabled && (has_alt || has_command) {
                 true
-            } else if session.input_enabled {
+            } else if session.ui_state.input_enabled {
                 session.current_max_scroll_offset() == 0
             } else {
                 false
@@ -159,16 +159,16 @@ pub fn handle_key_event(session: &mut Session, key: KeyEvent) -> Option<InlineEv
             }
 
             // Only scroll transcript if not navigating history
-            session.scroll_line_up();
+            super::mouse::scroll_line_up(session);
             session.mark_dirty();
             Some(InlineEvent::ScrollLineUp)
         }
 
         // Down arrow - history or scroll
         KeyCode::Down => {
-            let history_requested = if session.input_enabled && (has_alt || has_command) {
+            let history_requested = if session.ui_state.input_enabled && (has_alt || has_command) {
                 true
-            } else if session.input_enabled {
+            } else if session.ui_state.input_enabled {
                 session.current_max_scroll_offset() == 0
             } else {
                 false
@@ -179,20 +179,20 @@ pub fn handle_key_event(session: &mut Session, key: KeyEvent) -> Option<InlineEv
             }
 
             // Only scroll transcript if not navigating history
-            session.scroll_line_down();
+            super::mouse::scroll_line_down(session);
             session.mark_dirty();
             Some(InlineEvent::ScrollLineDown)
         }
 
         // Enter - submit input or insert newline with Shift
         KeyCode::Enter => {
-            if !session.input_enabled {
+            if !session.ui_state.input_enabled {
                 return None;
             }
 
             // Handle file palette selection
-            if session.file_palette_active {
-                if let Some(palette) = session.file_palette.as_ref() {
+            if session.palette_state.file_palette_active {
+                if let Some(palette) = session.palette_state.file_palette.as_ref() {
                     if let Some(entry) = palette.get_selected() {
                         let file_path = entry.path.clone();
                         insert_file_reference(session, &file_path);
@@ -235,7 +235,7 @@ pub fn handle_key_event(session: &mut Session, key: KeyEvent) -> Option<InlineEv
 
         // Backspace - delete character, word, or sentence
         KeyCode::Backspace => {
-            if session.input_enabled {
+            if session.ui_state.input_enabled {
                 if has_alt {
                     // Alt+Backspace (Option+Backspace on Mac) - delete word backwards
                     delete_word_backward(session);
@@ -255,7 +255,7 @@ pub fn handle_key_event(session: &mut Session, key: KeyEvent) -> Option<InlineEv
 
         // Delete - forward delete character, word, or sentence
         KeyCode::Delete => {
-            if session.input_enabled {
+            if session.ui_state.input_enabled {
                 if has_alt {
                     // Alt+Delete (Option+Delete on Mac) - delete word backwards
                     delete_word_backward(session);
@@ -275,7 +275,7 @@ pub fn handle_key_event(session: &mut Session, key: KeyEvent) -> Option<InlineEv
 
         // Left arrow - move cursor
         KeyCode::Left => {
-            if session.input_enabled {
+            if session.ui_state.input_enabled {
                 if has_command {
                     move_to_start(session);
                 } else if has_alt {
@@ -290,7 +290,7 @@ pub fn handle_key_event(session: &mut Session, key: KeyEvent) -> Option<InlineEv
 
         // Right arrow - move cursor
         KeyCode::Right => {
-            if session.input_enabled {
+            if session.ui_state.input_enabled {
                 if has_command {
                     move_to_end(session);
                 } else if has_alt {
@@ -305,7 +305,7 @@ pub fn handle_key_event(session: &mut Session, key: KeyEvent) -> Option<InlineEv
 
         // Home - move to start
         KeyCode::Home => {
-            if session.input_enabled {
+            if session.ui_state.input_enabled {
                 move_to_start(session);
                 session.mark_dirty();
             }
@@ -314,7 +314,7 @@ pub fn handle_key_event(session: &mut Session, key: KeyEvent) -> Option<InlineEv
 
         // End - move to end
         KeyCode::End => {
-            if session.input_enabled {
+            if session.ui_state.input_enabled {
                 move_to_end(session);
                 session.mark_dirty();
             }
@@ -323,13 +323,14 @@ pub fn handle_key_event(session: &mut Session, key: KeyEvent) -> Option<InlineEv
 
         // Ctrl+T - toggle timeline pane
         KeyCode::Char('t') | KeyCode::Char('T') if has_control => {
-            session.toggle_timeline_pane();
+            session.ui_state.show_timeline_pane = !session.ui_state.show_timeline_pane;
+            session.mark_dirty();
             None
         }
 
         // Character input
         KeyCode::Char(ch) => {
-            if !session.input_enabled {
+            if !session.ui_state.input_enabled {
                 return None;
             }
 

@@ -106,9 +106,9 @@ pub fn render(session: &mut Session, frame: &mut Frame) {
     }
 
     // Clear entire frame if modal was just closed to remove artifacts
-    if session.needs_full_clear {
+    if session.ui_state.needs_full_clear {
         frame.render_widget(Clear, viewport);
-        session.needs_full_clear = false;
+        session.ui_state.needs_full_clear = false;
     }
 
     // Phase 2: Handle deferred palette triggers
@@ -120,8 +120,8 @@ pub fn render(session: &mut Session, frame: &mut Frame) {
     // Phase 4: Calculate dynamic header height
     let header_lines = session.header_lines();
     let header_height = session.header_height_from_lines(viewport.width, &header_lines);
-    if header_height != session.header_rows {
-        session.header_rows = header_height;
+    if header_height != session.render_state.header_rows {
+        session.render_state.header_rows = header_height;
         session.recalculate_transcript_rows();
     }
 
@@ -140,7 +140,7 @@ pub fn render(session: &mut Session, frame: &mut Frame) {
     // Phase 8: Render all components in order
     session.render_header(frame, header_area, &header_lines);
 
-    if session.show_timeline_pane {
+    if session.ui_state.show_timeline_pane {
         session.render_navigation(frame, navigation_area);
     }
 
@@ -160,8 +160,8 @@ pub fn render(session: &mut Session, frame: &mut Frame) {
 /// * `session` - The session state containing deferred trigger flags
 fn handle_deferred_triggers(session: &mut Session) {
     // Handle deferred file browser trigger (after slash modal dismisses)
-    if session.deferred_file_browser_trigger {
-        session.deferred_file_browser_trigger = false;
+    if session.palette_state.deferred_file_browser_trigger {
+        session.palette_state.deferred_file_browser_trigger = false;
         // Insert @ to trigger file browser now that slash modal is gone
         session.input_manager.insert_char('@');
         session.check_file_reference_trigger();
@@ -169,8 +169,8 @@ fn handle_deferred_triggers(session: &mut Session) {
     }
 
     // Handle deferred prompt browser trigger (after slash modal dismisses)
-    if session.deferred_prompt_browser_trigger {
-        session.deferred_prompt_browser_trigger = false;
+    if session.palette_state.deferred_prompt_browser_trigger {
+        session.palette_state.deferred_prompt_browser_trigger = false;
         // Insert # to trigger prompt browser now that slash modal is gone
         session.input_manager.insert_char('#');
         session.check_prompt_reference_trigger();
@@ -190,8 +190,8 @@ fn handle_deferred_triggers(session: &mut Session) {
 /// * `rows` - The new viewport height in rows (minimum 2)
 fn apply_view_rows(session: &mut Session, rows: u16) {
     let resolved = rows.max(2);
-    if session.view_rows != resolved {
-        session.view_rows = resolved;
+    if session.ui_state.view_rows != resolved {
+        session.ui_state.view_rows = resolved;
         session.invalidate_scroll_metrics();
     }
     session.recalculate_transcript_rows();
@@ -292,7 +292,7 @@ fn calculate_vertical_layout(
 ///
 /// A tuple of (transcript_area, navigation_area) rectangles
 fn calculate_horizontal_layout(session: &Session, main_area: Rect) -> (Rect, Rect) {
-    if !session.show_timeline_pane {
+    if !session.ui_state.show_timeline_pane {
         // Navigation disabled - transcript takes full area
         return (main_area, Rect::new(main_area.x, main_area.y, 0, 0));
     }

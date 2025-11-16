@@ -67,7 +67,7 @@ impl Session {
         let (top_offset, _clamped_total_rows) =
             self.prepare_transcript_scroll(total_rows, viewport_rows);
         let vertical_offset = top_offset.min(self.scroll_manager.max_offset());
-        self.transcript_view_top = vertical_offset;
+        self.ui_state.transcript_view_top = vertical_offset;
 
         // Collect visible lines
         let visible_start = vertical_offset;
@@ -107,8 +107,8 @@ impl Session {
     /// * `rows` - The new row count for the transcript viewport
     pub(super) fn apply_transcript_rows(&mut self, rows: u16) {
         let resolved = rows.max(1);
-        if self.transcript_rows != resolved {
-            self.transcript_rows = resolved;
+        if self.ui_state.transcript_rows != resolved {
+            self.ui_state.transcript_rows = resolved;
             self.invalidate_scroll_metrics();
         }
     }
@@ -122,8 +122,8 @@ impl Session {
     ///
     /// * `width` - The new width for the transcript content area
     pub(super) fn apply_transcript_width(&mut self, width: u16) {
-        if self.transcript_width != width {
-            self.transcript_width = width;
+        if self.ui_state.transcript_width != width {
+            self.ui_state.transcript_width = width;
             self.invalidate_scroll_metrics();
         }
     }
@@ -132,14 +132,14 @@ impl Session {
     ///
     /// This is the maximum of the current header rows and the minimum header height.
     pub(super) fn header_reserved_rows(&self) -> u16 {
-        self.header_rows.max(ui::INLINE_HEADER_HEIGHT)
+        self.render_state.header_rows.max(ui::INLINE_HEADER_HEIGHT)
     }
 
     /// Returns the total number of rows reserved for header and input sections.
     ///
     /// This is used to calculate how much space is available for the transcript.
     pub(super) fn input_reserved_rows(&self) -> u16 {
-        self.header_reserved_rows() + self.input_height
+        self.header_reserved_rows() + self.ui_state.input_height
     }
 
     /// Recalculates the transcript row count based on available viewport space.
@@ -148,7 +148,7 @@ impl Session {
     /// vertical space is available for the transcript display.
     pub(in crate::tui::session) fn recalculate_transcript_rows(&mut self) {
         let reserved = self.input_reserved_rows().saturating_add(2); // account for transcript block borders
-        let available = self.view_rows.saturating_sub(reserved).max(1);
+        let available = self.ui_state.view_rows.saturating_sub(reserved).max(1);
         self.apply_transcript_rows(available);
     }
 
@@ -160,7 +160,7 @@ impl Session {
     ///
     /// This is used for scroll calculations and ensures a minimum of 1 row.
     pub(in crate::tui::session) fn viewport_height(&self) -> usize {
-        self.transcript_rows.max(1) as usize
+        self.ui_state.transcript_rows.max(1) as usize
     }
 
     /// Returns the current maximum scroll offset, ensuring metrics are up to date.
@@ -182,6 +182,25 @@ impl Session {
         }
     }
 
+    /// Adjusts scroll position after content changes.
+    ///
+    /// If the user was scrolled to the bottom before the change, keeps them
+    /// at the bottom. Otherwise maintains their current scroll position.
+    ///
+    /// # Arguments
+    ///
+    /// * `previous_max_offset` - The maximum scroll offset before the change
+    pub(in crate::tui::session) fn adjust_scroll_after_change(&mut self, previous_max_offset: usize) {
+        let current_offset = self.scroll_manager.offset();
+
+        // If user was at the bottom before the change, keep them at the bottom
+        if current_offset >= previous_max_offset {
+            let new_max = self.current_max_scroll_offset();
+            self.scroll_manager.set_offset(new_max);
+        }
+        // Otherwise, keep their current scroll position (viewing older content)
+    }
+
     /// Invalidates scroll metrics, forcing recalculation on next access.
     ///
     /// This also invalidates the transcript cache since layout may have changed.
@@ -200,15 +219,15 @@ impl Session {
         }
 
         let viewport_rows = self.viewport_height();
-        if self.transcript_width == 0 || viewport_rows == 0 {
-            let total_rows = self.lines.len().saturating_sub(viewport_rows.max(1));
+        if self.ui_state.transcript_width == 0 || viewport_rows == 0 {
+            let total_rows = self.display_state.lines.len().saturating_sub(viewport_rows.max(1));
             self.scroll_manager.set_total_rows(total_rows);
             return;
         }
 
         let padding = usize::from(ui::INLINE_TRANSCRIPT_BOTTOM_PADDING);
         let effective_padding = padding.min(viewport_rows.saturating_sub(1));
-        let total_rows = self.total_transcript_rows(self.transcript_width) + effective_padding;
+        let total_rows = self.total_transcript_rows(self.ui_state.transcript_width) + effective_padding;
         self.scroll_manager.set_total_rows(total_rows);
     }
 
@@ -253,7 +272,7 @@ impl Session {
     /// This forces all message lines to be reflowed on the next render,
     /// typically called when content or layout changes.
     pub(in crate::tui::session) fn invalidate_transcript_cache(&mut self) {
-        self.transcript_cache = None;
+        self.render_state.transcript_cache = None;
     }
 
     /// Ensures the reflow cache is up to date for the given width.
@@ -276,7 +295,7 @@ impl Session {
     /// A mutable reference to the updated cache
     pub(super) fn ensure_reflow_cache(&mut self, width: u16) -> &mut TranscriptReflowCache {
         let mut cache = self
-            .transcript_cache
+            .render_state.transcript_cache
             .take()
             .unwrap_or_else(|| TranscriptReflowCache::new(width));
 
@@ -286,18 +305,18 @@ impl Session {
         }
 
         // Resize message cache to match current line count
-        while cache.messages.len() > self.lines.len() {
+        while cache.messages.len() > self.display_state.lines.len() {
             cache.messages.pop();
         }
-        while cache.messages.len() < self.lines.len() {
+        while cache.messages.len() < self.display_state.lines.len() {
             cache.messages.push(Default::default());
         }
 
         // Process any dirty messages (those that need reflow)
-        let mut first_dirty = self.lines.len(); // Start with all clean
+        let mut first_dirty = self.display_state.lines.len(); // Start with all clean
 
         // Find the first message that needs reflow
-        for (index, line) in self.lines.iter().enumerate() {
+        for (index, line) in self.display_state.lines.iter().enumerate() {
             if cache.needs_reflow(index, line.revision) {
                 first_dirty = index;
                 break;
@@ -305,17 +324,17 @@ impl Session {
         }
 
         // If no messages need reflow, just return existing cache
-        if first_dirty == self.lines.len() {
+        if first_dirty == self.display_state.lines.len() {
             // Still need to ensure row offsets are correct
             cache.update_row_offsets();
-            self.transcript_cache = Some(cache);
-            return self.transcript_cache.as_mut().unwrap();
+            self.render_state.transcript_cache = Some(cache);
+            return self.render_state.transcript_cache.as_mut().unwrap();
         }
 
         // Update all messages from the first dirty one onwards
-        for index in first_dirty..self.lines.len() {
-            if index < self.lines.len() {
-                let line = &self.lines[index];
+        for index in first_dirty..self.display_state.lines.len() {
+            if index < self.display_state.lines.len() {
+                let line = &self.display_state.lines[index];
                 if cache.needs_reflow(index, line.revision) {
                     let new_lines = self.reflow_message_lines(index, width);
                     cache.update_message(index, line.revision, new_lines);
@@ -325,8 +344,8 @@ impl Session {
 
         // Update row offsets and total row count
         cache.update_row_offsets();
-        self.transcript_cache = Some(cache);
-        self.transcript_cache.as_mut().unwrap()
+        self.render_state.transcript_cache = Some(cache);
+        self.render_state.transcript_cache.as_mut().unwrap()
     }
 
     /// Returns the total number of rows in the transcript after reflow.
@@ -342,7 +361,7 @@ impl Session {
     ///
     /// The total number of rows needed to display all transcript content
     pub(super) fn total_transcript_rows(&mut self, width: u16) -> usize {
-        if self.lines.is_empty() {
+        if self.display_state.lines.is_empty() {
             return 0;
         }
         let cache = self.ensure_reflow_cache(width);
@@ -394,7 +413,7 @@ impl Session {
     pub(super) fn reflow_transcript_lines(&self, width: u16) -> Vec<Line<'static>> {
         if width == 0 {
             let mut lines: Vec<Line<'static>> = Vec::new();
-            for index in 0..self.lines.len() {
+            for index in 0..self.display_state.lines.len() {
                 lines.extend(self.reflow_message_lines(index, 0));
             }
             if lines.is_empty() {
@@ -404,7 +423,7 @@ impl Session {
         }
 
         let mut wrapped_lines = Vec::new();
-        for index in 0..self.lines.len() {
+        for index in 0..self.display_state.lines.len() {
             wrapped_lines.extend(self.reflow_message_lines(index, width));
         }
 

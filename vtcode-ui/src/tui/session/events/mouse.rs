@@ -104,11 +104,11 @@ fn handle_scroll_up(
 /// Updates the scroll manager's offset and marks the session for full clear
 /// if the scroll position changed. This ensures proper rendering after scroll.
 #[inline]
-fn scroll_line_up(session: &mut Session) {
+pub(in crate::tui::session) fn scroll_line_up(session: &mut Session) {
     let previous = session.scroll_manager.offset();
     session.scroll_manager.scroll_up(1);
     if session.scroll_manager.offset() != previous {
-        session.needs_full_clear = true;
+        session.ui_state.needs_full_clear = true;
     }
 }
 
@@ -117,11 +117,11 @@ fn scroll_line_up(session: &mut Session) {
 /// Updates the scroll manager's offset and marks the session for full clear
 /// if the scroll position changed. This ensures proper rendering after scroll.
 #[inline]
-fn scroll_line_down(session: &mut Session) {
+pub(in crate::tui::session) fn scroll_line_down(session: &mut Session) {
     let previous = session.scroll_manager.offset();
     session.scroll_manager.scroll_down(1);
     if session.scroll_manager.offset() != previous {
-        session.needs_full_clear = true;
+        session.ui_state.needs_full_clear = true;
     }
 }
 
@@ -130,12 +130,12 @@ fn scroll_line_down(session: &mut Session) {
 /// A page is defined as the current viewport height. Marks the session for
 /// full clear if the scroll position changed.
 #[inline]
-pub fn scroll_page_up(session: &mut Session) {
+pub(in crate::tui::session) fn scroll_page_up(session: &mut Session) {
     let previous = session.scroll_manager.offset();
     let viewport_height = session.viewport_height().max(1);
     session.scroll_manager.scroll_up(viewport_height);
     if session.scroll_manager.offset() != previous {
-        session.needs_full_clear = true;
+        session.ui_state.needs_full_clear = true;
     }
 }
 
@@ -144,12 +144,12 @@ pub fn scroll_page_up(session: &mut Session) {
 /// A page is defined as the current viewport height. Marks the session for
 /// full clear if the scroll position changed.
 #[inline]
-pub fn scroll_page_down(session: &mut Session) {
+pub(in crate::tui::session) fn scroll_page_down(session: &mut Session) {
     let previous = session.scroll_manager.offset();
     let viewport_height = session.viewport_height().max(1);
     session.scroll_manager.scroll_down(viewport_height);
     if session.scroll_manager.offset() != previous {
-        session.needs_full_clear = true;
+        session.ui_state.needs_full_clear = true;
     }
 }
 

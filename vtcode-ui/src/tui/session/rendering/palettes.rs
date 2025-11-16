@@ -82,15 +82,15 @@ impl Session {
     /// * `frame` - The ratatui frame to render into
     /// * `viewport` - The viewport area for positioning the palette
     fn render_file_palette(&mut self, frame: &mut Frame<'_>, viewport: Rect) {
-        if !self.file_palette_active {
+        if !self.palette_state.file_palette_active {
             return;
         }
 
-        let Some(palette) = self.file_palette.as_ref() else {
+        let Some(palette) = self.palette_state.file_palette.as_ref() else {
             return;
         };
 
-        if viewport.height == 0 || viewport.width == 0 || self.modal.is_some() {
+        if viewport.height == 0 || viewport.width == 0 || self.render_state.modal.is_some() {
             return;
         }
 
@@ -153,7 +153,7 @@ impl Session {
                 };
 
                 // Get system file color from LS_COLORS if available
-                let mut style = if let Some(file_palette) = self.file_palette.as_ref() {
+                let mut style = if let Some(file_palette) = self.palette_state.file_palette.as_ref() {
                     if let Some(file_style) = file_palette.style_for_entry(entry) {
                         // Convert anstyle::Style to ratatui::Style using anstyle_utils
                         let anstyle_converted =
@@ -314,15 +314,15 @@ impl Session {
     /// * `frame` - The ratatui frame to render into
     /// * `viewport` - The viewport area for positioning the palette
     fn render_prompt_palette(&mut self, frame: &mut Frame<'_>, viewport: Rect) {
-        if !self.prompt_palette_active {
+        if !self.palette_state.prompt_palette_active {
             return;
         }
 
-        let Some(palette) = self.prompt_palette.as_ref() else {
+        let Some(palette) = self.palette_state.prompt_palette.as_ref() else {
             return;
         };
 
-        if viewport.height == 0 || viewport.width == 0 || self.modal.is_some() {
+        if viewport.height == 0 || viewport.width == 0 || self.render_state.modal.is_some() {
             return;
         }
 
@@ -510,13 +510,13 @@ impl Session {
     /// * `frame` - The ratatui frame to render into
     /// * `viewport` - The viewport area for positioning the palette
     pub(in crate::tui::session) fn render_slash_palette(&mut self, frame: &mut Frame<'_>, viewport: Rect) {
-        if viewport.height == 0 || viewport.width == 0 || self.modal.is_some() {
-            self.slash_palette.clear_visible_rows();
+        if viewport.height == 0 || viewport.width == 0 || self.render_state.modal.is_some() {
+            self.palette_state.slash_palette.clear_visible_rows();
             return;
         }
-        let suggestions = self.slash_palette.suggestions();
+        let suggestions = self.palette_state.slash_palette.suggestions();
         if suggestions.is_empty() {
-            self.slash_palette.clear_visible_rows();
+            self.palette_state.slash_palette.clear_visible_rows();
             return;
         }
 
@@ -558,7 +558,7 @@ impl Session {
         let inner = block.inner(area);
         frame.render_widget(block, area);
         if inner.height == 0 || inner.width == 0 {
-            self.slash_palette.clear_visible_rows();
+            self.palette_state.slash_palette.clear_visible_rows();
             return;
         }
 
@@ -568,7 +568,7 @@ impl Session {
             frame.render_widget(paragraph, text_area);
         }
 
-        self.slash_palette
+        self.palette_state.slash_palette
             .set_visible_rows(layout.list_area.height as usize);
 
         // Get all list items (scrollable via ListState)
@@ -578,7 +578,7 @@ impl Session {
             .style(self.default_style())
             .highlight_style(self.slash_highlight_style());
 
-        frame.render_stateful_widget(list, layout.list_area, self.slash_palette.list_state_mut());
+        frame.render_stateful_widget(list, layout.list_area, self.palette_state.slash_palette.list_state_mut());
     }
 
     /// Generates instruction lines for the slash palette.
@@ -609,7 +609,7 @@ impl Session {
     ///
     /// A vector of list items ready for rendering
     fn slash_list_items(&self) -> Vec<ListItem<'static>> {
-        self.slash_palette
+        self.palette_state.slash_palette
             .suggestions()
             .iter()
             .map(|suggestion| match suggestion {
@@ -643,7 +643,7 @@ impl Session {
     /// The style to use for the selected command
     fn slash_highlight_style(&self) -> Style {
         let mut style = Style::default().add_modifier(Modifier::REVERSED | Modifier::BOLD);
-        if let Some(primary) = self.theme.primary.or(self.theme.secondary) {
+        if let Some(primary) = self.display_state.theme.primary.or(self.display_state.theme.secondary) {
             style = style.fg(ratatui_color_from_ansi(primary));
         }
         style
@@ -657,8 +657,8 @@ impl Session {
     fn slash_name_style(&self) -> Style {
         let style = InlineTextStyle::default()
             .bold()
-            .with_color(self.theme.primary.or(self.theme.foreground));
-        ratatui_style_from_inline(&style, self.theme.foreground)
+            .with_color(self.display_state.theme.primary.or(self.display_state.theme.foreground));
+        ratatui_style_from_inline(&style, self.display_state.theme.foreground)
     }
 
     /// Gets the style for slash command descriptions.
@@ -690,7 +690,7 @@ impl Session {
         }
 
         let styles = self.modal_render_styles();
-        let Some(modal) = self.modal.as_mut() else {
+        let Some(modal) = self.render_state.modal.as_mut() else {
             return;
         };
 
@@ -791,7 +791,7 @@ impl Session {
     /// The highlight style with reversed colors and bold text
     fn modal_list_highlight_style(&self) -> Style {
         let mut style = Style::default().add_modifier(Modifier::REVERSED | Modifier::BOLD);
-        if let Some(primary) = self.theme.primary.or(self.theme.foreground) {
+        if let Some(primary) = self.display_state.theme.primary.or(self.display_state.theme.foreground) {
             style = style.fg(ratatui_color_from_ansi(primary));
         }
         style

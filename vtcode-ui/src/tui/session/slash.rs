@@ -16,13 +16,13 @@ impl Session {
     }
 
     pub(super) fn clear_slash_suggestions(&mut self) {
-        if self.slash_palette.clear() {
+        if self.palette_state.slash_palette.clear() {
             self.handle_slash_palette_change();
         }
     }
 
     pub(super) fn update_slash_suggestions(&mut self) {
-        if !self.input_enabled {
+        if !self.ui_state.input_enabled {
             self.clear_slash_suggestions();
             return;
         }
@@ -35,13 +35,13 @@ impl Session {
         };
 
         // Update slash palette with custom prompts if available
-        if let Some(ref custom_prompts) = self.custom_prompts {
-            self.slash_palette
+        if let Some(ref custom_prompts) = self.palette_state.custom_prompts {
+            self.palette_state.slash_palette
                 .set_custom_prompts(custom_prompts.clone());
         }
 
         match self
-            .slash_palette
+            .palette_state.slash_palette
             .update(Some(&prefix), ui::SLASH_SUGGESTION_LIMIT)
         {
             SlashPaletteUpdate::NoChange => {}
@@ -52,40 +52,40 @@ impl Session {
     }
 
     pub(super) fn slash_navigation_available(&self) -> bool {
-        self.input_enabled
-            && !self.slash_palette.is_empty()
-            && self.modal.is_none()
-            && !self.file_palette_active
-            && !self.prompt_palette_active
+        self.ui_state.input_enabled
+            && !self.palette_state.slash_palette.is_empty()
+            && self.render_state.modal.is_none()
+            && !self.palette_state.file_palette_active
+            && !self.palette_state.prompt_palette_active
     }
 
     pub(super) fn move_slash_selection_up(&mut self) -> bool {
-        let changed = self.slash_palette.move_up();
+        let changed = self.palette_state.slash_palette.move_up();
         self.handle_slash_selection_change(changed)
     }
 
     pub(super) fn move_slash_selection_down(&mut self) -> bool {
-        let changed = self.slash_palette.move_down();
+        let changed = self.palette_state.slash_palette.move_down();
         self.handle_slash_selection_change(changed)
     }
 
     pub(super) fn select_first_slash_suggestion(&mut self) -> bool {
-        let changed = self.slash_palette.select_first();
+        let changed = self.palette_state.slash_palette.select_first();
         self.handle_slash_selection_change(changed)
     }
 
     pub(super) fn select_last_slash_suggestion(&mut self) -> bool {
-        let changed = self.slash_palette.select_last();
+        let changed = self.palette_state.slash_palette.select_last();
         self.handle_slash_selection_change(changed)
     }
 
     pub(super) fn page_up_slash_suggestion(&mut self) -> bool {
-        let changed = self.slash_palette.page_up();
+        let changed = self.palette_state.slash_palette.page_up();
         self.handle_slash_selection_change(changed)
     }
 
     pub(super) fn page_down_slash_suggestion(&mut self) -> bool {
-        let changed = self.slash_palette.page_down();
+        let changed = self.palette_state.slash_palette.page_down();
         self.handle_slash_selection_change(changed)
     }
 
@@ -102,7 +102,7 @@ impl Session {
     }
 
     fn preview_selected_slash_suggestion(&mut self) {
-        let Some(command) = self.slash_palette.selected_command() else {
+        let Some(command) = self.palette_state.slash_palette.selected_command() else {
             return;
         };
         let Some(range) = command_range(self.input_manager.content(), self.input_manager.cursor())
@@ -134,7 +134,7 @@ impl Session {
     }
 
     pub(super) fn apply_selected_slash_suggestion(&mut self) -> bool {
-        if let Some(custom_prompt) = self.slash_palette.selected_custom_prompt() {
+        if let Some(custom_prompt) = self.palette_state.slash_palette.selected_custom_prompt() {
             let input_content = self.input_manager.content();
             let cursor_pos = self.input_manager.cursor();
             let Some(range) = command_range(input_content, cursor_pos) else {
@@ -163,7 +163,7 @@ impl Session {
             return true;
         }
 
-        let Some(command) = self.slash_palette.selected_command() else {
+        let Some(command) = self.palette_state.slash_palette.selected_command() else {
             return false;
         };
 
@@ -196,12 +196,12 @@ impl Session {
         if command_name == "files" {
             self.clear_slash_suggestions();
             self.mark_dirty();
-            self.deferred_file_browser_trigger = true;
+            self.palette_state.deferred_file_browser_trigger = true;
         } else if command_name == PROMPT_COMMAND_NAME || command_name == LEGACY_PROMPT_COMMAND_NAME
         {
             self.clear_slash_suggestions();
             self.mark_dirty();
-            self.deferred_prompt_browser_trigger = true;
+            self.palette_state.deferred_prompt_browser_trigger = true;
         } else {
             self.clear_slash_suggestions();
             self.mark_dirty();
