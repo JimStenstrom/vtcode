@@ -5,10 +5,11 @@ use std::fs;
 use std::path::Path;
 use vtcode_core::config::core::PromptCachingConfig;
 use vtcode_core::config::loader::VTCodeConfig;
-use vtcode_core::config::models::Provider;
 use vtcode_core::config::types::{
     AgentConfig as CoreAgentConfig, ModelSelectionSource, ReasoningEffortLevel, UiSurfacePreference,
 };
+// Import the Provider type used in CoreAgentConfig.provider
+use vtcode_config::models::Provider;
 use vtcode_core::core::agent::snapshots::{
     DEFAULT_CHECKPOINTS_ENABLED, DEFAULT_MAX_AGE_DAYS, DEFAULT_MAX_SNAPSHOTS,
 };
@@ -40,7 +41,7 @@ pub async fn handle_init_command(workspace: &Path, force: bool, run: bool) -> Re
         let config = CoreAgentConfig {
             model: String::new(),
             api_key: String::new(),
-            provider: String::new(),
+            provider: Provider::Gemini,
             api_key_env: Provider::Gemini.default_api_key_env().to_string(),
             workspace: workspace.to_path_buf(),
             verbose: false,

@@ -110,16 +110,8 @@ pub(crate) async fn initialize_session(
     };
 
     let session_bootstrap = prepare_session_bootstrap(config, vt_cfg, mcp_error).await;
-    let provider_name = if config.provider.trim().is_empty() {
-        config
-            .model
-            .parse::<ModelId>()
-            .ok()
-            .map(|model| model.provider().to_string())
-            .unwrap_or_else(|| "gemini".to_string())
-    } else {
-        config.provider.to_lowercase()
-    };
+    // Provider is now an enum, convert to lowercase string
+    let provider_name = config.provider.to_string().to_lowercase();
     let provider_client = create_provider_with_config(
         &provider_name,
         Some(config.api_key.clone()),

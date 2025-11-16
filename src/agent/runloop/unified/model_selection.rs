@@ -8,6 +8,8 @@ use vtcode_core::config::api_keys::{ApiKeySources, get_api_key};
 use vtcode_core::config::loader::VTCodeConfig;
 use vtcode_core::config::types::{AgentConfig as CoreAgentConfig, UiSurfacePreference};
 use vtcode_core::llm::factory::create_provider_with_config;
+// Import the Provider type used in VTCodeConfig.agent.provider
+use vtcode_config::models::Provider as ConfigProvider;
 use vtcode_core::llm::provider::LLMProvider;
 use vtcode_core::llm::rig_adapter::{reasoning_parameters_for, verify_model_with_rig};
 use vtcode_core::ui::tui::InlineHandle;
@@ -88,13 +90,18 @@ pub(crate) async fn finalize_model_selection(
         )
         .context("Failed to initialize provider for the selected model")?;
         *provider_client = new_client;
-        config.provider = provider_enum.to_string();
+        // Convert from vtcode_core Provider to vtcode_config Provider via string
+        use std::str::FromStr;
+        config.provider = ConfigProvider::from_str(&provider_enum.to_string())
+            .unwrap_or(ConfigProvider::Gemini);
     } else {
         renderer.line(
             MessageStyle::Info,
             "Saved selection, but custom providers require manual configuration before taking effect.",
         )?;
-        config.provider = selection.provider.clone();
+        // Convert string provider to vtcode_config Provider enum
+        use std::str::FromStr;
+        config.provider = ConfigProvider::from_str(&selection.provider).unwrap_or(ConfigProvider::Gemini);
     }
 
     config.model = selection.model.clone();

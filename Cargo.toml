@@ -122,6 +122,7 @@ unwrap_used = "deny"
 
 [dependencies]
 vtcode-acp-client = { path = "vtcode-acp-client", version = "0.43.6" }
+vtcode-config = { path = "vtcode-config", version = "0.43.6" }
 vtcode-core = { path = "vtcode-core", version = "0.43.6" }
 vtcode-memory = { path = "vtcode-memory", version = "0.43.6" }
 anyhow = "1.0"

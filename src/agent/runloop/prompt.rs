@@ -30,11 +30,8 @@ pub(crate) async fn refine_user_prompt_if_enabled(
         return raw.to_string();
     }
 
-    let provider_name = if cfg.provider.trim().is_empty() {
-        "gemini".to_string()
-    } else {
-        cfg.provider.to_lowercase()
-    };
+    // Provider is now an enum, convert to lowercase string
+    let provider_name = cfg.provider.to_string().to_lowercase();
 
     let refiner_model = if !vtc.agent.refine_prompts_model.is_empty() {
         vtc.agent.refine_prompts_model.clone()

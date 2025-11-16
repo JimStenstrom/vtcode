@@ -6,6 +6,8 @@ use vtcode::interactive_list::SelectionInterrupted;
 use vtcode_core::config::loader::{ConfigManager, VTCodeConfig};
 use vtcode_core::config::models::Provider;
 use vtcode_core::config::types::ReasoningEffortLevel;
+// Import the Provider type used in VTCodeConfig.agent.provider
+use vtcode_config::models::Provider as ConfigProvider;
 use vtcode_core::ui::InlineListSelection;
 use vtcode_core::utils::ansi::{AnsiRenderer, MessageStyle};
 use vtcode_core::utils::dot_config::update_model_preference;
@@ -233,7 +235,13 @@ impl ModelPickerState {
             )
         })?;
         let mut config = manager.config().clone();
-        config.agent.provider = selection.provider.clone();
+        // Convert to vtcode_config Provider enum
+        use std::str::FromStr;
+        config.agent.provider = if let Some(provider_enum) = selection.provider_enum {
+            ConfigProvider::from_str(&provider_enum.to_string()).unwrap_or(ConfigProvider::Gemini)
+        } else {
+            ConfigProvider::from_str(&selection.provider).unwrap_or(ConfigProvider::Gemini)
+        };
 
         if selection.provider_enum == Some(Provider::Ollama) {
             let is_cloud_model =

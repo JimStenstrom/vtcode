@@ -231,7 +231,7 @@ pub async fn handle_benchmark_command(
 
     let report = BenchmarkReport {
         model: config.model.clone(),
-        provider: config.provider.clone(),
+        provider: config.provider.to_string(),
         workspace: config.workspace.display().to_string(),
         task_count: reports.len(),
         tasks: reports,

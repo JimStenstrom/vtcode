@@ -278,11 +278,8 @@ pub(crate) async fn run_single_agent_loop_unified(
             .map(|value| value.to_string())
             .unwrap_or_else(|| "workspace".to_string());
         let workspace_path = config.workspace.to_string_lossy().into_owned();
-        let provider_label = if config.provider.trim().is_empty() {
-            provider_client.name().to_string()
-        } else {
-            config.provider.clone()
-        };
+        // Provider is now an enum, convert to string
+        let provider_label = config.provider.to_string();
         let header_provider_label = provider_label.clone();
         let archive_metadata = SessionArchiveMetadata::new(
             workspace_label,

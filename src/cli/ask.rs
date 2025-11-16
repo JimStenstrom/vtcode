@@ -78,14 +78,17 @@ pub async fn handle_ask_command(
         Some(config.prompt_cache.clone()),
     ) {
         Ok(provider) => provider,
-        Err(_) => create_provider_with_config(
-            &config.provider,
-            Some(config.api_key.clone()),
-            None,
-            Some(config.model.clone()),
-            Some(config.prompt_cache.clone()),
-        )
-        .context("Failed to initialize provider for ask command")?,
+        Err(_) => {
+            let provider_str = config.provider.to_string();
+            create_provider_with_config(
+                &provider_str,
+                Some(config.api_key.clone()),
+                None,
+                Some(config.model.clone()),
+                Some(config.prompt_cache.clone()),
+            )
+            .context("Failed to initialize provider for ask command")?
+        }
     };
 
     let request_mode = classify_request_mode(provider.supports_streaming());
