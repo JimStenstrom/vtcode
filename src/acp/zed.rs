@@ -2021,7 +2021,7 @@ mod tests {
         let core_config = CoreAgentConfig {
             model: "test-model".to_string(),
             api_key: String::new(),
-            provider: "test-provider".to_string(),
+            provider: vtcode_config::models::Provider::Gemini,
             api_key_env: "TEST_API_KEY".to_string(),
             workspace: workspace.to_path_buf(),
             verbose: false,

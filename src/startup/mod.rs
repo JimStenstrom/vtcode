@@ -543,7 +543,8 @@ mod tests {
 
         apply_inline_config_overrides(&mut config, &overrides)?;
 
-        assert_eq!(config.agent.provider, "openai");
+        use std::str::FromStr;
+        assert_eq!(config.agent.provider, vtcode_config::models::Provider::from_str("openai").unwrap());
         Ok(())
     }
 }
