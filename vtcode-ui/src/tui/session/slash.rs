@@ -1,108 +1,13 @@
 use crossterm::event::{KeyCode, KeyEvent};
-use ratatui::{
-    Frame,
-    layout::Rect,
-    style::{Modifier, Style},
-    text::{Line, Span},
-    widgets::{Block, BorderType, Borders, Clear, List, ListItem, Paragraph, Wrap},
-};
-
 use vtcode_config::constants::ui;
 
-use super::super::types::InlineTextStyle;
 use super::{
     LEGACY_PROMPT_COMMAND_NAME, PROMPT_COMMAND_NAME, PROMPT_COMMAND_PREFIX, Session,
-    measure_text_width,
-    modal::{ModalListLayout, compute_modal_area},
-    ratatui_color_from_ansi, ratatui_style_from_inline,
-    slash_palette::{self, SlashPaletteUpdate, command_prefix, command_range},
+    slash_palette::{SlashPaletteUpdate, command_prefix, command_range},
 };
 
 impl Session {
-    pub(super) fn render_slash_palette(&mut self, frame: &mut Frame<'_>, viewport: Rect) {
-        if viewport.height == 0 || viewport.width == 0 || self.modal.is_some() {
-            self.slash_palette.clear_visible_rows();
-            return;
-        }
-        let suggestions = self.slash_palette.suggestions();
-        if suggestions.is_empty() {
-            self.slash_palette.clear_visible_rows();
-            return;
-        }
 
-        let mut width_hint = measure_text_width(ui::SLASH_PALETTE_HINT_PRIMARY);
-        width_hint = width_hint.max(measure_text_width(ui::SLASH_PALETTE_HINT_SECONDARY));
-        for suggestion in suggestions.iter().take(ui::SLASH_SUGGESTION_LIMIT) {
-            let label = match suggestion {
-                slash_palette::SlashPaletteSuggestion::Static(cmd) => {
-                    if !cmd.description.is_empty() {
-                        format!("/{} {}", cmd.name, cmd.description)
-                    } else {
-                        format!("/{}", cmd.name)
-                    }
-                }
-                slash_palette::SlashPaletteSuggestion::Custom(prompt) => {
-                    // For custom prompts, format as /prompt:name (legacy alias /prompts:name)
-                    let prompt_cmd = format!("{}:{}", PROMPT_COMMAND_NAME, prompt.name);
-                    let description = prompt.description.as_str();
-                    if !description.is_empty() {
-                        format!("/{} {}", prompt_cmd, description)
-                    } else {
-                        format!("/{}", prompt_cmd)
-                    }
-                }
-            };
-            width_hint = width_hint.max(measure_text_width(&label));
-        }
-
-        let instructions = self.slash_palette_instructions();
-        let area = compute_modal_area(viewport, width_hint, instructions.len(), 0, 0, true);
-
-        frame.render_widget(Clear, area);
-        let block = Block::default()
-            .title(self.suggestion_block_title())
-            .borders(Borders::ALL)
-            .border_type(BorderType::Rounded)
-            .style(self.default_style())
-            .border_style(self.border_style());
-        let inner = block.inner(area);
-        frame.render_widget(block, area);
-        if inner.height == 0 || inner.width == 0 {
-            self.slash_palette.clear_visible_rows();
-            return;
-        }
-
-        let layout = ModalListLayout::new(inner, instructions.len());
-        if let Some(text_area) = layout.text_area {
-            let paragraph = Paragraph::new(instructions).wrap(Wrap { trim: true });
-            frame.render_widget(paragraph, text_area);
-        }
-
-        self.slash_palette
-            .set_visible_rows(layout.list_area.height as usize);
-
-        // Get all list items (scrollable via ListState)
-        let list_items = self.slash_list_items();
-
-        let list = List::new(list_items)
-            .style(self.default_style())
-            .highlight_style(self.slash_highlight_style());
-
-        frame.render_stateful_widget(list, layout.list_area, self.slash_palette.list_state_mut());
-    }
-
-    fn slash_palette_instructions(&self) -> Vec<Line<'static>> {
-        vec![
-            Line::from(Span::styled(
-                ui::SLASH_PALETTE_HINT_PRIMARY.to_string(),
-                self.default_style(),
-            )),
-            Line::from(Span::styled(
-                ui::SLASH_PALETTE_HINT_SECONDARY.to_string(),
-                self.default_style().add_modifier(Modifier::DIM),
-            )),
-        ]
-    }
 
     pub(super) fn handle_slash_palette_change(&mut self) {
         self.recalculate_transcript_rows();
@@ -346,50 +251,7 @@ impl Session {
         handled
     }
 
-    fn slash_list_items(&self) -> Vec<ListItem<'static>> {
-        self.slash_palette
-            .suggestions()
-            .iter()
-            .map(|suggestion| match suggestion {
-                slash_palette::SlashPaletteSuggestion::Static(command) => {
-                    ListItem::new(Line::from(vec![
-                        Span::styled(format!("/{}", command.name), self.slash_name_style()),
-                        Span::raw(" "),
-                        Span::styled(
-                            command.description.to_string(),
-                            self.slash_description_style(),
-                        ),
-                    ]))
-                }
-                slash_palette::SlashPaletteSuggestion::Custom(prompt) => {
-                    let display_name = format!("/{}:{}", PROMPT_COMMAND_NAME, prompt.name);
-                    let description = prompt.description.clone();
-                    ListItem::new(Line::from(vec![
-                        Span::styled(display_name, self.slash_name_style()),
-                        Span::raw(" "),
-                        Span::styled(description, self.slash_description_style()),
-                    ]))
-                }
-            })
-            .collect()
-    }
 
-    fn slash_highlight_style(&self) -> Style {
-        let mut style = Style::default().add_modifier(Modifier::REVERSED | Modifier::BOLD);
-        if let Some(primary) = self.theme.primary.or(self.theme.secondary) {
-            style = style.fg(ratatui_color_from_ansi(primary));
-        }
-        style
-    }
 
-    fn slash_name_style(&self) -> Style {
-        let style = InlineTextStyle::default()
-            .bold()
-            .with_color(self.theme.primary.or(self.theme.foreground));
-        ratatui_style_from_inline(&style, self.theme.foreground)
-    }
 
-    fn slash_description_style(&self) -> Style {
-        self.default_style().add_modifier(Modifier::DIM)
-    }
 }

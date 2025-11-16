@@ -1,4 +1,18 @@
-use super::{PLACEHOLDER_COLOR, Session, measure_text_width, ratatui_style_from_inline};
+//! Input area rendering logic for the session TUI
+//!
+//! This module handles the rendering of the user input area, including:
+//! - Main input block rendering with borders and styling
+//! - Multi-line input layout and text wrapping
+//! - Cursor position calculation and display
+//! - Input status line rendering (git status, etc.)
+//! - Trust mode indicators (Full Auto Trust, Tools Policy Trust)
+//! - Placeholder text when input is empty
+//! - Secure prompt masking (password input)
+//!
+//! The input area is rendered at the bottom of the viewport and adapts its height
+//! based on the content, up to a maximum number of lines defined in the UI constants.
+
+use super::super::{PLACEHOLDER_COLOR, Session, measure_text_width, ratatui_style_from_inline};
 use vtcode_config::constants::ui;
 use crate::tui::types::InlineTextStyle;
 use anstyle::{Color as AnsiColorEnum, Effects};
@@ -11,12 +25,14 @@ use ratatui::{
 };
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
+/// Represents the rendered input with text and cursor position
 struct InputRender {
     text: Text<'static>,
     cursor_x: u16,
     cursor_y: u16,
 }
 
+/// Buffer for a single line of input text with its prefix
 #[derive(Default)]
 struct InputLineBuffer {
     prefix: String,
@@ -36,6 +52,7 @@ impl InputLineBuffer {
     }
 }
 
+/// Layout information for multi-line input rendering
 struct InputLayout {
     buffers: Vec<InputLineBuffer>,
     cursor_line_idx: usize,
@@ -43,7 +60,19 @@ struct InputLayout {
 }
 
 impl Session {
-    pub(super) fn render_input(&mut self, frame: &mut Frame<'_>, area: Rect) {
+    /// Renders the user input area at the bottom of the screen.
+    ///
+    /// This is the main entry point for input area rendering. It handles:
+    /// - Rendering the input block with borders and trust mode styling
+    /// - Laying out multi-line input text with proper wrapping
+    /// - Positioning the cursor at the correct location
+    /// - Rendering the optional status line (git status, etc.)
+    ///
+    /// # Arguments
+    ///
+    /// * `frame` - The ratatui frame to render into
+    /// * `area` - The rectangular area to render the input in
+    pub(in crate::tui::session) fn render_input(&mut self, frame: &mut Frame<'_>, area: Rect) {
         frame.render_widget(Clear, area);
         if area.height == 0 {
             return;
@@ -113,7 +142,19 @@ impl Session {
         }
     }
 
-    pub(super) fn desired_input_lines(&self, inner_width: u16) -> u16 {
+    /// Calculates the desired number of lines for the input area.
+    ///
+    /// This determines how many lines the input needs to display all content,
+    /// up to the maximum allowed by UI constants.
+    ///
+    /// # Arguments
+    ///
+    /// * `inner_width` - The available width inside the input block
+    ///
+    /// # Returns
+    ///
+    /// The number of lines needed, capped at the maximum
+    pub(in crate::tui::session) fn desired_input_lines(&self, inner_width: u16) -> u16 {
         if inner_width == 0 || self.input_manager.content().is_empty() {
             return 1;
         }
@@ -126,7 +167,15 @@ impl Session {
         capped as u16
     }
 
-    pub(super) fn apply_input_height(&mut self, height: u16) {
+    /// Updates the cached input height if it has changed.
+    ///
+    /// This triggers a recalculation of transcript rows when the input height changes,
+    /// ensuring the layout remains consistent.
+    ///
+    /// # Arguments
+    ///
+    /// * `height` - The new input height in rows
+    pub(in crate::tui::session) fn apply_input_height(&mut self, height: u16) {
         let resolved = height.max(Self::input_block_height_for_lines(1));
         if self.input_height != resolved {
             self.input_height = resolved;
@@ -134,10 +183,56 @@ impl Session {
         }
     }
 
-    pub(super) fn input_block_height_for_lines(lines: u16) -> u16 {
+    /// Calculates the total block height needed for a given number of input lines.
+    ///
+    /// This includes the borders (top and bottom) in addition to the content lines.
+    ///
+    /// # Arguments
+    ///
+    /// * `lines` - The number of content lines
+    ///
+    /// # Returns
+    ///
+    /// The total height including borders
+    pub(in crate::tui::session) fn input_block_height_for_lines(lines: u16) -> u16 {
         lines.max(1).saturating_add(2)
     }
 
+    /// Checks if the input status line should be displayed.
+    ///
+    /// The status line is shown if either left or right status text is non-empty.
+    ///
+    /// # Returns
+    ///
+    /// `true` if a status line should be displayed
+    pub(in crate::tui::session) fn has_input_status(&self) -> bool {
+        let left_present = self
+            .input_status_left
+            .as_ref()
+            .is_some_and(|value| !value.trim().is_empty());
+        if left_present {
+            return true;
+        }
+        self.input_status_right
+            .as_ref()
+            .is_some_and(|value| !value.trim().is_empty())
+    }
+
+    /// Calculates the layout for multi-line input text.
+    ///
+    /// This breaks the input into lines based on:
+    /// - Explicit newlines in the input
+    /// - Automatic wrapping when text exceeds available width
+    /// - Proper indentation for continuation lines
+    ///
+    /// # Arguments
+    ///
+    /// * `width` - The total available width
+    /// * `prompt_display_width` - The width of the prompt prefix
+    ///
+    /// # Returns
+    ///
+    /// An `InputLayout` containing line buffers and cursor position
     fn input_layout(&self, width: u16, prompt_display_width: u16) -> InputLayout {
         let indent_prefix = " ".repeat(prompt_display_width as usize);
         let mut buffers = vec![InputLineBuffer::new(
@@ -219,6 +314,23 @@ impl Session {
         }
     }
 
+    /// Builds the final rendered input with styling and cursor position.
+    ///
+    /// This converts the input layout into styled text ready for rendering,
+    /// handling:
+    /// - Prompt prefix styling
+    /// - Placeholder text when input is empty
+    /// - Visible line windowing (showing bottom lines when content overflows)
+    /// - Cursor position tracking
+    ///
+    /// # Arguments
+    ///
+    /// * `width` - The available width
+    /// * `height` - The available height
+    ///
+    /// # Returns
+    ///
+    /// An `InputRender` with styled text and cursor position
     fn build_input_render(&self, width: u16, height: u16) -> InputRender {
         if width == 0 || height == 0 {
             return InputRender {
@@ -301,6 +413,24 @@ impl Session {
         }
     }
 
+    /// Renders the optional status line below the input.
+    ///
+    /// The status line can show:
+    /// - Left-aligned status (e.g., git branch and status)
+    /// - Right-aligned status (e.g., line/column info)
+    /// - Both, with padding between them
+    ///
+    /// Git status indicators are styled with color:
+    /// - Red/bold for dirty status
+    /// - Green/bold for clean status
+    ///
+    /// # Arguments
+    ///
+    /// * `width` - The available width for the status line
+    ///
+    /// # Returns
+    ///
+    /// A styled `Line` if there is status to display, `None` otherwise
     fn render_input_status_line(&self, width: u16) -> Option<Line<'static>> {
         if width == 0 {
             return None;
@@ -355,6 +485,22 @@ impl Session {
         Some(Line::from(spans))
     }
 
+    /// Creates styled spans for git status text.
+    ///
+    /// Parses git status text in the format "branch | status" and applies
+    /// appropriate styling to the status indicator:
+    /// - Red/bold for dirty status
+    /// - Green/bold for clean status
+    /// - Accent/bold for other indicators
+    ///
+    /// # Arguments
+    ///
+    /// * `text` - The status text to parse and style
+    /// * `default_style` - The default style to use for non-indicator text
+    ///
+    /// # Returns
+    ///
+    /// A vector of styled spans
     #[allow(dead_code)]
     fn create_git_status_spans(&self, text: &str, default_style: Style) -> Vec<Span<'static>> {
         if let Some((branch_part, indicator_part)) = text.rsplit_once(" | ") {
@@ -383,10 +529,26 @@ impl Session {
         }
     }
 
+    /// Checks if the cursor should be visible.
+    ///
+    /// The cursor is visible when both:
+    /// - The cursor_visible flag is set
+    /// - Input is currently enabled
+    ///
+    /// # Returns
+    ///
+    /// `true` if the cursor should be displayed
     fn cursor_should_be_visible(&self) -> bool {
         self.cursor_visible && self.input_enabled
     }
 
+    /// Checks if a secure prompt (password input) is active.
+    ///
+    /// When active, input characters are masked with bullets.
+    ///
+    /// # Returns
+    ///
+    /// `true` if secure prompt is active
     fn secure_prompt_active(&self) -> bool {
         self.modal
             .as_ref()
@@ -394,10 +556,24 @@ impl Session {
             .is_some()
     }
 
+    /// Checks if the workspace is in Full Auto Trust mode.
+    ///
+    /// This affects the input border styling (red/bold).
+    ///
+    /// # Returns
+    ///
+    /// `true` if Full Auto Trust mode is active
     fn is_full_auto_trust(&self) -> bool {
         self.header_context.workspace_trust.contains("full auto")
     }
 
+    /// Checks if the workspace is in Tools Policy Trust mode.
+    ///
+    /// This affects the input border title.
+    ///
+    /// # Returns
+    ///
+    /// `true` if Tools Policy Trust mode is active
     fn is_tools_policy_trust(&self) -> bool {
         self.header_context.workspace_trust.contains("tools policy")
     }
