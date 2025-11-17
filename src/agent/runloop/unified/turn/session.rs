@@ -10,9 +10,7 @@ use std::time::{Duration, Instant};
 use tokio::sync::Notify;
 use tokio::task;
 
-#[cfg(debug_assertions)]
-use tracing::debug;
-use tracing::warn;
+use tracing::{debug, error, info, warn, instrument};
 use vtcode_core::config::constants::{defaults, ui};
 use vtcode_core::config::loader::VTCodeConfig;
 use vtcode_core::config::types::{AgentConfig as CoreAgentConfig, UiSurfacePreference};
@@ -97,6 +95,12 @@ enum TurnLoopResult {
 
 const SELF_REVIEW_MIN_LENGTH: usize = 240;
 
+#[instrument(skip(config, vt_cfg, resume), fields(
+    workspace = %config.workspace.display(),
+    skip_confirmations = skip_confirmations,
+    full_auto = full_auto,
+    is_resume = resume.is_some()
+))]
 pub(crate) async fn run_single_agent_loop_unified(
     config: &CoreAgentConfig,
     mut vt_cfg: Option<VTCodeConfig>,
@@ -104,6 +108,16 @@ pub(crate) async fn run_single_agent_loop_unified(
     full_auto: bool,
     resume: Option<ResumeSession>,
 ) -> Result<()> {
+    info!("=== Starting VTCode agent session ===");
+    debug!("Workspace: {}", config.workspace.display());
+    debug!("Skip confirmations: {}, Full auto: {}, Resume: {}",
+        skip_confirmations, full_auto, resume.is_some());
+
+    if let Some(ref resume_info) = resume {
+        info!("Resuming session: identifier={}, message_count={}",
+            resume_info.identifier, resume_info.message_count());
+    }
+
     // Set up panic handler to ensure MCP cleanup on panic
     let original_hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |panic_info| {
@@ -1087,21 +1101,27 @@ pub(crate) async fn run_single_agent_loop_unified(
                     "Thinking...",
                 );
                 task::yield_now().await;
-                #[cfg(debug_assertions)]
+
                 let request_timer = Instant::now();
-                #[cfg(debug_assertions)]
-                {
-                    let tool_count = request.tools.as_ref().map_or(0, |tools| tools.len());
-                    debug!(
-                        target = "vtcode::agent::llm",
-                        model = %request.model,
-                        streaming = use_streaming,
-                        step = step_count,
-                        messages = request.messages.len(),
-                        tools = tool_count,
-                        "Dispatching provider request"
-                    );
-                }
+                let tool_count = request.tools.as_ref().map_or(0, |tools| tools.len());
+
+                info!(
+                    target = "vtcode::agent::llm",
+                    model = %request.model,
+                    streaming = use_streaming,
+                    step = step_count,
+                    messages = request.messages.len(),
+                    tools = tool_count,
+                    "Dispatching LLM request to provider"
+                );
+
+                debug!(
+                    target = "vtcode::agent::llm",
+                    "Request details: model={}, messages={}, tools={}, max_tokens={:?}, temp={:?}, streaming={}",
+                    request.model, request.messages.len(), tool_count,
+                    request.max_tokens, request.temperature, use_streaming
+                );
+
                 let llm_result = if use_streaming {
                     stream_and_render_response(
                         provider_client.as_ref(),
@@ -1143,16 +1163,28 @@ pub(crate) async fn run_single_agent_loop_unified(
                     }
                 };
 
-                #[cfg(debug_assertions)]
-                {
+                let elapsed = request_timer.elapsed();
+                info!(
+                    target = "vtcode::agent::llm",
+                    model = %active_model,
+                    streaming = use_streaming,
+                    step = step_count,
+                    elapsed_ms = elapsed.as_millis(),
+                    succeeded = llm_result.is_ok(),
+                    "LLM generation completed"
+                );
+
+                if llm_result.is_ok() {
                     debug!(
                         target = "vtcode::agent::llm",
-                        model = %active_model,
-                        streaming = use_streaming,
-                        step = step_count,
-                        elapsed_ms = request_timer.elapsed().as_millis(),
-                        succeeded = llm_result.is_ok(),
-                        "Provider request finished"
+                        "Request successful in {:.2}s",
+                        elapsed.as_secs_f64()
+                    );
+                } else {
+                    error!(
+                        target = "vtcode::agent::llm",
+                        "Request failed after {:.2}s",
+                        elapsed.as_secs_f64()
                     );
                 }
 

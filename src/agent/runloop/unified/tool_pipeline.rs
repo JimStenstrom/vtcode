@@ -7,7 +7,7 @@ use tokio::sync::Notify;
 use tokio::task::JoinHandle;
 use tokio::time;
 use tokio_util::sync::CancellationToken;
-use tracing::warn;
+use tracing::{debug, error, info, trace, warn, instrument};
 
 use super::progress::ProgressReporter;
 use vtcode_core::exec::cancellation;
@@ -63,6 +63,9 @@ pub(crate) enum ToolExecutionStatus {
 }
 
 /// Execute a tool with a timeout and progress reporting
+#[instrument(skip(registry, args, ctrl_c_state, ctrl_c_notify, progress_reporter), fields(
+    tool_name = name
+))]
 pub(crate) async fn execute_tool_with_timeout(
     registry: &mut ToolRegistry,
     name: &str,
@@ -71,11 +74,16 @@ pub(crate) async fn execute_tool_with_timeout(
     ctrl_c_notify: &Arc<Notify>,
     progress_reporter: Option<&ProgressReporter>,
 ) -> ToolExecutionStatus {
+    info!("Executing tool: {}", name);
+    trace!("Tool arguments: {}", serde_json::to_string_pretty(&args).unwrap_or_else(|_| "Failed to serialize".to_string()));
+
     // Use provided progress reporter or create a new one
     let mut local_progress_reporter = None;
     let progress_reporter = if let Some(reporter) = progress_reporter {
+        debug!("Using provided progress reporter");
         reporter
     } else {
+        debug!("Creating new progress reporter");
         local_progress_reporter = Some(ProgressReporter::new());
         local_progress_reporter.as_ref().unwrap()
     };
@@ -87,7 +95,12 @@ pub(crate) async fn execute_tool_with_timeout(
         .ceiling_for(timeout_category)
         .unwrap_or(DEFAULT_TOOL_TIMEOUT);
 
+    debug!("Tool timeout configuration: category={:?}, ceiling={:?}", timeout_category, timeout_ceiling);
+
     // Execute with progress tracking
+    info!("Starting tool execution with progress tracking");
+    let exec_start = std::time::Instant::now();
+
     let result = execute_tool_with_progress(
         registry,
         name,
@@ -99,14 +112,41 @@ pub(crate) async fn execute_tool_with_timeout(
     )
     .await;
 
+    let exec_duration = exec_start.elapsed();
+
+    // Log result
+    match &result {
+        ToolExecutionStatus::Success { command_success, modified_files, .. } => {
+            info!("Tool {} completed successfully in {:?} (command_success={}, modified_files={})",
+                name, exec_duration, command_success, modified_files.len());
+        }
+        ToolExecutionStatus::Failure { error } => {
+            error!("Tool {} failed after {:?}: {}", name, exec_duration, error);
+        }
+        ToolExecutionStatus::Timeout { .. } => {
+            warn!("Tool {} timed out after {:?}", name, exec_duration);
+        }
+        ToolExecutionStatus::Cancelled => {
+            info!("Tool {} was cancelled after {:?}", name, exec_duration);
+        }
+        ToolExecutionStatus::Progress(_) => {
+            debug!("Tool {} progress update", name);
+        }
+    }
+
     // Ensure progress is marked as complete only if we created the reporter
     if let Some(ref local_reporter) = local_progress_reporter {
+        debug!("Marking progress as complete");
         local_reporter.complete().await;
     }
     result
 }
 
 /// Execute a tool with progress reporting
+#[instrument(skip(registry, args, ctrl_c_state, ctrl_c_notify, progress_reporter), fields(
+    tool_name = name,
+    timeout_secs = tool_timeout.as_secs()
+))]
 async fn execute_tool_with_progress(
     registry: &mut ToolRegistry,
     name: &str,
@@ -116,6 +156,7 @@ async fn execute_tool_with_progress(
     progress_reporter: &ProgressReporter,
     tool_timeout: Duration,
 ) -> ToolExecutionStatus {
+    debug!("Starting tool execution with progress");
     let start_time = std::time::Instant::now();
 
     let warning_cancel_token = CancellationToken::new();
@@ -127,6 +168,7 @@ async fn execute_tool_with_progress(
     );
 
     // Phase 1: Preparation (0-15%)
+    debug!("Phase 1: Preparation");
     progress_reporter
         .set_message(format!("Preparing {}...", name))
         .await;
@@ -135,6 +177,7 @@ async fn execute_tool_with_progress(
     tokio::time::sleep(std::time::Duration::from_millis(50)).await;
 
     if ctrl_c_state.is_cancel_requested() || ctrl_c_state.is_exit_requested() {
+        info!("Tool execution cancelled before start (user interrupt)");
         return ToolExecutionStatus::Cancelled;
     }
 
