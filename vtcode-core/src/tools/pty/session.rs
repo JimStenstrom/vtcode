@@ -326,6 +326,13 @@ impl PtySessionHandle {
         }
     }
 
+    /// Check if all output from this PTY session has been consumed.
+    /// Returns `true` when there is no pending output in the scrollback buffer.
+    pub(super) fn is_output_drained(&self) -> bool {
+        let scrollback = self.scrollback.lock();
+        !scrollback.has_pending()
+    }
+
     fn strip_command_echo(&self, text: String) -> String {
         let mut guard = self.last_input.lock();
         let Some(state) = guard.as_mut() else {

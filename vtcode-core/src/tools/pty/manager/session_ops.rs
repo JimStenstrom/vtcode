@@ -29,6 +29,12 @@ impl PtyManager {
         Ok(handle.read_output(drain))
     }
 
+    /// Check if all output from this PTY session has been consumed.
+    pub fn is_output_drained(&self, session_id: &str) -> Result<bool> {
+        let handle = self.session_handle(session_id)?;
+        Ok(handle.is_output_drained())
+    }
+
     pub fn send_input_to_session(
         &self,
         session_id: &str,

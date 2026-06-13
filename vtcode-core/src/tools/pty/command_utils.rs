@@ -87,7 +87,28 @@ pub(super) fn is_shell_program(program: &str) -> bool {
         .to_ascii_lowercase();
     matches!(
         name.as_str(),
-        "bash" | "sh" | "zsh" | "fish" | "dash" | "ash" | "busybox"
+        "bash"
+            | "sh"
+            | "zsh"
+            | "fish"
+            | "dash"
+            | "ash"
+            | "busybox"
+            | "ksh"
+            | "ksh93"
+            | "mksh"
+            | "tcsh"
+            | "csh"
+            | "posh"
+            | "yash"
+            | "oksh"
+            | "loksh"
+            | "oil"
+            | "osh"
+            | "nu"
+            | "nushell"
+            | "elvish"
+            | "pwsh"
     )
 }
 

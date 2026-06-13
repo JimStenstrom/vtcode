@@ -487,7 +487,7 @@ impl ExecSessionManager {
         let record = self.session_record(session_id).await?;
         match record.backend {
             ExecSessionBackend::Pipe => self.pipe_sessions.is_output_drained(session_id).await,
-            ExecSessionBackend::Pty => Ok(true),
+            ExecSessionBackend::Pty => self.pty_sessions.manager().is_output_drained(session_id),
         }
     }
 

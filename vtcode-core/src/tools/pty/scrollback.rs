@@ -322,6 +322,11 @@ impl PtyScrollback {
         output
     }
 
+    /// Check if there is any pending output that hasn't been consumed yet.
+    pub(super) fn has_pending(&self) -> bool {
+        !self.pending_lines.is_empty() || !self.pending_partial.is_empty()
+    }
+
     #[expect(dead_code)]
     fn has_overflow(&self) -> bool {
         self.overflow_detected

@@ -508,12 +508,11 @@ impl ToolRegistry {
             }
 
             if start.elapsed() >= yield_duration {
-                if activity_rx.is_some()
-                    && self
-                        .exec_session_output_drained(session_id)
-                        .await
-                        .unwrap_or(false)
-                {
+                let output_drained = self
+                    .exec_session_output_drained(session_id)
+                    .await
+                    .unwrap_or(false);
+                if output_drained {
                     let exit_grace_deadline = Instant::now() + Duration::from_millis(250);
                     while Instant::now() < exit_grace_deadline {
                         if let Ok(Some(code)) = self.exec_session_completed(session_id).await {
