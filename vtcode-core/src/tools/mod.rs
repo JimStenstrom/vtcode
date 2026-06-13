@@ -189,6 +189,13 @@ pub mod web_fetch;
 // Production-grade improvements modules
 pub use resilience::adaptive_rate_limiter;
 pub mod async_middleware;
+pub mod cached_executor;
+pub mod lru_cache;
+pub mod pattern_detection;
+pub mod registry_adapters;
+pub mod time_compat;
+pub mod tool_middleware;
+pub mod workflow_optimizer;
 pub use resilience::circuit_breaker;
 pub mod health;
 pub mod improvement_algorithms;
@@ -276,6 +283,7 @@ pub use async_middleware::{
     AsyncCachingMiddleware, AsyncLoggingMiddleware, AsyncMiddleware, AsyncMiddlewareChain,
     AsyncRetryMiddleware, MiddlewareToolResult, ToolRequest as MiddlewareToolRequest,
 };
+pub use cached_executor::{CachedToolExecutor, ExecutorStats};
 pub use handlers::{
     // Apply patch handler
     ApplyPatchHandler,
@@ -362,4 +370,8 @@ pub use improvements_errors::{
     ObservabilitySink,
 };
 pub use improvements_registry_ext::{ToolMetrics, ToolRegistryImprovement};
+pub use lru_cache::{CacheObserver, CacheStats, LruCache};
+pub use pattern_detection::{DetectedPattern, PatternDetector};
+pub use tool_middleware::{Middleware, MiddlewareChain};
 pub use vtcode_utility_tool_specs::parse_tool_input_schema;
+pub use workflow_optimizer::{Optimization, OptimizationType, WorkflowOptimizer};

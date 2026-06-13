@@ -1,3 +1,7 @@
+> **Note:** Most of `vtcode-tools` has been merged into `vtcode-core`. The cache, middleware,
+> executor, patterns, optimizer, and adapter modules now live in `vtcode_core::tools::*`.
+> Only ACP-specific tools remain in `vtcode-tools`.
+
 # vtcode-tools Policy Customization Guide
 
 This guide explains how to adopt the `vtcode-tools` crate while keeping tool
@@ -88,5 +92,5 @@ your own application.
 
 ## Next steps
 
-See `docs/component_extraction_plan.md` for the broader roadmap and remaining
-extraction milestones.
+See `docs/project/crate-consolidation-plan.md` for the broader roadmap and remaining
+consolidation milestones.

@@ -34,9 +34,8 @@ All VT Code crates require Rust 1.88 or later due to dependencies (ratatui 0.30,
 | vtcode-core | 0.123.4 | 1.88 | 2024 | Initial release |
 | vtcode-config | 0.123.4 | 1.88 | 2024 | Initial release |
 | vtcode-commons | 0.123.4 | 1.88 | 2024 | Initial release |
-| vtcode-llm | 0.123.4 | 1.88 | 2024 | Initial release (publish=false) |
 | vtcode-lmstudio | 0.123.4 | 1.88 | 2024 | Initial release (publish=false) |
-| vtcode-tools | 0.123.4 | 1.88 | 2024 | Initial release (publish=false) |
+| vtcode-tools | 0.123.4 | 1.88 | 2024 | ACP-only inter-agent communication tools (publish=false) |
 | vtcode-markdown-store | 0.123.4 | 1.88 | 2024 | Initial release |
 | vtcode-indexer | 0.123.4 | 1.88 | 2024 | Initial release |
 | vtcode-bash-runner | 0.123.4 | 1.88 | 2024 | Initial release |

@@ -192,6 +192,8 @@ path = "examples/migration_test.rs"
 [features]
 default = ["tui"]
 tui = ["dep:crossterm"]
+mock = []
+policies = []
 schema = ["dep:schemars", "vtcode-config/schema"]
 a2a-server = ["dep:axum", "dep:tower", "dep:tower-http", "dep:tokio-stream"]
 anthropic-api = ["dep:axum", "dep:tower", "dep:tower-http", "dep:tokio-stream"]

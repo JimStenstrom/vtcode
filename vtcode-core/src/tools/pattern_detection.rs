@@ -91,13 +91,15 @@ impl PatternDetector {
 
         // Extract patterns with metrics.
         for (sequence, events) in sequence_map {
-            if events.len() >= 2 {
+            // Each occurrence pushes `sequence_length` events, so divide to get
+            // the actual occurrence count.
+            let frequency = events.len() / self.sequence_length;
+            if frequency >= 2 {
                 // Pattern appears at least twice.
                 let success_count = events.iter().filter(|e| e.success).count();
                 let success_rate = success_count as f64 / events.len() as f64;
                 let avg_duration =
                     events.iter().map(|e| e.duration_ms).sum::<u64>() / events.len() as u64;
-                let frequency = events.len();
 
                 // Confidence: based on frequency and consistency.
                 let confidence = (success_rate * (frequency as f64 / 10.0).min(1.0)).min(1.0);

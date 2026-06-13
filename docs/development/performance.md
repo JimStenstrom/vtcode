@@ -71,7 +71,6 @@ Current Criterion benches:
 
 ```bash
 cargo bench -p vtcode-core --bench tool_pipeline
-cargo bench -p vtcode-tools --bench cache_bench
 ```
 
 Use benches when a hotspot is stable and repeatable. Use the baseline/profile scripts when the question is broader end-to-end behavior.

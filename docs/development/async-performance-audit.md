@@ -1,5 +1,10 @@
 # VT Code Async Performance Audit
 
+> **Note (2026-06):** The cache, middleware, patterns, executor, and optimizer
+> modules referenced below have been merged into `vtcode-core::tools` as part
+> of the crate consolidation. File paths in this document reflect their
+> pre-consolidation locations.
+
 Date: 2026-03-04
 Scope: Runtime-critical paths first (`vtcode-core`, `vtcode-tools`, `vtcode-bash-runner`)
 

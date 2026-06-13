@@ -92,9 +92,9 @@ Backward-compatible aliases maintained in re-exports (`tools/mod.rs`, `tools/reg
 
 ## Phase 3: Evaluate Facade Crates
 
-### 3.1 Evaluate `vtcode-llm` for Merge into `vtcode-core` -- RECOMMEND MERGE
+### 3.1 Evaluate `vtcode-llm` for Merge into `vtcode-core` -- DONE
 
-**Status:** Evaluated 2026-06-14. Recommendation: **MERGE**.
+**Status:** Completed 2026-06-14.
 
 **Findings:**
 - Zero consumers within the workspace -- no crate imports from `vtcode_llm`
@@ -103,17 +103,15 @@ Backward-compatible aliases maintained in re-exports (`tools/mod.rs`, `tools/reg
 - Unique items: `ProviderConfig` trait (~150 lines), `StaticResponseClient` mock (~134 lines)
 - All other exports are pass-through re-exports from `vtcode-core` and `vtcode-commons`
 
-**Merge plan:**
-1. Move `ProviderConfig` trait + adapter into `vtcode_core::llm::config_adapter`
-2. Move `StaticResponseClient` into `vtcode_core::llm` behind `mock` feature
-3. Remove `vtcode-llm` from workspace members and `clippy.toml`
-4. Delete `vtcode-llm/` directory
+**What changed:**
+1. `ProviderConfig` trait + adapter moved into `vtcode_core::llm::config_adapter`
+2. `StaticResponseClient` moved into `vtcode_core::llm` behind `mock` feature
+3. `vtcode-llm` removed from workspace members and `clippy.toml`
+4. `vtcode-llm/` directory deleted
 
-**Not yet implemented** -- requires separate PR due to scope.
+### 3.2 Evaluate `vtcode-tools` for Merge into `vtcode-core` -- DONE
 
-### 3.2 Evaluate `vtcode-tools` for Merge into `vtcode-core` -- RECOMMEND MERGE
-
-**Status:** Evaluated 2026-06-14. Recommendation: **MERGE**.
+**Status:** Completed 2026-06-14. `vtcode-tools` stripped to ACP-only.
 
 **Findings:**
 - Zero consumers within the workspace -- no crate imports from `vtcode_tools`
@@ -121,14 +119,11 @@ Backward-compatible aliases maintained in re-exports (`tools/mod.rs`, `tools/reg
 - All re-exports serve no indirection purpose (no external consumers)
 - The only complication: `acp_tool.rs` depends on `vtcode-acp`, which already depends on `vtcode-core` (circular dependency risk)
 
-**Merge plan:**
-1. Move `cache.rs`, `middleware.rs`, `patterns.rs`, `executor.rs`, `optimizer.rs` into `vtcode-core/src/tools/`
-2. Move `compat.rs` as utility
-3. Handle `acp_tool.rs` via optional feature flag or move registration to binary crate
-4. Move `adapters.rs` behind existing policy feature gates
-5. Delete `vtcode-tools/` directory
-
-**Not yet implemented** -- requires separate PR due to scope and circular dependency handling.
+**What changed:**
+1. `cache.rs`, `middleware.rs`, `patterns.rs`, `executor.rs`, `optimizer.rs` moved into `vtcode-core/src/tools/`
+2. `compat.rs` moved as utility
+3. `adapters.rs` moved behind existing policy feature gates
+4. `vtcode-tools` retains only ACP-specific tools (`acp_tool`)
 
 ---
 

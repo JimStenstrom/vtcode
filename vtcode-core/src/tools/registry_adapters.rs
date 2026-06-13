@@ -1,4 +1,4 @@
-//! Workspace-aware adapters that bridge `vtcode-tools` with the
+//! Workspace-aware adapters that bridge `vtcode-core` with the
 //! `vtcode-commons` traits.
 //!
 //! These helpers allow downstream consumers to construct a `ToolRegistry`
@@ -7,15 +7,18 @@
 
 use std::path::PathBuf;
 
-use anyhow::{Context, Error, Result};
-use vtcode_commons::{
-    ErrorFormatter, ErrorReporter, PathResolver, PathScope, TelemetrySink, WorkspacePaths,
-};
-use vtcode_core::config::PtyConfig;
-use vtcode_core::tools::registry::ToolRegistry;
+use vtcode_commons::PathScope;
 
 #[cfg(feature = "policies")]
-use vtcode_core::tool_policy::ToolPolicyManager;
+use crate::config::PtyConfig;
+#[cfg(feature = "policies")]
+use crate::tool_policy::ToolPolicyManager;
+#[cfg(feature = "policies")]
+use crate::tools::registry::ToolRegistry;
+#[cfg(feature = "policies")]
+use anyhow::{Context, Error, Result};
+#[cfg(feature = "policies")]
+use vtcode_commons::{ErrorFormatter, ErrorReporter, TelemetrySink, WorkspacePaths};
 
 /// Telemetry events emitted by the registry builder when it resolves policy
 /// storage or encounters recoverable failures.
@@ -77,7 +80,6 @@ where
             policy_manager: None,
             policy_path: None,
             pty_config: PtyConfig::default(),
-            todo_planning_enabled: true,
         }
     }
 
@@ -193,7 +195,7 @@ mod tests {
 
         assert!(
             registry
-                .has_tool(vtcode_core::config::constants::tools::UNIFIED_SEARCH)
+                .has_tool(crate::config::constants::tools::UNIFIED_SEARCH)
                 .await
         );
 

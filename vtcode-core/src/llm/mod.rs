@@ -166,10 +166,13 @@
 pub mod capabilities;
 pub mod cgp;
 pub mod client;
+pub mod config_adapter;
 pub mod error_display;
 pub mod factory;
 pub mod http_client;
 pub mod lightweight_routing;
+#[cfg(feature = "mock")]
+pub mod mock_client;
 pub mod model_resolver;
 pub mod optimized_client;
 pub mod provider;
@@ -213,3 +216,10 @@ pub use tool_bridge::{
 };
 
 pub use types::{BackendKind, LLMError, LLMResponse};
+
+pub use config_adapter::{
+    AdapterEvent, AdapterHooks, AdapterHooksProvider, OwnedProviderConfig, ProviderConfig,
+    as_factory_config, as_factory_config_with_hooks,
+};
+#[cfg(feature = "mock")]
+pub use mock_client::StaticResponseClient;

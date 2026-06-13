@@ -8,12 +8,12 @@ use std::borrow::Cow;
 
 use std::path::PathBuf;
 
+use crate::components::HasComponent;
+use crate::config::TimeoutsConfig;
+use crate::config::core::{AnthropicConfig, OpenAIConfig};
+use crate::config::core::{ModelConfig, PromptCachingConfig};
 use anyhow::Error;
 use vtcode_commons::{ErrorFormatter, ErrorReporter, PathScope, TelemetrySink, WorkspacePaths};
-use vtcode_core::components::HasComponent;
-use vtcode_core::config::TimeoutsConfig;
-use vtcode_core::config::core::{AnthropicConfig, OpenAIConfig};
-use vtcode_core::config::core::{ModelConfig, PromptCachingConfig};
 
 /// Trait describing the configuration required to instantiate an LLM provider.
 ///
@@ -68,11 +68,11 @@ pub trait ProviderConfig {
 pub enum FactoryConfigProjectionComponent {}
 
 trait FactoryConfigProjectionProvider<Ctx> {
-    fn project(ctx: &Ctx) -> vtcode_core::llm::factory::ProviderConfig;
+    fn project(ctx: &Ctx) -> crate::llm::factory::ProviderConfig;
 }
 
 trait CanProjectFactoryConfig {
-    fn project_factory_config(&self) -> vtcode_core::llm::factory::ProviderConfig;
+    fn project_factory_config(&self) -> crate::llm::factory::ProviderConfig;
 }
 
 impl<Ctx> CanProjectFactoryConfig for Ctx
@@ -81,7 +81,7 @@ where
     <Ctx as HasComponent<FactoryConfigProjectionComponent>>::Provider:
         FactoryConfigProjectionProvider<Ctx>,
 {
-    fn project_factory_config(&self) -> vtcode_core::llm::factory::ProviderConfig {
+    fn project_factory_config(&self) -> crate::llm::factory::ProviderConfig {
         <<Ctx as HasComponent<FactoryConfigProjectionComponent>>::Provider as FactoryConfigProjectionProvider<Ctx>>::project(self)
     }
 }
@@ -97,14 +97,14 @@ impl HasComponent<FactoryConfigProjectionComponent> for BorrowedConfigProjection
 }
 
 impl FactoryConfigProjectionProvider<BorrowedConfigProjectionCtx<'_>> for BorrowedConfigProjection {
-    fn project(ctx: &BorrowedConfigProjectionCtx<'_>) -> vtcode_core::llm::factory::ProviderConfig {
+    fn project(ctx: &BorrowedConfigProjectionCtx<'_>) -> crate::llm::factory::ProviderConfig {
         project_provider_config(ctx.source)
     }
 }
 
 /// Convert an implementor of [`ProviderConfig`] into the configuration used by
 /// the `vtcode_core` provider factory.
-pub fn as_factory_config(source: &dyn ProviderConfig) -> vtcode_core::llm::factory::ProviderConfig {
+pub fn as_factory_config(source: &dyn ProviderConfig) -> crate::llm::factory::ProviderConfig {
     BorrowedConfigProjectionCtx { source }.project_factory_config()
 }
 
@@ -161,10 +161,7 @@ impl<'a, Hooks: AdapterHooksProvider> AdapterHooks<'a, Hooks> {
 
     /// Convert a [`ProviderConfig`] into the factory configuration while
     /// applying workspace-aware prompt cache resolution and telemetry hooks.
-    pub fn apply_to(
-        &self,
-        source: &dyn ProviderConfig,
-    ) -> vtcode_core::llm::factory::ProviderConfig {
+    pub fn apply_to(&self, source: &dyn ProviderConfig) -> crate::llm::factory::ProviderConfig {
         HookedConfigProjectionCtx {
             source,
             hooks: self,
@@ -198,7 +195,7 @@ impl<'a, Hooks: AdapterHooksProvider> AdapterHooks<'a, Hooks> {
 
     fn record_event(&self, event: AdapterEvent) {
         if let Err(err) = self.hooks.telemetry().record(&event) {
-            self.handle_error(err.context("failed to record vtcode-llm adapter telemetry event"));
+            self.handle_error(err.context("failed to record LLM adapter telemetry event"));
         }
     }
 
@@ -250,7 +247,7 @@ impl<'source, 'hooks, Hooks: AdapterHooksProvider>
 {
     fn project(
         ctx: &HookedConfigProjectionCtx<'source, 'hooks, Hooks>,
-    ) -> vtcode_core::llm::factory::ProviderConfig {
+    ) -> crate::llm::factory::ProviderConfig {
         let mut config =
             BorrowedConfigProjectionCtx { source: ctx.source }.project_factory_config();
         if let Some(prompt_cache) = config.prompt_cache.as_mut() {
@@ -265,14 +262,12 @@ impl<'source, 'hooks, Hooks: AdapterHooksProvider>
 pub fn as_factory_config_with_hooks<'a, Hooks: AdapterHooksProvider>(
     source: &dyn ProviderConfig,
     hooks: &AdapterHooks<'a, Hooks>,
-) -> vtcode_core::llm::factory::ProviderConfig {
+) -> crate::llm::factory::ProviderConfig {
     HookedConfigProjectionCtx { source, hooks }.project_factory_config()
 }
 
-fn project_provider_config(
-    source: &dyn ProviderConfig,
-) -> vtcode_core::llm::factory::ProviderConfig {
-    vtcode_core::llm::factory::ProviderConfig {
+fn project_provider_config(source: &dyn ProviderConfig) -> crate::llm::factory::ProviderConfig {
+    crate::llm::factory::ProviderConfig {
         api_key: source.api_key().map(Cow::into_owned),
         openai_chatgpt_auth: None,
         copilot_auth: None,
@@ -526,7 +521,7 @@ mod tests {
 
     #[test]
     fn core_provider_config_exposes_borrowed_nested_values() {
-        let config = vtcode_core::llm::factory::ProviderConfig {
+        let config = crate::llm::factory::ProviderConfig {
             api_key: None,
             openai_chatgpt_auth: None,
             copilot_auth: None,
@@ -541,23 +536,23 @@ mod tests {
         };
 
         assert!(matches!(
-            <vtcode_core::llm::factory::ProviderConfig as ProviderConfig>::prompt_cache(&config),
+            <crate::llm::factory::ProviderConfig as ProviderConfig>::prompt_cache(&config),
             Some(Cow::Borrowed(_))
         ));
         assert!(matches!(
-            <vtcode_core::llm::factory::ProviderConfig as ProviderConfig>::timeouts(&config),
+            <crate::llm::factory::ProviderConfig as ProviderConfig>::timeouts(&config),
             Some(Cow::Borrowed(_))
         ));
         assert!(matches!(
-            <vtcode_core::llm::factory::ProviderConfig as ProviderConfig>::openai(&config),
+            <crate::llm::factory::ProviderConfig as ProviderConfig>::openai(&config),
             Some(Cow::Borrowed(_))
         ));
         assert!(matches!(
-            <vtcode_core::llm::factory::ProviderConfig as ProviderConfig>::anthropic(&config),
+            <crate::llm::factory::ProviderConfig as ProviderConfig>::anthropic(&config),
             Some(Cow::Borrowed(_))
         ));
         assert!(matches!(
-            <vtcode_core::llm::factory::ProviderConfig as ProviderConfig>::model_behavior(&config),
+            <crate::llm::factory::ProviderConfig as ProviderConfig>::model_behavior(&config),
             Some(Cow::Borrowed(_))
         ));
     }
@@ -595,7 +590,7 @@ mod tests {
 
     #[test]
     fn preserves_provider_specific_fields_from_core_config() {
-        let source = vtcode_core::llm::factory::ProviderConfig {
+        let source = crate::llm::factory::ProviderConfig {
             api_key: Some("secret".to_string()),
             openai_chatgpt_auth: None,
             copilot_auth: None,
@@ -652,7 +647,7 @@ mod tests {
 }
 
 /// [`ProviderConfig`] implementation for VT Code's dot-config provider entries.
-impl ProviderConfig for vtcode_core::utils::dot_config::ProviderConfig {
+impl ProviderConfig for crate::utils::dot_config::ProviderConfig {
     fn api_key(&self) -> Option<Cow<'_, str>> {
         borrowed_optional_str(&self.api_key)
     }
@@ -667,7 +662,7 @@ impl ProviderConfig for vtcode_core::utils::dot_config::ProviderConfig {
 }
 
 /// [`ProviderConfig`] implementation for the concrete factory configuration.
-impl ProviderConfig for vtcode_core::llm::factory::ProviderConfig {
+impl ProviderConfig for crate::llm::factory::ProviderConfig {
     fn api_key(&self) -> Option<Cow<'_, str>> {
         borrowed_optional_str(&self.api_key)
     }

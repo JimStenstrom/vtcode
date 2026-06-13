@@ -203,7 +203,6 @@ mod tests {
     use super::*;
     use crate::config::TimeoutsConfig;
     use crate::config::ToolDocumentationMode as ConfigToolDocumentationMode;
-    use crate::config::ToolPolicy;
     use crate::config::ToolsConfig;
     use crate::constants::tools;
     use crate::tool_policy::ToolPolicy;

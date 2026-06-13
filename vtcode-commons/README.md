@@ -3,9 +3,8 @@
 Shared traits for paths, telemetry, and error reporting reused across VT Code
 component extractions.
 
-Keeps thin downstream crates like `vtcode-llm` and `vtcode-tools` decoupled
-from VT Code's internal configuration and telemetry wiring while sharing
-common contracts.
+Keeps thin downstream crates like `vtcode-tools` decoupled from VT Code's
+internal configuration and telemetry wiring while sharing common contracts.
 
 ## Modules
 

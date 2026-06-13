@@ -7,9 +7,9 @@
 
 use std::collections::VecDeque;
 
+use crate::llm::client::LLMClient;
 use async_trait::async_trait;
 use vtcode_commons::llm::{BackendKind, LLMError, LLMResponse};
-use vtcode_core::llm::client::LLMClient;
 
 /// Deterministic `LLMClient` that yields queued responses.
 #[derive(Debug)]
@@ -52,7 +52,7 @@ impl StaticResponseClient {
     }
 
     /// Consume the client and return it as a boxed trait object.
-    pub fn into_client(self) -> vtcode_core::llm::client::AnyClient {
+    pub fn into_client(self) -> crate::llm::client::AnyClient {
         Box::new(self)
     }
 }
@@ -80,8 +80,8 @@ impl LLMClient for StaticResponseClient {
 #[cfg(test)]
 mod tests {
     use super::StaticResponseClient;
+    use crate::llm::client::LLMClient;
     use vtcode_commons::llm::{BackendKind, FinishReason, LLMError, LLMResponse};
-    use vtcode_core::llm::client::LLMClient;
 
     #[test]
     fn returns_responses_in_fifo_order() {

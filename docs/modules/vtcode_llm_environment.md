@@ -1,3 +1,7 @@
+> **Note:** `vtcode-llm` has been merged into `vtcode-core`. The `ProviderConfig` trait and adapter
+> are now at `vtcode_core::llm::config_adapter`. The mock client is at
+> `vtcode_core::llm::mock_client` (behind the `mock` feature flag).
+
 # `vtcode-llm` Environment Configuration Guide
 
 This guide explains how the `vtcode-llm` crate discovers provider credentials, maps
@@ -29,13 +33,13 @@ secrets to the `ProviderConfig` implementor.
 
 ## Loading keys with `ProviderConfig`
 
-Implementors of [`config::ProviderConfig`](../vtcode-llm/src/config.rs) decide where
+Implementors of [`config::ProviderConfig`](../vtcode-core/src/llm/config_adapter.rs) decide where
 credentials originate. A common pattern is to read from environment variables and then
 pass the owned values to `OwnedProviderConfig` before building a client:
 
 ```rust
 use std::env;
-use vtcode_llm::config::{as_factory_config, OwnedProviderConfig};
+use vtcode_core::llm::config_adapter::{as_factory_config, OwnedProviderConfig};
 
 fn gemini_from_env() -> anyhow::Result<vtcode_core::llm::factory::ProviderConfig> {
     let key = env::var("GEMINI_API_KEY")
@@ -53,22 +57,22 @@ fn gemini_from_env() -> anyhow::Result<vtcode_core::llm::factory::ProviderConfig
 Because the trait only exposes borrowed data, callers can also point to secrets stored
 in files, KMS-backed fetchers, or other secret managers.
 
-Internally, `vtcode-llm::config::ProviderConfig` is the canonical external
-surface. Both [`config::as_factory_config`](../vtcode-llm/src/config.rs) and
-[`config::as_factory_config_with_hooks`](../vtcode-llm/src/config.rs) now flow
+Internally, `vtcode_core::llm::config_adapter::ProviderConfig` is the canonical external
+surface. Both [`config::as_factory_config`](../vtcode-core/src/llm/config_adapter.rs) and
+[`config::as_factory_config_with_hooks`](../vtcode-core/src/llm/config_adapter.rs) now flow
 through the same projection layer, so plain and hook-enriched conversions stay
 behaviorally aligned.
 
 ## Wiring workspace paths and telemetry
 
 When prompt caching is enabled, use
-[`config::AdapterHooks`](../vtcode-llm/src/config.rs) to resolve relative directories
+[`config::AdapterHooks`](../vtcode-core/src/llm/config_adapter.rs) to resolve relative directories
 against your workspace implementation and surface telemetry or error information using
 `vtcode-commons` traits:
 
 ```rust
 use vtcode_commons::{NoopErrorReporter, NoopTelemetry, WorkspacePaths};
-use vtcode_llm::config::{as_factory_config_with_hooks, AdapterHooks, OwnedProviderConfig};
+use vtcode_core::llm::config_adapter::{as_factory_config_with_hooks, AdapterHooks, OwnedProviderConfig};
 
 struct MyWorkspacePaths;
 
@@ -103,11 +107,11 @@ implementation of the `LLMClient` trait designed for deterministic tests:
 
 ```toml
 # Cargo.toml
-vtcode-llm = { version = "0.0.1", features = ["mock", "openai"] }
+vtcode-core = { version = "0.128.4", features = ["mock"] }
 ```
 
 ```rust
-use vtcode_llm::mock::StaticResponseClient;
+use vtcode_core::llm::mock_client::StaticResponseClient;
 use vtcode_core::llm::types::{BackendKind, LLMResponse};
 
 let mut client = StaticResponseClient::new("gpt-5-nano", BackendKind::OpenAI)

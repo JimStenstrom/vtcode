@@ -90,7 +90,7 @@ let paths = StaticWorkspacePaths::new("/workspace", "/workspace/config");
 let telemetry: MemoryTelemetry<String> = MemoryTelemetry::new();
 let errors = MemoryErrorReporter::new();
 
-// Pass the adapters into vtcode-tools or vtcode-llm builders.
+// Pass the adapters into vtcode-core or vtcode-tools builders.
 ```
 
 These adapters give downstream users a sensible starting point while

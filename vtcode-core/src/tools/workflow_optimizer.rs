@@ -6,10 +6,10 @@
 //! - Tool sequence reordering
 //! - Redundancy elimination
 
-use crate::patterns::DetectedPattern;
+use crate::config::constants::tools;
+use crate::tools::pattern_detection::DetectedPattern;
 use hashbrown::HashMap;
 use serde_json::json;
-use vtcode_core::config::constants::tools;
 
 /// An optimization recommendation.
 #[derive(Clone, Debug)]
@@ -243,7 +243,7 @@ impl WorkflowOptimizer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::patterns::DetectedPattern;
+    use crate::tools::pattern_detection::DetectedPattern;
 
     #[test]
     fn test_optimizer_from_patterns() {

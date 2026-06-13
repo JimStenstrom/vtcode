@@ -1,7 +1,6 @@
-//! Shared traits and helper types reused across the component extraction
-//! crates. The goal is to keep thin prototypes like `vtcode-llm` and
-//! `vtcode-tools` decoupled from VT Code's internal configuration and
-//! telemetry wiring while still sharing common contracts.
+//! Shared traits and helper types reused across VT Code crates. The goal is
+//! to keep thin crates like `vtcode-tools` decoupled from VT Code's internal
+//! configuration and telemetry wiring while still sharing common contracts.
 //!
 //! See `docs/modules/vtcode_commons_reference.md` for ready-to-use adapters that
 //! demonstrate how downstream consumers can wire these traits into their own

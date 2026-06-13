@@ -80,7 +80,7 @@ When updating an `Agent Legibility` row, make all three signals explicit in the 
 
 ## LLM System
 
-**Scope**: `vtcode-llm/`, `vtcode-core/src/llm/`
+**Scope**: `vtcode-core/src/llm/`
 **Related debt**: none open
 
 | Dimension        | Grade | Evidence / Notes                                                                                                                                       |
@@ -99,7 +99,7 @@ When updating an `Agent Legibility` row, make all three signals explicit in the 
 
 ## Tool System
 
-**Scope**: `vtcode-tools/`, `vtcode-core/src/tools/`
+**Scope**: `vtcode-core/src/tools/` (ACP tools remain in `vtcode-tools/`)
 **Related debt**: none open
 
 | Dimension        | Grade | Evidence / Notes                                                                                                                 |

@@ -7351,18 +7351,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "vtcode-llm"
-version = "0.128.4"
-dependencies = [
- "anyhow",
- "assert_fs",
- "async-trait",
- "futures",
- "vtcode-commons",
- "vtcode-core",
-]
-
-[[package]]
 name = "vtcode-lmstudio"
 version = "0.128.4"
 dependencies = [
@@ -7421,17 +7409,11 @@ name = "vtcode-tools"
 version = "0.128.4"
 dependencies = [
  "anyhow",
- "assert_fs",
  "async-trait",
- "criterion",
- "hashbrown 0.17.1",
  "serde_json",
  "tokio",
- "tracing",
  "vtcode-acp",
- "vtcode-commons",
  "vtcode-core",
- "vtcode-utility-tool-specs",
 ]
 
 [[package]]

@@ -70,7 +70,7 @@ The project is organized into two main components:
 - **`vtcode-core/`**: Reusable library code (LLM providers, tools, config, MCP integration)
 - **`src/`**: CLI executable (Ratatui TUI, PTY execution, slash commands)
 - **`vtcode-acp/`**: Agent Client Protocol client for editor integration
-- **`vtcode-commons/`, `vtcode-config/`, `vtcode-llm/`, `vtcode-tools/`**: Modular crates for component extraction
+- **`vtcode-commons/`, `vtcode-config/`, `vtcode-tools/`**: Modular crates for shared utilities and ACP tools
 
 ### Key Directories
 

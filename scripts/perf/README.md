@@ -29,7 +29,6 @@ All artifacts are written to `.vtcode/perf/`:
 - `baseline.json` / `latest.json`: captured metrics
 - `*-cargo_check.log`: cargo check output
 - `*-bench_core.log`: `vtcode-core` bench output
-- `*-bench_tools.log`: `vtcode-tools` bench output
 - `*-startup.json` (if `hyperfine` installed)
 - `diff.md`: markdown comparison report
 

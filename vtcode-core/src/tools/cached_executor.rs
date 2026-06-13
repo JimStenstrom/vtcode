@@ -3,9 +3,11 @@
 //! Drop-in replacement for tool execution with full observability.
 //! Stats tracking uses lock-free `AtomicU64` counters to avoid contention.
 
-use crate::cache::LruCache;
-use crate::middleware::{MiddlewareChain, MiddlewareResult, ToolRequest, ToolResponse};
-use crate::patterns::{PatternDetector, ToolEvent};
+use crate::config::constants::execution;
+use crate::tools::lru_cache::LruCache;
+use crate::tools::pattern_detection::{PatternDetector, ToolEvent};
+use crate::tools::tool_middleware::{MiddlewareChain, MiddlewareResult, ToolRequest, ToolResponse};
+use crate::tools::{UnifiedErrorKind, UnifiedToolError};
 use serde_json::Value;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::Hasher;
@@ -14,8 +16,6 @@ use std::sync::RwLock;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 use tokio::time::timeout;
-use vtcode_core::config::constants::execution;
-use vtcode_core::tools::{UnifiedErrorKind, UnifiedToolError};
 
 static REQUEST_ID: AtomicU64 = AtomicU64::new(1);
 
@@ -156,7 +156,10 @@ impl CachedToolExecutor {
     }
 
     /// Add middleware to the chain.
-    pub fn with_middleware(mut self, mw: Arc<dyn crate::middleware::Middleware>) -> Self {
+    pub fn with_middleware(
+        mut self,
+        mw: Arc<dyn crate::tools::tool_middleware::Middleware>,
+    ) -> Self {
         self.middleware = self.middleware.push(mw);
         self
     }
@@ -352,12 +355,12 @@ impl CachedToolExecutor {
     }
 
     /// Get cache statistics.
-    pub async fn cache_stats(&self) -> crate::cache::CacheStats {
+    pub async fn cache_stats(&self) -> crate::tools::lru_cache::CacheStats {
         self.cache.stats().await
     }
 
     /// Get detected workflow patterns.
-    pub async fn patterns(&self) -> Vec<crate::patterns::DetectedPattern> {
+    pub async fn patterns(&self) -> Vec<crate::tools::pattern_detection::DetectedPattern> {
         let patterns = self
             .patterns
             .read()
@@ -451,15 +454,15 @@ impl Default for CachedToolExecutor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::middleware::{LoggingMiddleware, MetricsMiddleware, MiddlewareResult};
+    use crate::tools::tool_middleware::{LoggingMiddleware, MetricsMiddleware, MiddlewareResult};
+    use crate::tools::{UnifiedErrorKind, UnifiedToolError};
     use async_trait::async_trait;
     use std::sync::Arc;
-    use vtcode_core::tools::{UnifiedErrorKind, UnifiedToolError};
 
     struct FailingMiddleware;
 
     #[async_trait]
-    impl crate::middleware::Middleware for FailingMiddleware {
+    impl crate::tools::tool_middleware::Middleware for FailingMiddleware {
         async fn before_execute(&self, _req: &ToolRequest) -> MiddlewareResult<()> {
             Err(UnifiedToolError::new(
                 UnifiedErrorKind::ExecutionFailed,

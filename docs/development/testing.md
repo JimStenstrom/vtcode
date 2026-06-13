@@ -103,7 +103,6 @@ cargo bench
 
 # Run specific Criterion benches used in this workspace
 cargo bench -p vtcode-core --bench tool_pipeline
-cargo bench -p vtcode-tools --bench cache_bench
 ```
 
 ### Fuzz Testing (cargo-fuzz)
@@ -130,7 +129,6 @@ tests/
 
 benches/
  tool_pipeline.rs       # vtcode-core tool pipeline benchmarks
- cache_bench.rs         # vtcode-tools cache benchmarks
 
 src/
  lib.rs                 # Unit tests for library exports
@@ -319,13 +317,7 @@ Measures:
 
 ### Tool Cache Performance
 
-```bash
-cargo bench -p vtcode-tools --bench cache_bench
-```
-
 Measures:
-
--   LRU insert/get throughput
 -   Owned vs `Arc` retrieval overhead
 
 ## **Testing Best Practices**

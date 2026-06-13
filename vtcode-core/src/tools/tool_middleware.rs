@@ -3,11 +3,11 @@
 //! Provides a chain-of-responsibility pattern for pre/post-processing
 //! tool calls with observability and error recovery.
 
+use crate::tools::{ToolCallRequest, ToolCallResponse, UnifiedToolError};
 use async_trait::async_trait;
 use std::ops::Add;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
-use vtcode_core::tools::{ToolCallRequest, ToolCallResponse, UnifiedToolError};
 
 /// Request context flowing through middleware.
 pub type ToolRequest = ToolCallRequest;

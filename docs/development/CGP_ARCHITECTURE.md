@@ -12,8 +12,8 @@ two concrete architectural problems:
   context (interactive session, CI pipeline, benchmarks) without adapter
   explosion.
 - The same LLM provider metadata and construction rules were duplicated across
-  factory registration, zero-sized provider config types, and the external
-  `vtcode-llm` adapter layer.
+  factory registration, zero-sized provider config types, and the
+  `vtcode-core::llm::config_adapter` layer.
 
 ## Core Concepts
 
@@ -321,7 +321,7 @@ This keeps public entrypoints stable while removing the old
 The zero-sized provider config types now serve directly as the metadata
 providers too, so there is no extra descriptor-to-metadata adapter layer.
 
-`vtcode-llm` uses the same `HasComponent` substrate for its
+`vtcode-core::llm::config_adapter` uses the same `HasComponent` substrate for its
 `FactoryConfigProjectionComponent`, so the external config adapter does not
 carry a second parallel lookup trait.
 

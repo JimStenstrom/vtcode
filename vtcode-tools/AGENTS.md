@@ -1,19 +1,18 @@
 # vtcode-tools
 
-[Root AGENTS.md](../AGENTS.md) | Thin facade over `vtcode-core::tools` with observability (middleware, cache, patterns).
+[Root AGENTS.md](../AGENTS.md) | ACP tool integration for inter-agent communication.
 
 ## Modules
 
-`registry` re-exports | `middleware` async chain | `cache` LRU | `patterns` sequence analysis | `executor` CachedToolExecutor | `optimizer` suggestions | `acp_tool` ACP tools
+`acp_tool` ACP discovery, health, and execution tools | `compat` re-exports from vtcode-core for backward compatibility
 
 ## Rules
 
-- Feature flags: `bash`, `search`, `policies`, `examples`.
 - Tool schemas belong in `vtcode-utility-tool-specs`, not here.
-- `PatternDetector`: `MAX_EVENTS=500`, `ANALYZE_INTERVAL=10` — benchmark before changing.
-- `CachedToolExecutor` stats use cache-line-padded `AtomicU64` — don't break lock-free path.
+- All tool infrastructure (cache, middleware, patterns, executor, optimizer) now lives in `vtcode-core::tools`.
+- This crate exists solely to bridge `vtcode-core` and `vtcode-acp` without creating a circular dependency.
 
 ## Gotchas
 
-- `planner` feature is commented out — don't re-enable without discussion.
-- Tool name constants go in `vtcode_core`, re-exported here.
+- `compat::current_timestamp_rfc3339` is a re-export from `vtcode_core::tools::time_compat`.
+- No feature flags — this crate is always built with default features.
