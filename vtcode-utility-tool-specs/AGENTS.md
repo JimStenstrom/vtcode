@@ -1,6 +1,6 @@
 # vtcode-utility-tool-specs
 
-Passive JSON schemas for VT Code utility and file tool surfaces. Defines the wire format for tool invocations and results.
+Passive JSON schemas for VT Code utility, file, scheduling, and collaboration tool surfaces. Defines the wire format for tool invocations and results.
 
 ## Conventions
 

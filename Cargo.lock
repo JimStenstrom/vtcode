@@ -7122,13 +7122,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "vtcode-collaboration-tool-specs"
-version = "0.128.4"
-dependencies = [
- "serde_json",
-]
-
-[[package]]
 name = "vtcode-commons"
 version = "0.128.4"
 dependencies = [
@@ -7294,7 +7287,6 @@ dependencies = [
  "vt100",
  "vtcode-auth",
  "vtcode-bash-runner",
- "vtcode-collaboration-tool-specs",
  "vtcode-commons",
  "vtcode-config",
  "vtcode-exec-events",
@@ -7437,7 +7429,6 @@ dependencies = [
  "tokio",
  "tracing",
  "vtcode-acp",
- "vtcode-collaboration-tool-specs",
  "vtcode-commons",
  "vtcode-core",
  "vtcode-utility-tool-specs",

@@ -1,10 +1,10 @@
 # vtcode-utility-tool-specs
 
-Passive JSON schemas for VT Code utility and file tool surfaces.
+Passive JSON schemas for VT Code utility, file, scheduling, and collaboration tool surfaces.
 
 This crate provides ready-made `serde_json::Value` parameter schemas for the
-built-in tool surfaces (apply-patch, cron, file I/O, exec, search) so that
-callers never have to hand-roll JSON Schema objects.
+built-in tool surfaces (apply-patch, cron, file I/O, exec, search, and collaboration/HITL tools)
+so that callers never have to hand-roll JSON Schema objects.
 
 ## Usage
 
@@ -39,6 +39,19 @@ Each returns a `serde_json::Value` representing a JSON Schema object:
 - `cron_create_parameters()`, `cron_list_parameters()`, `cron_delete_parameters()`
 - `list_files_parameters()`, `read_file_parameters()`
 - `unified_exec_parameters()`, `unified_file_parameters()`, `unified_search_parameters()`
+
+### Collaboration / HITL functions
+
+| Function | Description |
+|---|---|
+| `spawn_agent_parameters()` | Schema for spawning a delegated child thread. |
+| `spawn_background_subprocess_parameters()` | Schema for launching a managed background subprocess. |
+| `send_input_parameters()` | Schema for sending follow-up input to a child agent. |
+| `wait_agent_parameters()` | Schema for blocking until child agents complete. |
+| `resume_agent_parameters()` | Schema for resuming a paused child agent. |
+| `close_agent_parameters()` | Schema for closing a child agent. |
+| `request_user_input_parameters()` | Schema for the HITL tool that prompts the user with 1-3 questions. |
+| `request_user_input_description()` | Static description string for the HITL tool. |
 
 ### Helpers
 

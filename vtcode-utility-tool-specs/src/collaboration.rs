@@ -1,4 +1,4 @@
-//! Passive JSON schemas for collaboration and human-in-the-loop tools.
+//! Collaboration and human-in-the-loop tool schemas.
 
 use serde_json::{Value, json};
 

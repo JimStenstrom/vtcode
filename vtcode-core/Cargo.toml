@@ -127,7 +127,6 @@ vtcode-macros = { path = "../vtcode-macros", version = "0.128.4" }
 vtcode-exec-events = { path = "../vtcode-exec-events", version = "0.128.4" }
 vtcode-auth = { path = "../vtcode-auth", version = "0.128.4" }
 vtcode-config = { path = "../vtcode-config", version = "0.128.4" }
-vtcode-collaboration-tool-specs = { path = "../vtcode-collaboration-tool-specs", version = "0.128.4" }
 vtcode-utility-tool-specs = { path = "../vtcode-utility-tool-specs", version = "0.128.4" }
 vtcode-markdown-store = { path = "../vtcode-markdown-store", version = "0.128.4" }
 vtcode-indexer = { path = "../vtcode-indexer", version = "0.128.4" }

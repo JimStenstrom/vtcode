@@ -17,14 +17,12 @@ use crate::tools::native_memory;
 use crate::tools::request_user_input::RequestUserInputTool;
 use crate::tools::tool_intent::builtin_tool_behavior;
 use serde_json::json;
-use vtcode_collaboration_tool_specs::{
-    close_agent_parameters, resume_agent_parameters, send_input_parameters, spawn_agent_parameters,
-    spawn_background_subprocess_parameters, wait_agent_parameters,
-};
 use vtcode_utility_tool_specs::{
-    apply_patch_parameters, cron_create_parameters, cron_delete_parameters, cron_list_parameters,
-    list_files_parameters, read_file_parameters, unified_exec_parameters, unified_file_parameters,
-    unified_search_parameters,
+    apply_patch_parameters, close_agent_parameters, cron_create_parameters, cron_delete_parameters,
+    cron_list_parameters, list_files_parameters, read_file_parameters, resume_agent_parameters,
+    send_input_parameters, spawn_agent_parameters, spawn_background_subprocess_parameters,
+    unified_exec_parameters, unified_file_parameters, unified_search_parameters,
+    wait_agent_parameters,
 };
 
 use super::distributed::BUILTIN_TOOLS;

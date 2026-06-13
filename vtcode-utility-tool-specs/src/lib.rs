@@ -1,13 +1,19 @@
-//! Passive JSON schemas for utility, file, and scheduling tool surfaces.
+//! Passive JSON schemas for utility, file, scheduling, and collaboration tool surfaces.
 
 #![recursion_limit = "256"]
 
 use serde_json::{Value, json};
 
+mod collaboration;
 mod json_schema;
 mod mcp_tool;
 mod responses_api;
 
+pub use collaboration::{
+    close_agent_parameters, request_user_input_description, request_user_input_parameters,
+    resume_agent_parameters, send_input_parameters, spawn_agent_parameters,
+    spawn_background_subprocess_parameters, wait_agent_parameters,
+};
 pub use json_schema::{AdditionalProperties, JsonSchema, parse_tool_input_schema};
 pub use mcp_tool::{ParsedMcpTool, parse_mcp_tool};
 pub use responses_api::{FreeformTool, FreeformToolFormat, ResponsesApiTool};

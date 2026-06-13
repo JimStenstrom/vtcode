@@ -17,7 +17,7 @@ flags let adopters opt into only the tool categories they need.
 - **Executor** — `CachedToolExecutor`, `ExecutorStats`
 - **Optimizer** — `WorkflowOptimizer`, `Optimization`, `OptimizationType`
 - **Commons re-exports** — `ErrorFormatter`, `ErrorReporter`, `PathResolver`, `TelemetrySink`, `WorkspacePaths`
-- **Collaboration/utility schemas** — re-exported from `vtcode-collaboration-tool-specs` and `vtcode-utility-tool-specs`
+- **Collaboration/utility schemas** — re-exported from `vtcode-utility-tool-specs`
 
 ## Usage
 

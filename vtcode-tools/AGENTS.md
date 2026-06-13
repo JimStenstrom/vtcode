@@ -9,7 +9,7 @@
 ## Rules
 
 - Feature flags: `bash`, `search`, `policies`, `examples`.
-- Tool schemas belong in `vtcode-utility-tool-specs` / `vtcode-collaboration-tool-specs`, not here.
+- Tool schemas belong in `vtcode-utility-tool-specs`, not here.
 - `PatternDetector`: `MAX_EVENTS=500`, `ANALYZE_INTERVAL=10` — benchmark before changing.
 - `CachedToolExecutor` stats use cache-line-padded `AtomicU64` — don't break lock-free path.
 

@@ -1,9 +1,7 @@
 use anyhow::{Result, anyhow};
 use async_trait::async_trait;
 use serde_json::Value;
-use vtcode_collaboration_tool_specs::{
-    request_user_input_description, request_user_input_parameters,
-};
+use vtcode_utility_tool_specs::{request_user_input_description, request_user_input_parameters};
 
 use crate::config::constants::tools;
 use crate::tool_policy::ToolPolicy;
