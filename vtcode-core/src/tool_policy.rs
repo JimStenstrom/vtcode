@@ -16,7 +16,9 @@ use std::future::Future;
 use std::path::{Path, PathBuf};
 
 use crate::config::constants::tools;
-use crate::config::core::tools::{ToolPolicy as ConfigToolPolicy, ToolsConfig};
+use crate::config::core::tools::ToolsConfig;
+
+pub use crate::config::core::tools::ToolPolicy;
 use crate::config::loader::{ConfigManager, VTCodeConfig};
 use crate::config::mcp::{McpAllowListConfig, McpAllowListRules};
 use crate::tools::mcp::parse_canonical_mcp_tool_name;
@@ -40,19 +42,6 @@ const AUTO_ALLOW_TOOLS: &[&str] = &[
 const SHELL_APPROVAL_SCOPE_MARKER: &str = "|sandbox_permissions=";
 const DEFAULT_APPROVAL_SCOPE_SIGNATURE: &str =
     "sandbox_permissions=\"use_default\"|additional_permissions=null";
-
-/// Tool execution policy
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum ToolPolicy {
-    /// Allow tool execution without prompting
-    Allow,
-    /// Prompt user for confirmation each time
-    #[default]
-    Prompt,
-    /// Never allow tool execution
-    Deny,
-}
 
 /// Decision result for tool execution
 #[derive(Debug, Clone, PartialEq)]
@@ -604,24 +593,16 @@ impl ToolPolicyManager {
         config
     }
 
-    fn apply_config_policy(&mut self, tool_name: &str, policy: ConfigToolPolicy) {
+    fn apply_config_policy(&mut self, tool_name: &str, policy: ToolPolicy) {
         let canonical = canonical_tool_name(tool_name);
-        let runtime_policy = match policy {
-            ConfigToolPolicy::Allow => ToolPolicy::Allow,
-            ConfigToolPolicy::Prompt => ToolPolicy::Prompt,
-            ConfigToolPolicy::Deny => ToolPolicy::Deny,
-        };
-
-        self.config
-            .policies
-            .insert(canonical.to_owned(), runtime_policy);
+        self.config.policies.insert(canonical.to_owned(), policy);
     }
 
-    fn resolve_config_policy(tools_config: &ToolsConfig, tool_name: &str) -> ConfigToolPolicy {
+    fn resolve_config_policy(tools_config: &ToolsConfig, tool_name: &str) -> ToolPolicy {
         let canonical = canonical_tool_name(tool_name);
 
         if let Some(policy) = tools_config.policies.get(canonical) {
-            return *policy;
+            return policy.clone();
         }
 
         match tool_name {
@@ -632,7 +613,7 @@ impl ToolPolicyManager {
                 .cloned(),
             _ => None,
         }
-        .unwrap_or(tools_config.default_policy)
+        .unwrap_or(tools_config.default_policy.clone())
     }
 
     /// Apply policies defined in vtcode.toml to the runtime policy manager
@@ -1219,21 +1200,10 @@ impl ToolPolicyManager {
             VTCodeConfig::default()
         };
 
-        config
-            .tools
-            .policies
-            .insert(tool_name.to_string(), Self::to_config_policy(policy));
+        config.tools.policies.insert(tool_name.to_string(), policy);
 
         ConfigManager::save_config_to_path(&config_path, &config)
             .with_context(|| format!("Failed to persist tool policy to {}", config_path.display()))
-    }
-
-    fn to_config_policy(policy: ToolPolicy) -> ConfigToolPolicy {
-        match policy {
-            ToolPolicy::Allow => ConfigToolPolicy::Allow,
-            ToolPolicy::Prompt => ConfigToolPolicy::Prompt,
-            ToolPolicy::Deny => ConfigToolPolicy::Deny,
-        }
     }
 
     /// Print current policy status

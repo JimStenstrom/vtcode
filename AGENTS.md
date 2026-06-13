@@ -47,8 +47,7 @@ Cargo workspace, ~26 crates. Rust stable, MSRV 1.88, edition 2024. `default-memb
 | `vtcode-macros` | Procedural macros |
 | `vtcode-markdown-store` | Markdown storage and rendering |
 | `vtcode-terminal-detection` | Terminal detection primitives |
-| `vtcode-utility-tool-specs` | JSON schemas for utility/file tools |
-| `vtcode-collaboration-tool-specs` | JSON schemas for collaboration/HITL tools |
+| `vtcode-utility-tool-specs` | JSON schemas for utility, file, and collaboration/HITL tools |
 | `vtcode-file-search` | Parallel fuzzy file search |
 | `vtcode-vim` | Vim-style prompt editing engine |
 | `vtcode-lmstudio` | LM Studio integration (publish=false) |
@@ -79,7 +78,6 @@ Every crate has its own AGENTS.md with crate-specific conventions:
 | `vtcode-markdown-store` | [vtcode-markdown-store/AGENTS.md](vtcode-markdown-store/AGENTS.md) |
 | `vtcode-terminal-detection` | [vtcode-terminal-detection/AGENTS.md](vtcode-terminal-detection/AGENTS.md) |
 | `vtcode-utility-tool-specs` | [vtcode-utility-tool-specs/AGENTS.md](vtcode-utility-tool-specs/AGENTS.md) |
-| `vtcode-collaboration-tool-specs` | [vtcode-collaboration-tool-specs/AGENTS.md](vtcode-collaboration-tool-specs/AGENTS.md) |
 | `vtcode-file-search` | [vtcode-file-search/AGENTS.md](vtcode-file-search/AGENTS.md) |
 | `vtcode-vim` | [vtcode-vim/AGENTS.md](vtcode-vim/AGENTS.md) |
 | `vtcode-lmstudio` | [vtcode-lmstudio/AGENTS.md](vtcode-lmstudio/AGENTS.md) |

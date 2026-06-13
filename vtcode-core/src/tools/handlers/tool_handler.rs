@@ -57,15 +57,8 @@ pub struct ShellToolCallParams {
     pub justification: Option<String>,
 }
 
-/// Sandbox permission levels (from Codex)
-#[derive(Clone, Copy, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
-#[serde(rename_all = "snake_case")]
-pub enum SandboxPermissions {
-    #[default]
-    UseDefault,
-    RequireEscalated,
-    WithAdditionalPermissions,
-}
+// Re-export the canonical SandboxPermissions from the sandboxing module.
+pub use crate::sandboxing::SandboxPermissions;
 
 /// Tool output types (from Codex)
 #[derive(Clone, Debug)]

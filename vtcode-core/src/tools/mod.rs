@@ -231,7 +231,7 @@ pub use search_runtime::{
     search_tool_bundle_status,
 };
 
-pub use optimized_registry::{OptimizedToolRegistry, ToolMetadata as OptimizedToolMetadata};
+pub use optimized_registry::{CachedToolMetadata as OptimizedToolMetadata, OptimizedToolRegistry};
 pub use plugins::{PluginHandle, PluginId, PluginInstaller, PluginManifest, PluginRuntime};
 pub use pty::{PtyCommandRequest, PtyCommandResult, PtyManager};
 pub use registry::{
@@ -274,7 +274,7 @@ pub use output_spooler::{SpoolResult, SpoolerConfig, ToolOutputSpooler};
 // Production-grade improvements re-exports
 pub use async_middleware::{
     AsyncCachingMiddleware, AsyncLoggingMiddleware, AsyncMiddleware, AsyncMiddlewareChain,
-    AsyncRetryMiddleware, ToolRequest as MiddlewareToolRequest, ToolResult,
+    AsyncRetryMiddleware, MiddlewareToolResult, ToolRequest as MiddlewareToolRequest,
 };
 pub use handlers::{
     // Apply patch handler
@@ -357,8 +357,9 @@ pub use improvements_config::{
     SimilarityConfig, TimeDecayConfig,
 };
 pub use improvements_errors::{
-    ErrorKind, ErrorSeverity, EventType, ImprovementError, ImprovementEvent, ImprovementResult,
-    ObservabilityContext, ObservabilitySink,
+    ErrorKind, EventType, ImprovementError, ImprovementEvent, ImprovementResult,
+    ImprovementSeverity, ImprovementSeverity as ErrorSeverity, ObservabilityContext,
+    ObservabilitySink,
 };
 pub use improvements_registry_ext::{ToolMetrics, ToolRegistryImprovement};
 pub use vtcode_utility_tool_specs::parse_tool_input_schema;

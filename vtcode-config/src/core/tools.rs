@@ -139,7 +139,7 @@ impl Default for ToolsConfig {
     fn default() -> Self {
         let policies = DEFAULT_TOOL_POLICIES
             .iter()
-            .map(|(tool, policy)| ((*tool).into(), *policy))
+            .map(|(tool, policy)| ((*tool).into(), policy.clone()))
             .collect::<IndexMap<_, _>>();
         Self {
             default_policy: default_tool_policy(),
@@ -220,12 +220,13 @@ impl Default for EditorToolConfig {
 
 /// Tool execution policy
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
-#[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum ToolPolicy {
     /// Allow execution without confirmation
     Allow,
     /// Prompt user for confirmation
+    #[default]
     Prompt,
     /// Deny execution
     Deny,

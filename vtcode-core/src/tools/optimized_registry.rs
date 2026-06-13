@@ -12,7 +12,7 @@ use crate::tools::registry::ToolExecutionRecord;
 
 /// Lock-free tool metadata cache
 #[derive(Clone)]
-pub struct ToolMetadata {
+pub struct CachedToolMetadata {
     pub name: String,
     pub description: String,
     pub parameters: Value,
@@ -23,13 +23,13 @@ pub struct ToolMetadata {
 /// Optimized tool registry with minimal lock contention
 pub struct OptimizedToolRegistry {
     /// Read-heavy tool metadata cache (rarely updated)
-    tool_metadata: Arc<RwLock<HashMap<String, Arc<ToolMetadata>>>>,
+    tool_metadata: Arc<RwLock<HashMap<String, Arc<CachedToolMetadata>>>>,
 
     /// Execution semaphore to limit concurrent tool executions
     execution_semaphore: Arc<Semaphore>,
 
     /// Hot path cache for frequently accessed tools
-    hot_cache: Arc<RwLock<HashMap<String, Arc<ToolMetadata>>>>,
+    hot_cache: Arc<RwLock<HashMap<String, Arc<CachedToolMetadata>>>>,
 
     /// Execution statistics (append-only for performance)
     execution_stats: Arc<RwLock<Vec<ToolExecutionRecord>>>,
@@ -46,7 +46,7 @@ impl OptimizedToolRegistry {
     }
 
     /// Fast tool lookup with hot cache optimization
-    pub fn get_tool_metadata(&self, tool_name: &str) -> Option<Arc<ToolMetadata>> {
+    pub fn get_tool_metadata(&self, tool_name: &str) -> Option<Arc<CachedToolMetadata>> {
         // Try hot cache first (most frequently used tools)
         if let Some(metadata) = self.hot_cache.read().get(tool_name) {
             return Some(Arc::clone(metadata));
@@ -62,7 +62,7 @@ impl OptimizedToolRegistry {
     }
 
     /// Register tool metadata with minimal locking
-    pub fn register_tool(&self, metadata: ToolMetadata) {
+    pub fn register_tool(&self, metadata: CachedToolMetadata) {
         let tool_name = metadata.name.clone();
         let metadata_arc = Arc::new(metadata);
 
@@ -95,7 +95,7 @@ impl OptimizedToolRegistry {
     }
 
     /// Promote frequently accessed tools to hot cache
-    fn promote_to_hot_cache(&self, tool_name: &str, metadata: &Arc<ToolMetadata>) {
+    fn promote_to_hot_cache(&self, tool_name: &str, metadata: &Arc<CachedToolMetadata>) {
         let mut hot_cache = self.hot_cache.write();
         if hot_cache.len() < 16 {
             hot_cache.insert(tool_name.to_string(), Arc::clone(metadata));

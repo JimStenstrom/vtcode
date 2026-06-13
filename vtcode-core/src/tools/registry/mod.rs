@@ -79,8 +79,8 @@ pub use justification::{ApprovalPattern, JustificationManager, ToolJustification
 pub use justification_extractor::JustificationExtractor;
 pub use pty::{PtySessionGuard, PtySessionManager};
 pub use registration::{
-    NativeCgpToolFactory, ToolCatalogSource, ToolExecutorFn, ToolHandler, ToolMetadata,
-    ToolRegistration,
+    NativeCgpToolFactory, ToolCatalogSource, ToolExecutorFn, ToolHandler, ToolRegistration,
+    ToolRegistrationSpec as ToolMetadata,
 };
 pub use resiliency::{ResiliencyContext, ToolFailureTracker};
 pub use risk_scorer::{RiskLevel, ToolRiskContext, ToolRiskScorer, ToolSource, WorkspaceTrust};
@@ -203,7 +203,7 @@ mod tests {
     use super::*;
     use crate::config::TimeoutsConfig;
     use crate::config::ToolDocumentationMode as ConfigToolDocumentationMode;
-    use crate::config::ToolPolicy as ConfigToolPolicy;
+    use crate::config::ToolPolicy;
     use crate::config::ToolsConfig;
     use crate::constants::tools;
     use crate::tool_policy::ToolPolicy;
@@ -1215,10 +1215,10 @@ mod tests {
         config.policies.clear();
         config
             .policies
-            .insert(tools::UNIFIED_FILE.to_string(), ConfigToolPolicy::Allow);
+            .insert(tools::UNIFIED_FILE.to_string(), ToolPolicy::Allow);
         config
             .policies
-            .insert(tools::READ_FILE.to_string(), ConfigToolPolicy::Deny);
+            .insert(tools::READ_FILE.to_string(), ToolPolicy::Deny);
 
         registry.apply_config_policies(&config).await?;
 

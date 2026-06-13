@@ -429,23 +429,9 @@ impl<Ctx> LoggingProvider<Ctx> for TracingLogging {
     }
 }
 
-/// Retry policy shared by CGP retry providers.
-#[derive(Debug, Clone, Copy)]
-pub struct RetryPolicy {
-    pub max_attempts: u32,
-    pub initial_backoff: Duration,
-    pub max_backoff: Duration,
-}
-
-impl Default for RetryPolicy {
-    fn default() -> Self {
-        Self {
-            max_attempts: 3,
-            initial_backoff: Duration::from_millis(100),
-            max_backoff: Duration::from_secs(1),
-        }
-    }
-}
+// Re-export the canonical RetryPolicy from the retry module for backward
+// compatibility with existing imports via `components::RetryPolicy`.
+pub use crate::retry::RetryPolicy;
 
 /// Trait for contexts that expose retry configuration.
 pub trait HasRetryPolicy: Send + Sync {
@@ -469,10 +455,8 @@ impl<Ctx: HasRetryPolicy> RetryProvider<Ctx> for ExponentialBackoffRetry {
 
     fn backoff_duration(ctx: &Ctx, _tool_name: &str, attempt: u32) -> Duration {
         let policy = ctx.retry_policy();
-        let exponent = attempt.saturating_sub(1).min(31);
-        let factor = 2_u64.saturating_pow(exponent);
-        let millis = policy.initial_backoff.as_millis() as u64;
-        Duration::from_millis(millis.saturating_mul(factor)).min(policy.max_backoff)
+        // The CGP pipeline uses 1-indexed attempts; delay_for_attempt is 0-indexed.
+        policy.delay_for_attempt(attempt.saturating_sub(1))
     }
 }
 

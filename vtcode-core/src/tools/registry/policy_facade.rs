@@ -12,18 +12,11 @@ use crate::tools::mcp::{
 };
 use crate::tools::names::canonical_tool_name;
 
-fn more_restrictive_policy(
-    left: vtcode_config::ToolPolicy,
-    right: vtcode_config::ToolPolicy,
-) -> vtcode_config::ToolPolicy {
+fn more_restrictive_policy(left: ToolPolicy, right: ToolPolicy) -> ToolPolicy {
     match (left, right) {
-        (vtcode_config::ToolPolicy::Deny, _) | (_, vtcode_config::ToolPolicy::Deny) => {
-            vtcode_config::ToolPolicy::Deny
-        }
-        (vtcode_config::ToolPolicy::Prompt, _) | (_, vtcode_config::ToolPolicy::Prompt) => {
-            vtcode_config::ToolPolicy::Prompt
-        }
-        _ => vtcode_config::ToolPolicy::Allow,
+        (ToolPolicy::Deny, _) | (_, ToolPolicy::Deny) => ToolPolicy::Deny,
+        (ToolPolicy::Prompt, _) | (_, ToolPolicy::Prompt) => ToolPolicy::Prompt,
+        _ => ToolPolicy::Allow,
     }
 }
 
@@ -65,8 +58,8 @@ impl ToolRegistry {
             let merged = policies
                 .get(&canonical)
                 .cloned()
-                .map(|existing| more_restrictive_policy(existing, *policy))
-                .unwrap_or(*policy);
+                .map(|existing| more_restrictive_policy(existing, policy.clone()))
+                .unwrap_or(policy.clone());
             policies.insert(canonical, merged);
         }
 

@@ -596,7 +596,7 @@ This document serves as an index of all VT Code documentation. When users ask qu
 
 - **File**: `docs/project/crate-consolidation-plan.md`
   - **Content**: Crate Consolidation Plan
-  - **Topics**: Current State, Phase 1: Merge Spec Crates (Low Risk), Phase 2: Consolidate Duplicate Types (Medium Risk), Phase 3: Evaluate Facade Crates (Needs Analysis), Execution Order
+  - **Topics**: Current State, Phase 1: Merge Spec Crates (Low Risk), Phase 2: Consolidate Duplicate Types (Medium Risk), Phase 3: Evaluate Facade Crates, Validation Checklist
   - **User Questions**: "What can you tell me about Crate Consolidation Plan?", "How does Current State work?", "How does Phase 1: Merge Spec Crates (Low Risk) work?"
 
 - **File**: `docs/analysis/DRY_DUPLICATION_AUDIT.md`

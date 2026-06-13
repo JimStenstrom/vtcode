@@ -49,14 +49,7 @@ pub enum AgentClientProtocolZedWorkspaceTrustMode {
     ToolsPolicy,
 }
 
-#[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq, Default)]
-#[serde(rename_all = "lowercase")]
-pub enum ToolPolicy {
-    Allow,
-    #[default]
-    Prompt,
-    Deny,
-}
+pub use vtcode_config::core::tools::ToolPolicy;
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct KeyboardProtocolConfig {

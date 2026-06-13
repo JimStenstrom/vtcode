@@ -9,7 +9,7 @@ pub type ImprovementResult<T> = Result<T, ImprovementError>;
 
 /// Structured errors for tool improvements
 #[derive(Debug, Clone, Serialize, Deserialize, thiserror::Error)]
-#[error("{operation}: {context} ({log_entry})", log_entry = format!("[{}] {} - {} ({}{})", match severity { ErrorSeverity::Warning => "WARN", ErrorSeverity::Error => "ERROR", ErrorSeverity::Critical => "CRIT", }, operation, context, match kind { ErrorKind::ScoringFailed => "scoring_failed", ErrorKind::SelectionFailed => "selection_failed", ErrorKind::ChainExecutionFailed => "chain_failed", ErrorKind::CacheOperationFailed => "cache_failed", ErrorKind::ConfigurationInvalid => "config_invalid", _ => "unknown", }, source_message.as_ref().map(|s| format!(": {}", s)).unwrap_or_default()))]
+#[error("{operation}: {context} ({log_entry})", log_entry = format!("[{}] {} - {} ({}{})", match severity { ImprovementSeverity::Warning => "WARN", ImprovementSeverity::Error => "ERROR", ImprovementSeverity::Critical => "CRIT", }, operation, context, match kind { ErrorKind::ScoringFailed => "scoring_failed", ErrorKind::SelectionFailed => "selection_failed", ErrorKind::ChainExecutionFailed => "chain_failed", ErrorKind::CacheOperationFailed => "cache_failed", ErrorKind::ConfigurationInvalid => "config_invalid", _ => "unknown", }, source_message.as_ref().map(|s| format!(": {}", s)).unwrap_or_default()))]
 pub struct ImprovementError {
     /// Error kind
     pub kind: ErrorKind,
@@ -25,7 +25,7 @@ pub struct ImprovementError {
     pub operation: String,
 
     /// Severity level
-    pub severity: ErrorSeverity,
+    pub severity: ImprovementSeverity,
 }
 
 /// Error classifications
@@ -68,7 +68,7 @@ pub enum ErrorKind {
 /// Error severity level
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
-pub enum ErrorSeverity {
+pub enum ImprovementSeverity {
     /// Recoverable, operation should retry
     Warning,
     /// Operation failed but service continues
@@ -85,7 +85,7 @@ impl ImprovementError {
             context: context.into(),
             source_message: None,
             operation: operation.into(),
-            severity: ErrorSeverity::Error,
+            severity: ImprovementSeverity::Error,
         }
     }
 
@@ -96,14 +96,14 @@ impl ImprovementError {
     }
 
     /// Set severity level
-    pub fn with_severity(mut self, severity: ErrorSeverity) -> Self {
+    pub fn with_severity(mut self, severity: ImprovementSeverity) -> Self {
         self.severity = severity;
         self
     }
 
     /// Check if error is recoverable
     pub fn is_recoverable(&self) -> bool {
-        self.severity <= ErrorSeverity::Error
+        self.severity <= ImprovementSeverity::Error
     }
 
     /// Format for logging
@@ -111,9 +111,9 @@ impl ImprovementError {
         format!(
             "[{}] {} - {} ({}{})",
             match self.severity {
-                ErrorSeverity::Warning => "WARN",
-                ErrorSeverity::Error => "ERROR",
-                ErrorSeverity::Critical => "CRIT",
+                ImprovementSeverity::Warning => "WARN",
+                ImprovementSeverity::Error => "ERROR",
+                ImprovementSeverity::Critical => "CRIT",
             },
             self.operation,
             self.context,
@@ -325,7 +325,7 @@ mod tests {
         );
 
         assert_eq!(err.kind, ErrorKind::ScoringFailed);
-        assert_eq!(err.severity, ErrorSeverity::Error);
+        assert_eq!(err.severity, ImprovementSeverity::Error);
         assert!(err.is_recoverable());
     }
 
@@ -336,9 +336,9 @@ mod tests {
             "cache state invalid",
             "cache_read",
         )
-        .with_severity(ErrorSeverity::Critical);
+        .with_severity(ImprovementSeverity::Critical);
 
-        assert_eq!(err.severity, ErrorSeverity::Critical);
+        assert_eq!(err.severity, ImprovementSeverity::Critical);
         assert!(!err.is_recoverable());
     }
 

@@ -12,12 +12,17 @@ use std::sync::Arc;
 use std::time::Instant;
 
 /// Type alias for the async continuation function
-type AsyncContinuation<'a> =
-    Box<dyn Fn(ToolRequest) -> Pin<Box<dyn Future<Output = ToolResult> + Send>> + Send + Sync + 'a>;
+type AsyncContinuation<'a> = Box<
+    dyn Fn(ToolRequest) -> Pin<Box<dyn Future<Output = MiddlewareToolResult> + Send>>
+        + Send
+        + Sync
+        + 'a,
+>;
 
 /// Type alias for the owned async continuation function
-type AsyncContinuationOwned =
-    Box<dyn Fn(ToolRequest) -> Pin<Box<dyn Future<Output = ToolResult> + Send>> + Send + Sync>;
+type AsyncContinuationOwned = Box<
+    dyn Fn(ToolRequest) -> Pin<Box<dyn Future<Output = MiddlewareToolResult> + Send>> + Send + Sync,
+>;
 
 /// Async middleware trait
 #[async_trait::async_trait]
@@ -26,8 +31,11 @@ pub trait AsyncMiddleware: Send + Sync {
     fn name(&self) -> &str;
 
     /// Execute middleware
-    async fn execute<'a>(&'a self, request: ToolRequest, next: AsyncContinuation<'a>)
-    -> ToolResult;
+    async fn execute<'a>(
+        &'a self,
+        request: ToolRequest,
+        next: AsyncContinuation<'a>,
+    ) -> MiddlewareToolResult;
 }
 
 /// Tool request
@@ -40,7 +48,7 @@ pub struct ToolRequest {
 
 /// Tool result
 #[derive(Clone, Debug)]
-pub struct ToolResult {
+pub struct MiddlewareToolResult {
     pub success: bool,
     pub output: Option<String>,
     pub error: Option<String>,
@@ -66,9 +74,9 @@ impl AsyncMiddlewareChain {
     }
 
     /// Execute request through chain (simplified)
-    pub async fn execute_simple<F>(&self, request: ToolRequest, executor: F) -> ToolResult
+    pub async fn execute_simple<F>(&self, request: ToolRequest, executor: F) -> MiddlewareToolResult
     where
-        F: Fn(ToolRequest) -> ToolResult + Send + Sync + 'static,
+        F: Fn(ToolRequest) -> MiddlewareToolResult + Send + Sync + 'static,
     {
         if self.middlewares.is_empty() {
             return executor(request);
@@ -79,7 +87,7 @@ impl AsyncMiddlewareChain {
 
         fn build_chain(
             middlewares: &[Arc<dyn AsyncMiddleware>],
-            executor: Arc<dyn Fn(ToolRequest) -> ToolResult + Send + Sync>,
+            executor: Arc<dyn Fn(ToolRequest) -> MiddlewareToolResult + Send + Sync>,
         ) -> AsyncContinuationOwned {
             if middlewares.is_empty() {
                 Box::new(move |req: ToolRequest| {
@@ -183,12 +191,15 @@ impl AsyncMiddleware for AsyncLoggingMiddleware {
         &'a self,
         request: ToolRequest,
         next: Box<
-            dyn Fn(ToolRequest) -> Pin<Box<dyn std::future::Future<Output = ToolResult> + Send>>
+            dyn Fn(
+                    ToolRequest,
+                )
+                    -> Pin<Box<dyn std::future::Future<Output = MiddlewareToolResult> + Send>>
                 + Send
                 + Sync
                 + 'a,
         >,
-    ) -> ToolResult {
+    ) -> MiddlewareToolResult {
         let tool_name = request.tool_name.clone();
         let normalized_context = normalize_context(&request.context);
         let context_json: Option<Value> = serde_json::from_str(&normalized_context).ok();
@@ -339,12 +350,15 @@ impl AsyncMiddleware for AsyncCachingMiddleware {
         &'a self,
         request: ToolRequest,
         next: Box<
-            dyn Fn(ToolRequest) -> Pin<Box<dyn std::future::Future<Output = ToolResult> + Send>>
+            dyn Fn(
+                    ToolRequest,
+                )
+                    -> Pin<Box<dyn std::future::Future<Output = MiddlewareToolResult> + Send>>
                 + Send
                 + Sync
                 + 'a,
         >,
-    ) -> ToolResult {
+    ) -> MiddlewareToolResult {
         let key = AsyncCacheKey(Self::cache_key(
             &request.tool_name,
             &request.arguments,
@@ -360,7 +374,7 @@ impl AsyncMiddleware for AsyncCachingMiddleware {
                 Some(1.0),
             );
 
-            return ToolResult {
+            return MiddlewareToolResult {
                 success: true,
                 output: Some(cached),
                 error: None,
@@ -423,12 +437,15 @@ impl AsyncMiddleware for AsyncRetryMiddleware {
         &'a self,
         request: ToolRequest,
         next: Box<
-            dyn Fn(ToolRequest) -> Pin<Box<dyn std::future::Future<Output = ToolResult> + Send>>
+            dyn Fn(
+                    ToolRequest,
+                )
+                    -> Pin<Box<dyn std::future::Future<Output = MiddlewareToolResult> + Send>>
                 + Send
                 + Sync
                 + 'a,
         >,
-    ) -> ToolResult {
+    ) -> MiddlewareToolResult {
         for attempt in 0..self.max_attempts {
             if attempt > 0 {
                 let backoff = self.backoff_duration(attempt - 1);
@@ -476,7 +493,7 @@ impl AsyncMiddleware for AsyncRetryMiddleware {
             );
         }
 
-        ToolResult {
+        MiddlewareToolResult {
             success: false,
             output: None,
             error: Some(format!("all {} attempts failed", self.max_attempts)),
@@ -493,13 +510,13 @@ mod tests {
     use std::pin::Pin;
     use std::sync::atomic::{AtomicUsize, Ordering};
 
-    type BoxedToolFuture = Pin<Box<dyn Future<Output = ToolResult> + Send>>;
+    type BoxedToolFuture = Pin<Box<dyn Future<Output = MiddlewareToolResult> + Send>>;
     type BoxedExecutor = Box<dyn Fn(ToolRequest) -> BoxedToolFuture + Send + Sync>;
 
     fn make_executor(output: &'static str) -> BoxedExecutor {
         Box::new(move |_req: ToolRequest| {
             Box::pin(async move {
-                ToolResult {
+                MiddlewareToolResult {
                     success: true,
                     output: Some(output.to_string()),
                     error: None,
@@ -564,7 +581,7 @@ mod tests {
             let executor_attempts = executor_attempts.clone();
             Box::pin(async move {
                 executor_attempts.fetch_add(1, Ordering::SeqCst);
-                ToolResult {
+                MiddlewareToolResult {
                     success: false,
                     output: None,
                     error: Some("invalid api key".to_string()),
@@ -601,7 +618,7 @@ mod tests {
             Box::pin(async move {
                 let attempt = executor_attempts.fetch_add(1, Ordering::SeqCst);
                 if attempt < 2 {
-                    ToolResult {
+                    MiddlewareToolResult {
                         success: false,
                         output: None,
                         error: Some("429 Too Many Requests".to_string()),
@@ -609,7 +626,7 @@ mod tests {
                         from_cache: false,
                     }
                 } else {
-                    ToolResult {
+                    MiddlewareToolResult {
                         success: true,
                         output: Some("ok".to_string()),
                         error: None,

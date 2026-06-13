@@ -13,7 +13,7 @@ use crate::tools::unified_error::UnifiedToolError;
 use vtcode_commons::llm::{LLMError, LLMErrorMetadata};
 
 /// Typed retry policy shared across runtime layers.
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct RetryPolicy {
     /// Maximum number of total attempts, including the initial call.
     pub max_attempts: u32,

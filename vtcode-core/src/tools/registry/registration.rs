@@ -31,7 +31,7 @@ pub enum ToolCatalogSource {
 }
 
 #[derive(Debug, Clone, Default)]
-pub struct ToolMetadata {
+pub struct ToolRegistrationSpec {
     description: Option<String>,
     parameter_schema: Option<Value>,
     config_schema: Option<Value>,
@@ -45,7 +45,7 @@ pub struct ToolMetadata {
     behavior: Option<ToolBehavior>,
 }
 
-impl ToolMetadata {
+impl ToolRegistrationSpec {
     pub fn with_description(mut self, description: impl Into<String>) -> Self {
         self.description = Some(description.into());
         self
@@ -172,7 +172,7 @@ pub struct ToolRegistration {
     deprecation_message: Option<String>,
     cgp_wrapped: bool,
     handler: ToolHandler,
-    metadata: ToolMetadata,
+    metadata: ToolRegistrationSpec,
     native_cgp_factory: Option<NativeCgpToolFactory>,
 }
 
@@ -211,7 +211,7 @@ impl ToolRegistration {
             deprecation_message: None,
             cgp_wrapped: false,
             handler: ToolHandler::RegistryFn(executor),
-            metadata: ToolMetadata::default(),
+            metadata: ToolRegistrationSpec::default(),
             native_cgp_factory: None,
         }
     }
@@ -221,7 +221,7 @@ impl ToolRegistration {
         capability: CapabilityLevel,
         tool: Arc<dyn Tool>,
     ) -> Self {
-        let mut metadata = ToolMetadata::default().with_description(tool.description());
+        let mut metadata = ToolRegistrationSpec::default().with_description(tool.description());
         if let Some(schema) = tool.parameter_schema() {
             metadata = metadata.with_parameter_schema(schema);
         }
@@ -249,7 +249,7 @@ impl ToolRegistration {
         name: impl Into<Arc<str>>,
         capability: CapabilityLevel,
         tool: Arc<dyn Tool>,
-        metadata: ToolMetadata,
+        metadata: ToolRegistrationSpec,
     ) -> Self {
         Self {
             name: name.into(),
@@ -389,7 +389,7 @@ impl ToolRegistration {
         self.native_cgp_factory.clone()
     }
 
-    pub fn metadata(&self) -> &ToolMetadata {
+    pub fn metadata(&self) -> &ToolRegistrationSpec {
         &self.metadata
     }
 
@@ -413,7 +413,7 @@ impl ToolRegistration {
         self.metadata.default_permission()
     }
 
-    pub fn with_metadata(mut self, metadata: ToolMetadata) -> Self {
+    pub fn with_metadata(mut self, metadata: ToolRegistrationSpec) -> Self {
         self.metadata = metadata;
         self
     }

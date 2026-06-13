@@ -561,8 +561,10 @@ async fn retry_provider_retries_failed_execute() {
     let executions = Arc::new(AtomicUsize::new(0));
     let retry_policy = RetryPolicy {
         max_attempts: 2,
-        initial_backoff: Duration::ZERO,
-        max_backoff: Duration::ZERO,
+        initial_delay: Duration::ZERO,
+        max_delay: Duration::ZERO,
+        multiplier: 2.0,
+        jitter: 0.0,
     };
     let facade = ToolFacade::new(TestRetryCtx::new(executions.clone(), retry_policy));
 
