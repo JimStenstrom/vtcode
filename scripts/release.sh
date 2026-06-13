@@ -643,7 +643,7 @@ trigger_docs_rs_rebuild() {
         vtcode vtcode-core vtcode-config
         vtcode-commons vtcode-markdown-store vtcode-indexer vtcode-bash-runner
         vtcode-exec-events vtcode-file-search vtcode-acp vtcode-auth
-        vtcode-process-hardening vtcode-ghostty-core
+        vtcode-process-hardening
         vtcode-macros vtcode-terminal-detection
         vtcode-utility-tool-specs vtcode-collaboration-tool-specs vtcode-vim
     )

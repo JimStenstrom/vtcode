@@ -7346,13 +7346,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "vtcode-ghostty-core"
-version = "0.128.4"
-dependencies = [
- "unicode-width",
-]
-
-[[package]]
 name = "vtcode-indexer"
 version = "0.128.4"
 dependencies = [
