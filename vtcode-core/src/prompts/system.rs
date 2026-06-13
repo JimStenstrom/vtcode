@@ -45,6 +45,21 @@ const PROMPT_TITLE: &str = "# VT Code";
 const PROMPT_INTRO: &str = "VT Code. Be concise and safe.";
 const CONTRACT_HEADER: &str = "## Contract";
 
+/// Agent identity labels for the system prompt.
+/// Maps agent names to human-readable identity strings that combine VT Code
+/// with the active agent mode, so the LLM knows its role.
+fn agent_identity_label(agent_name: &str) -> String {
+    match agent_name {
+        "build" => "VT Code (Build mode)".to_string(),
+        "auto" => "VT Code (Auto mode)".to_string(),
+        "duck" => "VT Code (Duck mode)".to_string(),
+        "plan" => "VT Code (Plan mode)".to_string(),
+        "explorer" => "VT Code (Explorer mode)".to_string(),
+        "worker" => "VT Code (Worker mode)".to_string(),
+        other => format!("VT Code ({})", other),
+    }
+}
+
 const OPENAI_GPT55_CONTRACT_HEADER: &str = "## GPT-5.5 OpenAI Addendum";
 const OPENAI_GPT55_CONTRACT_LINES: &[&str] = &[
     "State the outcome, constraints, evidence, and output shape up front; avoid over-prescribing the path unless the exact steps matter.",
@@ -219,6 +234,14 @@ pub async fn compose_system_instruction_text(
     let estimated_capacity = base_len + config_overhead + 1024;
     let mut instruction = String::with_capacity(estimated_capacity);
     instruction.push_str(&base_prompt);
+
+    // Apply agent identity based on the default primary agent configuration.
+    // This combines "VT Code" with the active agent mode so the LLM knows its role.
+    if let Some(cfg) = vtcode_config {
+        let agent_label = agent_identity_label(&cfg.default_primary_agent);
+        instruction = apply_agent_identity(&instruction, &agent_label);
+    }
+
     if should_include_structured_reasoning(vtcode_config, prompt_mode) {
         append_prompt_section(&mut instruction, STRUCTURED_REASONING_INSTRUCTIONS);
     }
@@ -243,6 +266,30 @@ pub async fn compose_system_instruction_text(
 fn append_prompt_section(prompt: &mut String, section: &str) {
     prompt.push_str("\n\n");
     prompt.push_str(section);
+}
+
+/// Apply agent identity to the system prompt by replacing the title and intro lines.
+/// This combines the "VT Code" identity with the active agent mode so the LLM
+/// knows its role (e.g., "VT Code (Build mode)" or "VT Code (Auto mode)").
+fn apply_agent_identity(prompt: &str, agent_label: &str) -> String {
+    let mut result = prompt.to_string();
+
+    // Replace the title line: "# VT Code" -> "# {agent_label}"
+    let old_title = PROMPT_TITLE;
+    if let Some(pos) = result.find(old_title) {
+        result.replace_range(pos..pos + old_title.len(), &format!("# {agent_label}"));
+    }
+
+    // Replace the intro line: "VT Code. Be concise and safe." -> "{agent_label}. Be concise and safe."
+    let old_intro = PROMPT_INTRO;
+    if let Some(pos) = result.find(old_intro) {
+        result.replace_range(
+            pos..pos + old_intro.len(),
+            &format!("{agent_label}. Be concise and safe."),
+        );
+    }
+
+    result
 }
 
 fn static_profile_prompt(prompt_mode: SystemPromptMode) -> &'static str {
@@ -1565,6 +1612,84 @@ mod tests {
         assert!(
             !default_system_prompt().contains("__UNIFIED_TOOL_GUIDANCE__"),
             "Default prompt has uninterpolated placeholder"
+        );
+    }
+
+    #[test]
+    fn test_agent_identity_labels() {
+        // Test known agent names
+        assert_eq!(agent_identity_label("build"), "VT Code (Build mode)");
+        assert_eq!(agent_identity_label("auto"), "VT Code (Auto mode)");
+        assert_eq!(agent_identity_label("duck"), "VT Code (Duck mode)");
+        assert_eq!(agent_identity_label("plan"), "VT Code (Plan mode)");
+        assert_eq!(agent_identity_label("explorer"), "VT Code (Explorer mode)");
+        assert_eq!(agent_identity_label("worker"), "VT Code (Worker mode)");
+
+        // Test unknown agent names
+        assert_eq!(agent_identity_label("unknown"), "VT Code (unknown)");
+        assert_eq!(agent_identity_label("custom"), "VT Code (custom)");
+    }
+
+    #[test]
+    fn test_apply_agent_identity() {
+        let prompt = "# VT Code\n\nVT Code. Be concise and safe.\n\n## Contract\n- Rule 1";
+        let result = apply_agent_identity(prompt, "VT Code (Build mode)");
+        assert_eq!(
+            result,
+            "# VT Code (Build mode)\n\nVT Code (Build mode). Be concise and safe.\n\n## Contract\n- Rule 1"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_system_prompt_includes_agent_identity() {
+        let mut config = VTCodeConfig::default();
+        config.default_primary_agent = "build".to_string();
+        config.agent.include_temporal_context = false;
+        config.agent.include_working_directory = false;
+
+        let result =
+            compose_system_instruction_text(&PathBuf::from("."), Some(&config), None).await;
+
+        assert!(
+            result.starts_with("# VT Code (Build mode)"),
+            "Should start with agent identity: {}",
+            &result[..50]
+        );
+        assert!(
+            result.contains("VT Code (Build mode). Be concise and safe."),
+            "Should include agent identity in intro"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_system_prompt_auto_agent_identity() {
+        let mut config = VTCodeConfig::default();
+        config.default_primary_agent = "auto".to_string();
+        config.agent.include_temporal_context = false;
+        config.agent.include_working_directory = false;
+
+        let result =
+            compose_system_instruction_text(&PathBuf::from("."), Some(&config), None).await;
+
+        assert!(
+            result.starts_with("# VT Code (Auto mode)"),
+            "Should start with auto agent identity"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_system_prompt_duck_agent_identity() {
+        let mut config = VTCodeConfig::default();
+        config.default_primary_agent = "duck".to_string();
+        config.agent.include_temporal_context = false;
+        config.agent.include_working_directory = false;
+
+        let result =
+            compose_system_instruction_text(&PathBuf::from("."), Some(&config), None).await;
+
+        assert!(
+            result.starts_with("# VT Code (Duck mode)"),
+            "Should start with duck agent identity"
         );
     }
 }
