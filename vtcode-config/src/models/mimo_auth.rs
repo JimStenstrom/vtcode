@@ -162,8 +162,8 @@ mod tests {
     #[test]
     fn display_roundtrip() {
         let payg = MiMoAuthMethod::PayAsYouGo;
-        assert_eq!(payg.to_string(), "payg");
+        assert_eq!(payg.to_string(), "api-usage-billing");
         let tp = MiMoAuthMethod::TokenPlan;
-        assert_eq!(tp.to_string(), "token-plan");
+        assert_eq!(tp.to_string(), "subscription-plan");
     }
 }

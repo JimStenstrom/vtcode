@@ -929,7 +929,7 @@ impl Session {
         // Use the primary agent color if available, otherwise fall back to badge color.
         if let Some(color_style) = super::super::style::agent_color_style(
             self.header_context.primary_agent_color.as_deref(),
-            ratatui::style::Color::Magenta,
+            Color::Magenta,
         )
         .fg
         {

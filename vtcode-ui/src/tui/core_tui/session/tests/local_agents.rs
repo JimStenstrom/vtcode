@@ -254,6 +254,7 @@ fn tab_cycles_primary_agent_back_to_default_after_last_agent() {
     let mut session = app_session_with_input("", 0);
     session.handle_command(app_types::InlineCommand::SetPrimaryAgent {
         name: Some("beta".to_string()),
+        color: None,
     });
 
     let event = session.process_key(KeyEvent::new(KeyCode::Tab, KeyModifiers::NONE));

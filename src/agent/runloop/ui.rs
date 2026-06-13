@@ -410,6 +410,7 @@ pub(crate) async fn build_inline_header_context(
         tools: chain_entries.first().cloned().unwrap_or_default(),
         mcp: mcp_value,
         primary_agent: None,
+        primary_agent_color: None,
         highlights, // Use the modified highlights that may include the home directory warning
         subagent_badges: Vec::new(),
         reasoning_stage: None,

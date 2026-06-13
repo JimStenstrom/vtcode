@@ -235,6 +235,7 @@ fn bottom_status_excludes_primary_agent() {
     });
     session.handle_command(InlineCommand::SetPrimaryAgent {
         name: Some("reviewer".to_string()),
+        color: None,
     });
 
     assert_eq!(
@@ -248,6 +249,7 @@ fn header_context_updates_preserve_active_primary_agent() {
     let mut session = fresh_session();
     session.handle_command(InlineCommand::SetPrimaryAgent {
         name: Some("planner".to_string()),
+        color: None,
     });
 
     let mut replacement = session.header_context.clone();
