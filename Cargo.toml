@@ -119,7 +119,6 @@ members = [
     "vtcode-lmstudio",
     "vtcode-markdown-store",
     "vtcode-indexer",
-    "vtcode-tools",
     "vtcode-bash-runner",
     "vtcode-exec-events",
     "vtcode-file-search",

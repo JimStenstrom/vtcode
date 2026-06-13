@@ -1,6 +1,6 @@
-> **Note:** Most of `vtcode-tools` has been merged into `vtcode-core`. The cache, middleware,
-> executor, patterns, optimizer, and adapter modules now live in `vtcode_core::tools::*`.
-> Only ACP-specific tools remain in `vtcode-tools`.
+> **Note:** The `vtcode-tools` crate has been deleted. All functionality has been
+> merged into `vtcode-core`. The cache, middleware, executor, patterns, optimizer,
+> and adapter modules now live in `vtcode_core::tools::*`.
 
 # vtcode-tools Policy Customization Guide
 

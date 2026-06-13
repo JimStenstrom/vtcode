@@ -7,7 +7,7 @@
 
 use anyhow::Result;
 use hashbrown::HashMap;
-use ignore::{DirEntry, Walk, WalkBuilder};
+use ignore::{DirEntry, Walk};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::fmt::Write as FmtWrite;
@@ -664,14 +664,7 @@ impl SimpleIndexer {
         let config = self.config.clone();
         let filter = Arc::clone(&self.filter);
 
-        let mut builder = WalkBuilder::new(dir_path);
-        builder
-            .hidden(false)
-            .git_ignore(true)
-            .git_global(true)
-            .git_exclude(true)
-            .ignore(true)
-            .parents(true);
+        let mut builder = vtcode_commons::walk::build_default_walker(dir_path);
         builder.filter_entry(move |entry| {
             should_visit_entry(entry, walk_root.as_path(), &config, filter.as_ref())
         });

@@ -6,7 +6,7 @@
 > pre-consolidation locations.
 
 Date: 2026-03-04
-Scope: Runtime-critical paths first (`vtcode-core`, `vtcode-tools`, `vtcode-bash-runner`)
+Scope: Runtime-critical paths first (`vtcode-core`, `vtcode-bash-runner`)
 
 ## Audit Rubric
 
@@ -241,7 +241,7 @@ The article's measured wins (2-5% binary size on embedded; ~3% perf on x86 with 
 #### Policy
 
 - Track the upstream Project Goal in this audit; revisit on each `rustup` toolchain bump.
-- For NEW code in `vtcode-core` and `vtcode-tools` runtime hot paths:
+- For NEW code in `vtcode-core` runtime hot paths:
   - Do not write `async fn` for a body that contains no `.await` unless required by a trait signature; use a plain `fn` instead.
   - For pure single-step delegations (`async fn x(a) { y(a).await }`) on free or inherent functions, prefer `fn x(a) -> impl Future<Output = T> + use<'_, ...>` so the wrapper state machine is elided. Do not apply this to `#[async_trait]` impls, ACP/Codex protocol handlers, or any caller that spawns the future on a multi-thread runtime where `Send` inference would regress.
   - When a `match` chooses between calls of the same async fn that differ only in arguments (article's "Collapsing states" example), hoist the differing argument into a `let` and `.await` once after the match.
@@ -274,12 +274,9 @@ Pattern 4 ("Collapsing states") yielded one match in `vtcode-core/src/mcp/cli.rs
 
 Executed:
 
-- `cargo test -p vtcode-tools cache -- --nocapture`
-- `cargo check -p vtcode-tools`
 - `cargo test -p vtcode-core notifications::tests:: -- --nocapture`
 - `cargo check -p vtcode-core`
 - `RUSTC_WRAPPER= cargo test -p vtcode-bash-runner graceful_kill -- --nocapture`
-- `RUSTC_WRAPPER= cargo test -p vtcode-tools cache -- --nocapture` (re-run after final cache changes)
 - `RUSTC_WRAPPER= cargo test -p vtcode-bash-runner graceful_kill -- --nocapture` (re-run after process-group cleanup)
 - `RUSTC_WRAPPER= cargo check -p vtcode-bash-runner`
 - `RUSTC_WRAPPER= cargo check -p vtcode`

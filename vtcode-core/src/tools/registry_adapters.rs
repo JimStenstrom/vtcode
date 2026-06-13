@@ -146,9 +146,7 @@ where
 
     fn record_event(&self, event: RegistryEvent) {
         if let Err(err) = self.telemetry.record(&event) {
-            self.handle_error(
-                err.context("failed to record vtcode-tools registry adapter telemetry event"),
-            );
+            self.handle_error(err.context("failed to record registry adapter telemetry event"));
         }
     }
 

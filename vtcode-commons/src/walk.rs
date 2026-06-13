@@ -36,7 +36,12 @@ pub fn build_walker_single_threaded(root: &Path) -> WalkBuilder {
     builder
 }
 
-fn apply_defaults(builder: &mut WalkBuilder) {
+/// Apply standard walker defaults to an existing [`WalkBuilder`].
+///
+/// Sets gitignore support, hidden file visibility, and symlink policy.
+/// Callers that need additional customization (e.g., parallel walkers,
+/// symlink following) can call this then override specific settings.
+pub fn apply_defaults(builder: &mut WalkBuilder) {
     // Respect all standard ignore-file mechanisms.
     builder.git_ignore(true);
     builder.git_global(true);

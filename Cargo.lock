@@ -7405,18 +7405,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "vtcode-tools"
-version = "0.128.4"
-dependencies = [
- "anyhow",
- "async-trait",
- "serde_json",
- "tokio",
- "vtcode-acp",
- "vtcode-core",
-]
-
-[[package]]
 name = "vtcode-ui"
 version = "0.128.4"
 dependencies = [

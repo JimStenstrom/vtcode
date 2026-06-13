@@ -111,7 +111,7 @@ Backward-compatible aliases maintained in re-exports (`tools/mod.rs`, `tools/reg
 
 ### 3.2 Evaluate `vtcode-tools` for Merge into `vtcode-core` -- DONE
 
-**Status:** Completed 2026-06-14. `vtcode-tools` stripped to ACP-only.
+**Status:** Completed 2026-06-14. `vtcode-tools` deleted entirely.
 
 **Findings:**
 - Zero consumers within the workspace -- no crate imports from `vtcode_tools`
@@ -123,13 +123,13 @@ Backward-compatible aliases maintained in re-exports (`tools/mod.rs`, `tools/reg
 1. `cache.rs`, `middleware.rs`, `patterns.rs`, `executor.rs`, `optimizer.rs` moved into `vtcode-core/src/tools/`
 2. `compat.rs` moved as utility
 3. `adapters.rs` moved behind existing policy feature gates
-4. `vtcode-tools` retains only ACP-specific tools (`acp_tool`)
+4. `vtcode-tools` deleted entirely (ACP tools were never instantiated)
 
 ---
 
 ## Validation Checklist
 
-- [x] `cargo check` passes for all affected crates (`vtcode-config`, `vtcode-core`, `vtcode-ui`, `vtcode-tools`)
+- [x] `cargo check` passes for all affected crates (`vtcode-config`, `vtcode-core`, `vtcode-ui`)
 - [ ] `cargo test --workspace` passes (no new failures)
 - [ ] `cargo clippy --workspace` passes
 - [x] No duplicate type definitions remain for consolidated types

@@ -34,7 +34,6 @@ Cargo workspace, ~26 crates. Rust stable, MSRV 1.88, edition 2024. `default-memb
 | `vtcode` (root `src/`) | Binary, CLI, session bootstrap |
 | `vtcode-core` | Agent loop, tools, prompts, LLM orchestration, UI |
 | `vtcode-ui` | Unified UI: design system, theme registry, TUI framework |
-| `vtcode-tools` | ACP inter-agent communication tools (publish=false) |
 | `vtcode-config` | Config loading and schema |
 | `vtcode-bash-runner` | Shell execution sandbox |
 | `vtcode-acp` | Agent Client Protocol (Zed) |
@@ -64,7 +63,6 @@ Every crate has its own AGENTS.md with crate-specific conventions:
 | `vtcode-core` | [vtcode-core/AGENTS.md](vtcode-core/AGENTS.md) |
 | `vtcode-ui` | [vtcode-ui/AGENTS.md](vtcode-ui/AGENTS.md) |
 | `vtcode-config` | [vtcode-config/AGENTS.md](vtcode-config/AGENTS.md) |
-| `vtcode-tools` | [vtcode-tools/AGENTS.md](vtcode-tools/AGENTS.md) |
 | `vtcode-bash-runner` | [vtcode-bash-runner/AGENTS.md](vtcode-bash-runner/AGENTS.md) |
 | `vtcode-acp` | [vtcode-acp/AGENTS.md](vtcode-acp/AGENTS.md) |
 | `vtcode-auth` | [vtcode-auth/AGENTS.md](vtcode-auth/AGENTS.md) |

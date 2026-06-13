@@ -60,11 +60,12 @@ fn build_parallel_walker(
     respect_gitignore: bool,
 ) -> anyhow::Result<ignore::WalkParallel> {
     let mut walk_builder = ignore::WalkBuilder::new(search_directory);
-    walk_builder
-        .threads(threads)
-        .hidden(false)
-        .follow_links(true)
-        .require_git(false);
+    vtcode_commons::walk::apply_defaults(&mut walk_builder);
+
+    // File-search-specific overrides
+    walk_builder.threads(threads);
+    walk_builder.follow_links(true); // Search follows symlinks
+    walk_builder.require_git(false); // Search works outside git repos
 
     if !respect_gitignore {
         walk_builder

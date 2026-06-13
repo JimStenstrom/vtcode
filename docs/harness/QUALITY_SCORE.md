@@ -99,7 +99,7 @@ When updating an `Agent Legibility` row, make all three signals explicit in the 
 
 ## Tool System
 
-**Scope**: `vtcode-core/src/tools/` (ACP tools remain in `vtcode-tools/`)
+**Scope**: `vtcode-core/src/tools/`
 **Related debt**: none open
 
 | Dimension        | Grade | Evidence / Notes                                                                                                                 |

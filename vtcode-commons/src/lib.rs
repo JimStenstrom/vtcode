@@ -1,10 +1,14 @@
-//! Shared traits and helper types reused across VT Code crates. The goal is
-//! to keep thin crates like `vtcode-tools` decoupled from VT Code's internal
-//! configuration and telemetry wiring while still sharing common contracts.
+//! Shared primitives and helper types reused across VT Code crates.
 //!
-//! See `docs/modules/vtcode_commons_reference.md` for ready-to-use adapters that
-//! demonstrate how downstream consumers can wire these traits into their own
-//! applications or tests.
+//! This crate provides the foundational building blocks that both the core
+//! agent library (`vtcode-core`) and the terminal UI (`vtcode-ui`) depend on.
+//! Modules include ANSI processing, diff rendering, file traversal, color
+//! policy, error classification, and shared protocol types.
+//!
+//! Items live here (rather than `vtcode-ui`) when they are consumed by
+//! `vtcode-core` or the main binary -- keeping the dependency direction clean.
+//!
+//! See `docs/modules/vtcode_commons_reference.md` for ready-to-use adapters.
 
 pub mod ansi;
 pub mod ansi_capabilities;
