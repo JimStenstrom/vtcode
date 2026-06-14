@@ -3,7 +3,7 @@ use ratatui::{
     layout::Rect,
     style::{Color, Style},
     text::{Line, Span},
-    widgets::{Block, Clear, Paragraph, Widget},
+    widgets::{Block, Clear, Paragraph, Widget, Wrap},
 };
 
 use crate::tui::config::constants::ui;
@@ -141,7 +141,9 @@ impl<'a> Widget for TranscriptWidget<'a> {
             self.session.transcript_clear_required = false;
         }
         apply_full_width_line_backgrounds(buf, scroll_area, &visible_lines);
-        let paragraph = Paragraph::new(visible_lines).style(self.session.styles.default_style());
+        let paragraph = Paragraph::new(visible_lines)
+            .style(self.session.styles.default_style())
+            .wrap(Wrap { trim: false });
         paragraph.render(scroll_area, buf);
     }
 }

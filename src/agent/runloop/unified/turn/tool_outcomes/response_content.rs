@@ -479,6 +479,7 @@ async fn summarize_tool_output_with_route(
 
 fn summarized_tool_response_payload(
     tool_name: &str,
+    args_val: &serde_json::Value,
     output: &serde_json::Value,
     summary: &str,
 ) -> String {
@@ -499,6 +500,27 @@ fn summarized_tool_response_payload(
             "summarized_for_model".to_string(),
             serde_json::Value::Bool(true),
         );
+
+        // Add read-once guidance for file reads to prevent redundant re-reads
+        let action = args_val
+            .get("action")
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or("");
+        let is_file_read = (tool_name == tool_names::UNIFIED_FILE
+            || tool_name == tool_names::READ_FILE)
+            && (action == "read" || action.is_empty());
+        if is_file_read {
+            obj.insert(
+                "hint".to_string(),
+                serde_json::Value::String(
+                    "This summary contains sufficient context for most tasks. \
+                     Do NOT re-read this file unless the summary is missing \
+                     specific line-level detail you need. Plan your next action \
+                     based on the summary first."
+                        .to_string(),
+                ),
+            );
+        }
     }
     serialize_output(&compacted)
 }
@@ -535,7 +557,7 @@ pub(super) async fn prepare_tool_response_content(
         .await
     {
         Ok(summary) if !summary.trim().is_empty() => {
-            return summarized_tool_response_payload(tool_name, output, summary.trim());
+            return summarized_tool_response_payload(tool_name, args_val, output, summary.trim());
         }
         Ok(_) => {}
         Err(primary_err) => {
@@ -556,7 +578,12 @@ pub(super) async fn prepare_tool_response_content(
                 .await
                 {
                     Ok(summary) if !summary.trim().is_empty() => {
-                        return summarized_tool_response_payload(tool_name, output, summary.trim());
+                        return summarized_tool_response_payload(
+                            tool_name,
+                            args_val,
+                            output,
+                            summary.trim(),
+                        );
                     }
                     Ok(_) => {}
                     Err(fallback_err) => {

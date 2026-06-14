@@ -92,11 +92,12 @@ impl Summarizer for ReadSummarizer {
             summary.push_str(&format!("\n\nEnd:\n{}", suffix));
         }
 
-        // Add external editor hint for long files
+        // Add guidance for long files
         if stats.total_lines > self.max_preview_lines + self.max_suffix_lines {
             summary.push_str(&format!(
-                "\n\n[Use `/edit {}` for full content or specify offset/limit]",
-                file_path
+                "\n\n[Full file: {} lines. This preview is sufficient for most tasks. \
+                 Only re-read with offset/limit if you need specific lines not shown above.]",
+                stats.total_lines
             ));
         }
 
@@ -295,8 +296,8 @@ mod tests {
         // Should be much shorter than full output
         let savings = summarizer.estimate_savings(&full_output, &summary);
         assert!(
-            savings.savings_percent > 70.0,
-            "Should save >70% (got {:.1}%)",
+            savings.savings_percent > 50.0,
+            "Should save >50% (got {:.1}%)",
             savings.savings_percent
         );
     }

@@ -25,10 +25,7 @@ mod blocks;
 mod formatting;
 mod helpers;
 
-use helpers::{
-    agent_code_continuation_prefix, is_info_box_line, is_tool_summary_line, rule_fill,
-    truncate_line_to_width,
-};
+use helpers::{agent_code_continuation_prefix, is_info_box_line, is_tool_summary_line, rule_fill};
 
 impl Session {
     /// Reflow message lines for a given width (test-only method)
@@ -411,24 +408,10 @@ impl Session {
             .map(|span| span.content.as_ref())
             .collect();
 
-        let is_table_line = message.segments.iter().any(|seg| {
-            let t = &seg.text;
-            t.contains('│') || t.contains('├') || t.contains('┤') || t.contains('┼')
-        });
         let code_continuation_prefix = agent_code_continuation_prefix(message);
 
         let (mut wrapped, mut explicit_links) = if content_width == 0 {
             (vec![Line::default()], vec![Vec::new()])
-        } else if is_table_line {
-            // Table lines must not be word-wrapped - wrapping breaks box-drawing
-            // alignment. Truncate to the available width instead.
-            let wrapped = vec![truncate_line_to_width(content_line, content_width)];
-            let explicit_links = transcript_links::project_detected_links_onto_wrapped_lines(
-                &wrapped,
-                &content_text,
-                self.workspace_root.as_deref(),
-            );
-            (wrapped, explicit_links)
         } else if let Some(prefix) = code_continuation_prefix.as_deref() {
             let wrapped =
                 text_utils::wrap_line_with_hanging_prefix(content_line, content_width, prefix);
