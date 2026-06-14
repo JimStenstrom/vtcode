@@ -101,7 +101,18 @@ impl Session {
         }
     }
 
-    /// Mark the session as needing a redraw
+    /// Mark the session as needing a redraw (visual-only, no cache invalidation)
+    ///
+    /// Use this for changes that only affect the visual output without changing
+    /// content data: cursor movement, scroll position, hover state, mouse selection.
+    pub fn mark_visual_dirty(&mut self) {
+        self.needs_redraw = true;
+    }
+
+    /// Mark the session as needing a redraw with full cache invalidation
+    ///
+    /// Use this for changes that affect content data: new messages, text changes,
+    /// config changes, queue updates. Clears header, sidebar, and subprocess caches.
     pub fn mark_dirty(&mut self) {
         self.needs_redraw = true;
         self.header_lines_cache = None;

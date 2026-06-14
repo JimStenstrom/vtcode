@@ -124,39 +124,25 @@ impl<'a> SessionWidget<'a> {
         // Main region constraints
         let main_h = area.height.saturating_sub(header_h + footer_h);
 
-        let [header_area, main_area, footer_area] = Layout::vertical([
-            Constraint::Length(header_h),
-            Constraint::Length(main_h),
-            Constraint::Length(footer_h),
-        ])
-        .split(area)[..] else {
-            return SessionLayout {
-                header: Rect::ZERO,
-                main: Rect::ZERO,
-                sidebar: None,
-                footer: Rect::ZERO,
-                mode,
-            };
-        };
+        let [header_area, main_area, footer_area] = area
+            .try_layout(&Layout::vertical([
+                Constraint::Length(header_h),
+                Constraint::Length(main_h),
+                Constraint::Length(footer_h),
+            ]))
+            .unwrap_or([Rect::ZERO; 3]);
 
         // In wide mode, split main into transcript and sidebar
         // Respect appearance config for sidebar visibility
         let show_sidebar = mode.allow_sidebar() && self.session.appearance.should_show_sidebar();
         if show_sidebar {
             let sidebar_pct = mode.sidebar_width_percent();
-            let [left, right] = Layout::horizontal([
-                Constraint::Percentage(100 - sidebar_pct),
-                Constraint::Percentage(sidebar_pct),
-            ])
-            .split(main_area)[..] else {
-                return SessionLayout {
-                    header: header_area,
-                    main: main_area,
-                    sidebar: None,
-                    footer: footer_area,
-                    mode,
-                };
-            };
+            let [left, right] = main_area
+                .try_layout(&Layout::horizontal([
+                    Constraint::Percentage(100 - sidebar_pct),
+                    Constraint::Percentage(sidebar_pct),
+                ]))
+                .unwrap_or([main_area; 2]);
             return SessionLayout {
                 header: header_area,
                 main: left,

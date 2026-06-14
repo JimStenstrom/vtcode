@@ -79,17 +79,17 @@ impl AppSession {
         match key.code {
             KeyCode::Up => {
                 palette.move_selection_up();
-                self.mark_dirty();
+                self.mark_visual_dirty();
                 true
             }
             KeyCode::Down => {
                 palette.move_selection_down();
-                self.mark_dirty();
+                self.mark_visual_dirty();
                 true
             }
             KeyCode::Tab => {
                 palette.select_best_match();
-                self.mark_dirty();
+                self.mark_visual_dirty();
                 true
             }
             KeyCode::Enter => {
@@ -112,12 +112,12 @@ impl AppSession {
             }
             KeyCode::Char('n') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                 palette.move_selection_down();
-                self.mark_dirty();
+                self.mark_visual_dirty();
                 true
             }
             KeyCode::Char('p') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                 palette.move_selection_up();
-                self.mark_dirty();
+                self.mark_visual_dirty();
                 true
             }
             _ => false,
@@ -203,27 +203,27 @@ impl AppSession {
         match key.code {
             KeyCode::Up => {
                 palette.move_selection_up();
-                self.mark_dirty();
+                self.mark_visual_dirty();
                 true
             }
             KeyCode::Down => {
                 palette.move_selection_down();
-                self.mark_dirty();
+                self.mark_visual_dirty();
                 true
             }
             KeyCode::Left => {
                 palette.collapse_selected();
-                self.mark_dirty();
+                self.mark_visual_dirty();
                 true
             }
             KeyCode::Right => {
                 palette.expand_selected();
-                self.mark_dirty();
+                self.mark_visual_dirty();
                 true
             }
             KeyCode::Tab => {
                 palette.select_best_match();
-                self.mark_dirty();
+                self.mark_visual_dirty();
                 true
             }
             KeyCode::Enter => {
@@ -252,12 +252,12 @@ impl AppSession {
             }
             KeyCode::Char('n') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                 palette.move_selection_down();
-                self.mark_dirty();
+                self.mark_visual_dirty();
                 true
             }
             KeyCode::Char('p') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                 palette.move_selection_up();
-                self.mark_dirty();
+                self.mark_visual_dirty();
                 true
             }
             _ => false,

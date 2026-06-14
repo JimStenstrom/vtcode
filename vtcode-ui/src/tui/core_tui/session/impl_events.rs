@@ -238,7 +238,7 @@ impl Session {
                     if self
                         .update_transcript_file_link_hover(mouse_event.column, mouse_event.row) =>
                 {
-                    self.mark_dirty();
+                    self.mark_visual_dirty();
                 }
                 MouseEventKind::ScrollDown => {
                     self.clear_pending_link_click();
@@ -247,7 +247,7 @@ impl Session {
                         && !self.handle_bottom_panel_scroll(true)
                     {
                         self.scroll_line_down();
-                        self.mark_dirty();
+                        self.mark_visual_dirty();
                     }
                 }
                 MouseEventKind::ScrollUp => {
@@ -257,7 +257,7 @@ impl Session {
                         && !self.handle_bottom_panel_scroll(false)
                     {
                         self.scroll_line_up();
-                        self.mark_dirty();
+                        self.mark_visual_dirty();
                     }
                 }
                 MouseEventKind::Down(crossterm::event::MouseButton::Left) => {
@@ -393,18 +393,18 @@ impl Session {
                                 && self.input_manager.cursor() != cursor
                             {
                                 self.input_manager.set_cursor_with_selection(cursor);
-                                self.mark_dirty();
+                                self.mark_visual_dirty();
                             }
                         }
                         MouseDragTarget::Transcript => {
                             self.mouse_selection
                                 .update_selection(mouse_event.column, mouse_event.row);
-                            self.mark_dirty();
+                            self.mark_visual_dirty();
                         }
                         MouseDragTarget::ModalText => {
                             self.mouse_selection
                                 .update_selection(mouse_event.column, mouse_event.row);
-                            self.mark_dirty();
+                            self.mark_visual_dirty();
                         }
                         MouseDragTarget::None => {}
                     }

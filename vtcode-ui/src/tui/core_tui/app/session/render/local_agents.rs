@@ -186,42 +186,40 @@ pub fn render_local_agents(session: &mut Session, frame: &mut Frame<'_>, area: R
         highlight_style,
     };
 
-    let chunks = Layout::vertical([
-        Constraint::Length(1),
-        Constraint::Length(1),
-        Constraint::Length(1),
-        Constraint::Min(1),
-    ])
-    .split(area);
+    let [divider_area, header_area, info_area, body] = area
+        .try_layout(&Layout::vertical([
+            Constraint::Length(1),
+            Constraint::Length(1),
+            Constraint::Length(1),
+            Constraint::Min(1),
+        ]))
+        .unwrap_or([Rect::ZERO; 4]);
 
     let divider_style = local_agents_divider_style(session, selected_index, &entries);
     frame.render_widget(
         Paragraph::new(Line::from("─".repeat(area.width as usize))).style(divider_style),
-        chunks[0],
+        divider_area,
     );
 
     frame.render_widget(
         Paragraph::new(header_rows.header)
             .style(default_style)
             .wrap(Wrap { trim: false }),
-        chunks[1],
+        header_area,
     );
     frame.render_widget(
         Paragraph::new(header_rows.info)
             .style(default_style.add_modifier(Modifier::DIM))
             .wrap(Wrap { trim: false }),
-        chunks[2],
+        info_area,
     );
 
-    let body = chunks[3];
-    let [list_area, preview_area] = Layout::horizontal([
-        Constraint::Percentage(38),
-        Constraint::Percentage(62),
-    ])
-    .split(body)[..] else {
-        session.local_agents_state.set_visible_rows(0);
-        return;
-    };
+    let [list_area, preview_area] = body
+        .try_layout(&Layout::horizontal([
+            Constraint::Percentage(38),
+            Constraint::Percentage(62),
+        ]))
+        .unwrap_or([body; 2]);
 
     render_shared_list_panel(
         frame,

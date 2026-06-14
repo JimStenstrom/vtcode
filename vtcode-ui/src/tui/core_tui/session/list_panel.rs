@@ -62,9 +62,13 @@ pub(crate) fn split_bottom_list_panel(
 
     let desired_height = fixed_rows.saturating_add(desired_list_rows.max(1));
     let panel_height = desired_height.min(max_panel_height);
-    let chunks =
-        Layout::vertical([Constraint::Min(1), Constraint::Length(panel_height)]).split(area);
-    (chunks[0], Some(chunks[1]))
+    let [content_area, panel_area] = area
+        .try_layout(&Layout::vertical([
+            Constraint::Min(1),
+            Constraint::Length(panel_height),
+        ]))
+        .unwrap_or([area; 2]);
+    (content_area, Some(panel_area))
 }
 
 pub(crate) fn rows_to_u16(rows: usize) -> u16 {

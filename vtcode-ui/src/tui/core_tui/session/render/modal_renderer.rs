@@ -230,9 +230,13 @@ pub fn split_inline_modal_area(session: &Session, area: Rect) -> (Rect, Option<R
         .max(min_height)
         .min(capped_max);
 
-    let chunks =
-        Layout::vertical([Constraint::Min(1), Constraint::Length(desired_height)]).split(area);
-    (chunks[0], Some(chunks[1]))
+    let [transcript_area, modal_area] = area
+        .try_layout(&Layout::vertical([
+            Constraint::Min(1),
+            Constraint::Length(desired_height),
+        ]))
+        .unwrap_or([area; 2]);
+    (transcript_area, Some(modal_area))
 }
 
 pub(crate) fn floating_modal_area(area: Rect) -> Rect {
@@ -290,17 +294,14 @@ pub fn render_modal(session: &mut Session, frame: &mut Frame<'_>, area: Rect) {
     let (body_area, title_area) = if title.is_empty() {
         (area, None)
     } else {
-        let chunks = Layout::vertical([
-            Constraint::Length(1),
-            Constraint::Length(1),
-            Constraint::Min(0),
-            Constraint::Length(1),
-        ])
-        .split(area);
-        let title_area = chunks[0];
-        let top_divider_area = chunks[1];
-        let body_area = chunks[2];
-        let bottom_divider_area = chunks[3];
+        let [title_area, top_divider_area, body_area, bottom_divider_area] = area
+            .try_layout(&Layout::vertical([
+                Constraint::Length(1),
+                Constraint::Length(1),
+                Constraint::Min(0),
+                Constraint::Length(1),
+            ]))
+            .unwrap_or([Rect::ZERO; 4]);
         let title_line = Line::from(Span::styled(title, styles.title));
         let (decorated_title, link_targets) = decorate_detected_link_lines(
             vec![title_line],

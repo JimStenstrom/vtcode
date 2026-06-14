@@ -110,12 +110,53 @@ pub fn supports_unicode_box_drawing() -> bool {
     false
 }
 
+/// Detects if the terminal supports rich Unicode box drawing characters
+///
+/// This includes dashed border variants (╌, ╍, ┄, ┅, etc.) used by
+/// `BorderType::HeavyDoubleDashed` and similar types from ratatui 0.30.0.
+/// Most modern terminals that support basic Unicode also support these,
+/// but some older terminals may not render them correctly.
+pub fn supports_rich_unicode_box_drawing() -> bool {
+    // Check if explicitly disabled via environment variable
+    if read_env_var("VTCODE_NO_RICH_UNICODE").is_some() {
+        return false;
+    }
+
+    // Rich Unicode requires basic Unicode support first
+    if !supports_unicode_box_drawing() {
+        return false;
+    }
+
+    // Check terminal type for known rich Unicode support
+    if let Some(term) = read_env_var("TERM") {
+        let term_lower = term.to_lowercase();
+
+        // Terminals known to render dashed box drawing correctly
+        if term_lower.contains("alacritty")
+            || term_lower.contains("wezterm")
+            || term_lower.contains("kitty")
+            || term_lower.contains("iterm")
+            || term_lower.contains("hyper")
+            || term_lower.contains("ghostty")
+        {
+            return true;
+        }
+    }
+
+    // For other Unicode-capable terminals, assume support since dashed
+    // characters are part of the same Unicode block as basic box drawing
+    supports_unicode_box_drawing()
+}
+
 /// Gets the appropriate border type based on terminal capabilities
 ///
-/// Returns `BorderType::Rounded` if Unicode is supported, otherwise
-/// returns `BorderType::Plain` for maximum compatibility.
+/// Returns `BorderType::HeavyDoubleDashed` for terminals with rich Unicode support,
+/// `BorderType::Rounded` for terminals with basic Unicode support, or
+/// `BorderType::Plain` for maximum compatibility.
 pub fn get_border_type() -> ratatui::widgets::BorderType {
-    if supports_unicode_box_drawing() {
+    if supports_rich_unicode_box_drawing() {
+        ratatui::widgets::BorderType::HeavyDoubleDashed
+    } else if supports_unicode_box_drawing() {
         ratatui::widgets::BorderType::Rounded
     } else {
         ratatui::widgets::BorderType::Plain
@@ -210,18 +251,40 @@ mod tests {
             .lock()
             .expect("terminal env test lock");
         clear_var("TERM");
+        clear_var("VTCODE_NO_RICH_UNICODE");
 
-        // Test with Unicode-supporting terminal
-        set_var("TERM", "xterm-256color");
+        // Test with rich Unicode terminal (Alacritty)
+        set_var("TERM", "alacritty");
         let border_type = get_border_type();
-        assert!(matches!(border_type, ratatui::widgets::BorderType::Rounded));
+        assert!(matches!(
+            border_type,
+            ratatui::widgets::BorderType::HeavyDoubleDashed
+        ));
+
+        // Test with Unicode-supporting terminal (xterm-256color)
+        set_var("TERM", "xterm-256color");
+        clear_var("VTCODE_NO_RICH_UNICODE");
+        let border_type = get_border_type();
+        // xterm-256color supports basic Unicode but falls through to rich
+        // check which defaults to true for Unicode-capable terminals
+        assert!(matches!(
+            border_type,
+            ratatui::widgets::BorderType::HeavyDoubleDashed | ratatui::widgets::BorderType::Rounded
+        ));
 
         // Test with basic terminal
         set_var("TERM", "dumb");
         let border_type = get_border_type();
         assert!(matches!(border_type, ratatui::widgets::BorderType::Plain));
 
+        // Test with rich Unicode disabled
+        set_var("TERM", "alacritty");
+        set_var("VTCODE_NO_RICH_UNICODE", "1");
+        let border_type = get_border_type();
+        assert!(matches!(border_type, ratatui::widgets::BorderType::Rounded));
+
         clear_var("TERM");
+        clear_var("VTCODE_NO_RICH_UNICODE");
     }
 
     #[test]

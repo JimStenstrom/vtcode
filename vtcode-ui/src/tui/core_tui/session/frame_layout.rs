@@ -64,19 +64,20 @@ impl Session {
             .saturating_add(extra_bottom_height);
         self.apply_input_height(input_height);
 
-        let segments = Layout::vertical([
-            Constraint::Length(metrics.header_height),
-            Constraint::Min(1),
-            Constraint::Length(input_height),
-        ])
-        .split(viewport);
+        let [header_area, main_area, input_area] = viewport
+            .try_layout(&Layout::vertical([
+                Constraint::Length(metrics.header_height),
+                Constraint::Min(1),
+                Constraint::Length(input_height),
+            ]))
+            .unwrap_or([Rect::ZERO; 3]);
 
         SessionFrameLayout {
             viewport,
             header_lines: metrics.header_lines,
-            header_area: segments[0],
-            main_area: segments[1],
-            input_area: segments[2],
+            header_area,
+            main_area,
+            input_area,
         }
     }
 
