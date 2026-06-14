@@ -137,7 +137,7 @@ When updating an `Agent Legibility` row, make all three signals explicit in the 
 
 ## Security
 
-**Scope**: `vtcode-process-hardening/`, sandbox system, command safety
+**Scope**: `process_hardening` module, sandbox system, command safety
 **Related debt**: none open
 
 | Dimension        | Grade | Evidence / Notes                                                                                                                                                                        |
@@ -150,7 +150,7 @@ When updating an `Agent Legibility` row, make all three signals explicit in the 
 
 **Overall: B+**
 **Priority action**: expand sandbox/policy integration tests across more allow/deny edge matrices and OS-specific hardening scenarios.
-**Verify**: `cargo nextest run -p vtcode-process-hardening`
+**Verify**: `cargo nextest run -p vtcode process_hardening`
 
 ---
 

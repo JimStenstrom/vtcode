@@ -4,14 +4,14 @@ VT Code implements comprehensive process hardening based on the OpenAI Codex sec
 
 ## Architecture
 
-Process hardening is implemented as a dedicated crate (`vtcode-process-hardening`) that provides a single public function: `pre_main_hardening()`.
+Process hardening is implemented as a module (`process_hardening`) in the root binary crate that provides a single public function: `pre_main_hardening()`.
 
 This function is called in the binary before `main()` executes using the `#[ctor::ctor]` pattern, ensuring that security hardening happens as early as possible in the process lifecycle.
 
 ```rust
 #[ctor::ctor]
 fn init() {
-    vtcode_process_hardening::pre_main_hardening();
+    process_hardening::pre_main_hardening();
 }
 ```
 
@@ -73,7 +73,7 @@ If any of these fail, the process exits immediately to ensure it doesn't run in 
 
 ## Testing
 
-The `vtcode-process-hardening` crate includes unit tests for:
+The `process_hardening` module includes unit tests for:
 
 - Correct filtering of environment variables by prefix
 - Handling of non-UTF-8 environment variable names
@@ -82,7 +82,7 @@ The `vtcode-process-hardening` crate includes unit tests for:
 Run the tests with:
 
 ```bash
-cargo test --package vtcode-process-hardening
+cargo test --package vtcode process_hardening
 ```
 
 ## Security Philosophy

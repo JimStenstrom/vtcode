@@ -37,21 +37,21 @@ impl PodCatalog {
         match serde_json::from_str(include_str!("default_catalog.json")) {
             Ok(catalog) => catalog,
             Err(_) => Self {
-                version: "1".to_string(),
+                version: "2".to_string(),
                 profiles: vec![PodProfile {
-                    name: "generic-8b".to_string(),
-                    model: "meta-llama/Llama-3.1-8B-Instruct".to_string(),
+                    name: "qwen3-30b-a3b".to_string(),
+                    model: "Qwen/Qwen3-30B-A3B".to_string(),
                     gpu_count: 1,
                     gpu_types: vec![],
                     command_template: default_command_template(),
                     vllm_args: vec![
                         "--trust-remote-code".to_string(),
                         "--dtype".to_string(),
-                        "auto".to_string(),
+                        "bfloat16".to_string(),
                         "--gpu-memory-utilization".to_string(),
                         "0.90".to_string(),
                         "--max-model-len".to_string(),
-                        "8192".to_string(),
+                        "32768".to_string(),
                     ],
                     env: BTreeMap::new(),
                 }],

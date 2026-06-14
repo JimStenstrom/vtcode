@@ -99,7 +99,7 @@ Backward-compatible aliases maintained in re-exports (`tools/mod.rs`, `tools/reg
 **Current state:**
 - `vtcode-llm` is a workspace member with ~100 source files
 - Contains LLM provider implementations, client abstraction, streaming, tool bridge
-- Depends on: `vtcode-commons`, `vtcode-config`, `vtcode-tool-types`, `vtcode-utility-tool-specs`
+- Depends on: `vtcode-commons`, `vtcode-config`, `vtcode-utility-tool-specs`
 - vtcode-core has vtcode-llm as a dependency but does not yet consume it (partial extraction)
 - Integration-point files remain in vtcode-core: `cgp.rs`, `factory.rs`, `provider_config.rs`, `provider_builder.rs`, `lightweight_routing.rs`, `copilot.rs`, `openresponses/provider.rs`
 

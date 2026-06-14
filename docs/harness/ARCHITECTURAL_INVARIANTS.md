@@ -29,12 +29,9 @@ types / commons
 Side crates with no upstream dependents:
 
 - `vtcode-bash-runner` — used by core/exec
-- `vtcode-markdown-store` — used by core
-- `vtcode-indexer` — used for workspace file indexing
+- `vtcode-indexer` — used for workspace file indexing (includes merged markdown storage and file search)
 - `vtcode-exec-events` — event definitions, used by core
 - `vtcode-acp` — Zed integration, used by agent
-- `vtcode-process-hardening` — pre-main, no deps on workspace crates
-- `vtcode-file-search` — used by core/tools
 
 **Violation**: a lower-layer crate imports from a higher-layer crate.
 **Remediation**: move the shared type/function down to the lowest common layer (usually `vtcode-commons` or `vtcode-config`). Never add a reverse dependency.

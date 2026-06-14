@@ -12,6 +12,7 @@ repository = "https://github.com/vinhnx/vtcode"
 documentation = "https://docs.rs/vtcode-llm"
 categories = ["development-tools"]
 keywords = ["vt", "llm", "provider", "ai", "streaming"]
+publish = false
 
 [dependencies]
 anyhow = { workspace = true }

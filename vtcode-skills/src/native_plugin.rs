@@ -18,6 +18,15 @@
 //! A native plugin skill consists of:
 //! - `plugin.json` - Metadata (name, description, version, author)
 //! - `lib<name>.dylib` (macOS) or `lib<name>.so` (Linux) or `<name>.dll` (Windows)
+
+// SAFETY: This module contains FFI calls to load and execute native plugins.
+// All unsafe blocks are necessary for:
+// - Loading dynamic libraries (Library::new)
+// - Calling FFI functions (version_fn, metadata_fn, execute_fn, free_string_fn)
+// - Converting C strings (CStr::from_ptr)
+// These operations are inherently unsafe and cannot be wrapped in safe abstractions
+// without losing the ability to load arbitrary plugin code.
+#![allow(unsafe_code)]
 //! - Optional: `README.md`, `scripts/`, `templates/`
 //!
 //! # Plugin ABI

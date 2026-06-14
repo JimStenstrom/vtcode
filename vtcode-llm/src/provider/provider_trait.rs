@@ -3,6 +3,7 @@ use async_trait::async_trait;
 use compact_str::format_compact;
 use once_cell::sync::Lazy;
 use rustc_hash::FxHashMap;
+use std::future::Future;
 use std::sync::RwLock;
 use vtcode_commons::llm::BackendKind;
 
@@ -300,7 +301,7 @@ pub trait LLMProvider: Send + Sync {
         &'a self,
         _request: LLMRequest,
         _tools: &'a [super::ToolDefinition],
-    ) -> Option<std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send + 'a>>> {
+    ) -> Option<std::pin::Pin<Box<dyn Future<Output = ()> + Send + 'a>>> {
         None
     }
 

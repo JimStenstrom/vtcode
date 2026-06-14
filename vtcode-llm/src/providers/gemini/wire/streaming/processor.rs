@@ -592,10 +592,12 @@ impl StreamingProcessor {
                         .and_then(Value::as_str)
                         .unwrap_or("Gemini streaming error")
                         .to_owned();
+                    #[allow(clippy::cast_sign_loss)] // clamped to 0..u16::MAX
                     let code = error_value
                         .get("code")
                         .and_then(Value::as_i64)
-                        .unwrap_or(500) as u16;
+                        .unwrap_or(500)
+                        .clamp(0, u16::MAX as i64) as u16;
                     return Err(StreamingError::ApiError {
                         status_code: code,
                         message,

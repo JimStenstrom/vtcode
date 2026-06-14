@@ -28,26 +28,26 @@ All VT Code crates require Rust 1.88 or later due to dependencies (ratatui 0.30,
 
 ### Crate Version Matrix
 
-| Crate | Version | MSRV | Edition | Stable Since |
-|-------|---------|------|---------|--------------|
-| vtcode | 0.123.4 | 1.88 | 2024 | Initial release |
-| vtcode-core | 0.123.4 | 1.88 | 2024 | Initial release |
-| vtcode-config | 0.123.4 | 1.88 | 2024 | Initial release |
-| vtcode-commons | 0.123.4 | 1.88 | 2024 | Initial release |
-| vtcode-indexer | 0.123.4 | 1.88 | 2024 | Initial release |
-| vtcode-bash-runner | 0.123.4 | 1.88 | 2024 | Initial release |
-| vtcode-exec-events | 0.123.4 | 1.88 | 2024 | Initial release |
-| vtcode-acp | 0.123.4 | 1.88 | 2024 | Initial release |
-| vtcode-auth | 0.123.4 | 1.88 | 2024 | Initial release |
-| vtcode-macros | 0.123.4 | 1.88 | 2024 | Initial release |
-| vtcode-ui | 0.123.10 | 1.88 | 2024 | Internal (publish=false) |
-| vtcode-utility-tool-specs | 0.123.4 | 1.88 | 2024 | Includes collaboration schemas (merged from vtcode-collaboration-tool-specs) |
-| vtcode-safety | 0.128.4 | 1.88 | 2024 | Extracted from vtcode-core |
-| vtcode-a2a | 0.128.4 | 1.88 | 2024 | Extracted from vtcode-core |
-| vtcode-mcp | 0.128.4 | 1.88 | 2024 | Extracted from vtcode-core |
-| vtcode-llm | 0.128.4 | 1.88 | 2024 | Extracted from vtcode-core (partial) |
-| vtcode-skills | 0.128.4 | 1.88 | 2024 | Extracted from vtcode-core (partial) |
-| xtask | 0.8.4 | 1.88 | 2024 | Internal |
+| Crate | Version | MSRV | Edition | Published | Notes |
+|-------|---------|------|---------|-----------|-------|
+| vtcode | 0.123.4 | 1.88 | 2024 | Yes | Binary crate |
+| vtcode-core | 0.123.4 | 1.88 | 2024 | Yes | Main runtime |
+| vtcode-config | 0.123.4 | 1.88 | 2024 | Yes | Configuration |
+| vtcode-commons | 0.123.4 | 1.88 | 2024 | Yes | Shared primitives |
+| vtcode-indexer | 0.123.4 | 1.88 | 2024 | Yes | File indexing + markdown storage |
+| vtcode-bash-runner | 0.123.4 | 1.88 | 2024 | Yes | Shell execution |
+| vtcode-exec-events | 0.123.4 | 1.88 | 2024 | Yes | Event schemas |
+| vtcode-acp | 0.123.4 | 1.88 | 2024 | Yes | Agent Communication Protocol |
+| vtcode-auth | 0.123.4 | 1.88 | 2024 | Yes | OAuth/PKCE |
+| vtcode-macros | 0.123.4 | 1.88 | 2024 | Yes | Proc macros |
+| vtcode-ui | 0.123.10 | 1.88 | 2024 | Yes | TUI framework |
+| vtcode-utility-tool-specs | 0.123.4 | 1.88 | 2024 | Yes | Tool schemas |
+| vtcode-safety | 0.128.4 | 1.88 | 2024 | No | Internal (publish=false) |
+| vtcode-a2a | 0.128.4 | 1.88 | 2024 | No | Internal (publish=false) |
+| vtcode-mcp | 0.128.4 | 1.88 | 2024 | No | Internal (publish=false) |
+| vtcode-llm | 0.128.4 | 1.88 | 2024 | No | Internal (publish=false) |
+| vtcode-skills | 0.128.4 | 1.88 | 2024 | No | Internal (publish=false) |
+| xtask | 0.8.4 | 1.88 | 2024 | No | Internal build tasks |
 
 ---
 

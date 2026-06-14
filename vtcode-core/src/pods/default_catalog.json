@@ -1,0 +1,328 @@
+{
+  "version": "2",
+  "profiles": [
+    {
+      "name": "llama-3.3-70b",
+      "model": "meta-llama/Llama-3.3-70B-Instruct",
+      "gpu_count": 1,
+      "gpu_types": ["H100", "H200", "A100"],
+      "vllm_args": [
+        "--trust-remote-code",
+        "--dtype",
+        "bfloat16",
+        "--gpu-memory-utilization",
+        "0.92",
+        "--max-model-len",
+        "16384"
+      ]
+    },
+    {
+      "name": "llama-3.3-70b-fp8",
+      "model": "meta-llama/Llama-3.3-70B-Instruct",
+      "gpu_count": 1,
+      "gpu_types": ["H100", "H200"],
+      "vllm_args": [
+        "--quantization",
+        "fp8",
+        "--gpu-memory-utilization",
+        "0.90",
+        "--max-model-len",
+        "32768"
+      ]
+    },
+    {
+      "name": "llama-4-scout",
+      "model": "meta-llama/Llama-4-Scout-17B-16E-Instruct",
+      "gpu_count": 1,
+      "gpu_types": ["H100", "H200"],
+      "vllm_args": [
+        "--quantization",
+        "fp8",
+        "--gpu-memory-utilization",
+        "0.90",
+        "--max-model-len",
+        "256000"
+      ]
+    },
+    {
+      "name": "llama-4-scout-8gpu",
+      "model": "meta-llama/Llama-4-Scout-17B-16E-Instruct",
+      "gpu_count": 8,
+      "gpu_types": ["H100", "H200"],
+      "vllm_args": [
+        "--tensor-parallel-size",
+        "8",
+        "--max-model-len",
+        "1000000"
+      ]
+    },
+    {
+      "name": "llama-4-maverick-8gpu",
+      "model": "meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8",
+      "gpu_count": 8,
+      "gpu_types": ["H100", "H200"],
+      "vllm_args": [
+        "--tensor-parallel-size",
+        "8",
+        "--max-model-len",
+        "430000"
+      ]
+    },
+    {
+      "name": "llama-4-maverick-8gpu-h200",
+      "model": "meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8",
+      "gpu_count": 8,
+      "gpu_types": ["H200"],
+      "vllm_args": [
+        "--tensor-parallel-size",
+        "8",
+        "--max-model-len",
+        "1000000"
+      ]
+    },
+    {
+      "name": "qwen3-32b",
+      "model": "Qwen/Qwen3-32B",
+      "gpu_count": 1,
+      "gpu_types": ["H100", "H200", "A100"],
+      "vllm_args": [
+        "--trust-remote-code",
+        "--dtype",
+        "bfloat16",
+        "--gpu-memory-utilization",
+        "0.90",
+        "--max-model-len",
+        "32768"
+      ]
+    },
+    {
+      "name": "qwen3-30b-a3b",
+      "model": "Qwen/Qwen3-30B-A3B",
+      "gpu_count": 1,
+      "gpu_types": ["H100", "H200", "A100", "L40S", "RTX 4090"],
+      "vllm_args": [
+        "--trust-remote-code",
+        "--dtype",
+        "bfloat16",
+        "--gpu-memory-utilization",
+        "0.90",
+        "--max-model-len",
+        "32768"
+      ]
+    },
+    {
+      "name": "gemma-3-27b",
+      "model": "google/gemma-3-27b-it",
+      "gpu_count": 1,
+      "gpu_types": ["H100", "H200", "A100", "L40S"],
+      "vllm_args": [
+        "--dtype",
+        "bfloat16",
+        "--gpu-memory-utilization",
+        "0.90",
+        "--max-model-len",
+        "32768"
+      ]
+    },
+    {
+      "name": "phi-4-14b",
+      "model": "microsoft/phi-4",
+      "gpu_count": 1,
+      "gpu_types": ["H100", "H200", "A100", "L40S", "RTX 4090"],
+      "vllm_args": [
+        "--dtype",
+        "bfloat16",
+        "--gpu-memory-utilization",
+        "0.90",
+        "--max-model-len",
+        "16384"
+      ]
+    },
+    {
+      "name": "qwen3-235b-a22b",
+      "model": "Qwen/Qwen3-235B-A22B",
+      "gpu_count": 8,
+      "gpu_types": ["H100", "H200"],
+      "vllm_args": [
+        "--tensor-parallel-size",
+        "8",
+        "--dtype",
+        "bfloat16",
+        "--gpu-memory-utilization",
+        "0.90",
+        "--max-model-len",
+        "32768"
+      ]
+    },
+    {
+      "name": "qwen3-coder-480b",
+      "model": "Qwen/Qwen3-Coder-480B-A35B-Instruct",
+      "gpu_count": 8,
+      "gpu_types": ["H200", "H20"],
+      "vllm_args": [
+        "--tensor-parallel-size",
+        "8",
+        "--max-model-len",
+        "32000",
+        "--enable-auto-tool-choice",
+        "--tool-call-parser",
+        "qwen3_coder"
+      ]
+    },
+    {
+      "name": "qwen3-coder-480b-fp8",
+      "model": "Qwen/Qwen3-Coder-480B-A35B-Instruct-FP8",
+      "gpu_count": 8,
+      "gpu_types": ["H200", "H20"],
+      "vllm_args": [
+        "--max-model-len",
+        "131072",
+        "--enable-expert-parallel",
+        "--data-parallel-size",
+        "8",
+        "--enable-auto-tool-choice",
+        "--tool-call-parser",
+        "qwen3_coder"
+      ],
+      "env": {
+        "VLLM_USE_DEEP_GEMM": "1"
+      }
+    },
+    {
+      "name": "deepseek-r1-0528-2gpu",
+      "model": "deepseek-ai/DeepSeek-R1-0528",
+      "gpu_count": 2,
+      "gpu_types": ["H100", "H200", "A100"],
+      "vllm_args": [
+        "--trust-remote-code",
+        "--tensor-parallel-size",
+        "2",
+        "--dtype",
+        "bfloat16",
+        "--gpu-memory-utilization",
+        "0.88",
+        "--max-model-len",
+        "32768"
+      ]
+    },
+    {
+      "name": "deepseek-r1-0528-4gpu",
+      "model": "deepseek-ai/DeepSeek-R1-0528",
+      "gpu_count": 4,
+      "gpu_types": ["H100", "H200"],
+      "vllm_args": [
+        "--trust-remote-code",
+        "--tensor-parallel-size",
+        "4",
+        "--dtype",
+        "bfloat16",
+        "--gpu-memory-utilization",
+        "0.90",
+        "--max-model-len",
+        "65536"
+      ]
+    },
+    {
+      "name": "deepseek-r1-0528-8gpu",
+      "model": "deepseek-ai/DeepSeek-R1-0528",
+      "gpu_count": 8,
+      "gpu_types": ["H100", "H200"],
+      "vllm_args": [
+        "--trust-remote-code",
+        "--tensor-parallel-size",
+        "8",
+        "--dtype",
+        "bfloat16",
+        "--gpu-memory-utilization",
+        "0.90",
+        "--max-model-len",
+        "131072"
+      ]
+    },
+    {
+      "name": "deepseek-v3-8gpu",
+      "model": "deepseek-ai/DeepSeek-V3",
+      "gpu_count": 8,
+      "gpu_types": ["H100", "H200"],
+      "vllm_args": [
+        "--trust-remote-code",
+        "--tensor-parallel-size",
+        "8",
+        "--dtype",
+        "bfloat16",
+        "--gpu-memory-utilization",
+        "0.90",
+        "--max-model-len",
+        "65536"
+      ]
+    },
+    {
+      "name": "gpt-oss-20b",
+      "model": "openai/gpt-oss-20b",
+      "gpu_count": 1,
+      "gpu_types": ["H100", "H200"],
+      "vllm_args": ["--async-scheduling"]
+    },
+    {
+      "name": "gpt-oss-20b-b200",
+      "model": "openai/gpt-oss-20b",
+      "gpu_count": 1,
+      "gpu_types": ["B200"],
+      "vllm_args": ["--async-scheduling"],
+      "env": {
+        "VLLM_USE_TRTLLM_ATTENTION": "1",
+        "VLLM_USE_TRTLLM_DECODE_ATTENTION": "1",
+        "VLLM_USE_TRTLLM_CONTEXT_ATTENTION": "1",
+        "VLLM_USE_FLASHINFER_MXFP4_MOE": "1"
+      }
+    },
+    {
+      "name": "gpt-oss-120b-1gpu",
+      "model": "openai/gpt-oss-120b",
+      "gpu_count": 1,
+      "gpu_types": ["H100", "H200"],
+      "vllm_args": [
+        "--async-scheduling",
+        "--gpu-memory-utilization",
+        "0.95",
+        "--max-num-batched-tokens",
+        "1024"
+      ]
+    },
+    {
+      "name": "gpt-oss-120b-2gpu",
+      "model": "openai/gpt-oss-120b",
+      "gpu_count": 2,
+      "gpu_types": ["H100", "H200"],
+      "vllm_args": [
+        "--tensor-parallel-size",
+        "2",
+        "--async-scheduling",
+        "--gpu-memory-utilization",
+        "0.94"
+      ]
+    },
+    {
+      "name": "gpt-oss-120b-4gpu",
+      "model": "openai/gpt-oss-120b",
+      "gpu_count": 4,
+      "gpu_types": ["H100", "H200"],
+      "vllm_args": [
+        "--tensor-parallel-size",
+        "4",
+        "--async-scheduling"
+      ]
+    },
+    {
+      "name": "gpt-oss-120b-8gpu",
+      "model": "openai/gpt-oss-120b",
+      "gpu_count": 8,
+      "gpu_types": ["H100", "H200"],
+      "vllm_args": [
+        "--tensor-parallel-size",
+        "8",
+        "--async-scheduling"
+      ]
+    }
+  ]
+}

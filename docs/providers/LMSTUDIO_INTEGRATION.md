@@ -66,12 +66,11 @@ async fn main() -> anyhow::Result<()> {
 ### Module Structure
 
 ```
-vtcode-lmstudio/
-├── src/
-│   ├── lib.rs          # High-level API (ensure_oss_ready, constants)
-│   └── client.rs       # Low-level HTTP client (LMStudioClient)
-├── Cargo.toml
-└── README.md
+vtcode-llm/src/providers/
+├── lmstudio.rs        # LM Studio provider implementation
+├── lmstudio/
+│   └── client.rs      # Low-level HTTP client (LMStudioClient)
+└── ...
 ```
 
 ### Component Interactions
@@ -217,7 +216,7 @@ All client operations return `std::io::Result<T>` for system-level error compati
 Run tests with:
 
 ```bash
-cargo test --package vtcode-lmstudio
+cargo test --package vtcode-llm lmstudio
 ```
 
 **Test Coverage:**
@@ -291,7 +290,7 @@ tokio::spawn({
 
 ### Why Modular?
 
-The `vtcode-lmstudio` crate is a standalone module that:
+The LM Studio provider is a standalone module that:
 
 - Can be used independently of VT Code
 - Doesn't pull in vtcode-core dependencies

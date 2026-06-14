@@ -4,6 +4,7 @@ version = "0.128.4"
 edition.workspace = true
 license.workspace = true
 description = "Skill types, discovery, loading, and validation for VT Code"
+publish = false
 
 [dependencies]
 anyhow.workspace = true

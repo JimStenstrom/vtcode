@@ -63,15 +63,17 @@ impl BloomFilter {
     }
 
     /// Calculate optimal size for bloom filter
+    #[allow(clippy::cast_sign_loss)] // bloom filter sizes are always positive
     fn optimal_size(expected_items: usize, false_positive_rate: f64) -> usize {
         let size = -(expected_items as f64 * false_positive_rate.ln() / (2.0_f64.ln().powi(2)));
-        size.ceil() as usize
+        size.max(0.0).ceil() as usize
     }
 
     /// Calculate optimal number of hash functions
+    #[allow(clippy::cast_sign_loss)] // hash counts are always positive
     fn optimal_num_hashes(size: usize, expected_items: usize) -> usize {
         let num_hashes = (size as f64 / expected_items as f64) * 2.0_f64.ln();
-        num_hashes.ceil() as usize
+        num_hashes.max(0.0).ceil() as usize
     }
 
     /// Simple hash function for bloom filter
