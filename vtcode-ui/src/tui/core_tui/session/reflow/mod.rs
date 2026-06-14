@@ -447,7 +447,8 @@ impl Session {
                     .map(|span| AsRef::<str>::as_ref(&span.content))
                     .collect::<String>();
                 let stripped = text_utils::strip_ansi_codes(&line_text);
-                text_utils::is_list_item(stripped.as_ref())
+                // Suppress bullet for empty messages or messages starting with list items
+                stripped.trim().is_empty() || text_utils::is_list_item(stripped.as_ref())
             });
         if suppress_prefix_bullet
             && !ui::INLINE_AGENT_QUOTE_PREFIX.is_empty()

@@ -80,7 +80,7 @@ pub(super) fn describe_list_files(args: &Value) -> Option<(String, HashSet<Strin
         let location = if path == "." {
             "workspace root".to_string()
         } else {
-            truncate_middle(&path, 60)
+            truncate_path_middle(&path, 60)
         };
         return Some((format!("List files in {}", location), used));
     }
@@ -115,7 +115,7 @@ pub(super) fn describe_grep_file(args: &Value) -> Option<(String, HashSet<String
                 format!(
                     "Grep {} in {}",
                     truncate_middle(&pat, 40),
-                    truncate_middle(&path, 40)
+                    truncate_path_middle(&path, 40)
                 ),
                 used,
             ))
@@ -138,7 +138,7 @@ pub(super) fn describe_path_action(
         if let Some(value) = lookup_string(args, key) {
             let mut used = HashSet::new();
             used.insert((*key).to_string());
-            let summary = truncate_middle(&value, 60);
+            let summary = truncate_path_middle(&value, 60);
             let annotated_summary = annotate_skill_doc_summary(&value, summary);
             return Some((format!("{} {}", verb, annotated_summary), used));
         }
@@ -223,6 +223,50 @@ pub(super) fn truncate_middle(text: &str, max_len: usize) -> String {
         result.push_str(&tail);
     }
     result
+}
+
+/// Truncate a file path in the middle, preferring to break at path separators.
+/// Falls back to `truncate_middle` for non-path strings.
+pub(super) fn truncate_path_middle(path: &str, max_len: usize) -> String {
+    if max_len == 0 {
+        return String::new();
+    }
+    let char_count = path.chars().count();
+    if char_count <= max_len {
+        return path.to_string();
+    }
+    if max_len <= 1 {
+        return "…".to_string();
+    }
+
+    // Try to find a good break point at a path separator
+    let head_budget = max_len / 2;
+    let tail_budget = max_len.saturating_sub(head_budget + 1);
+
+    // Find the last '/' in the head portion
+    let head_chars: Vec<char> = path.chars().take(head_budget).collect();
+    let head_str: String = head_chars.iter().collect();
+    let head_break = head_str.rfind('/').unwrap_or(head_budget);
+
+    // Find the first '/' in the tail portion (from the end)
+    let tail_chars: Vec<char> = path.chars().rev().take(tail_budget).collect();
+    let tail_str: String = tail_chars.iter().rev().collect();
+    let tail_break_from_end = tail_str
+        .find('/')
+        .map(|pos| tail_str.len() - pos)
+        .unwrap_or(tail_budget);
+
+    let head: String = path.chars().take(head_break).collect();
+    let tail: String = path
+        .chars()
+        .rev()
+        .take(tail_break_from_end)
+        .collect::<Vec<_>>()
+        .into_iter()
+        .rev()
+        .collect();
+
+    format!("{}…{}", head, tail)
 }
 
 pub(super) fn collect_param_details(args: &Value, keys: &HashSet<String>) -> Vec<String> {
@@ -554,5 +598,29 @@ mod tests {
         assert!(!is_noise_param("pattern"));
         assert!(!is_noise_param("path"));
         assert!(!is_noise_param("mode"));
+    }
+
+    #[test]
+    fn truncate_path_middle_breaks_at_separator() {
+        let path = "/Users/vinhnguyenxuan/Developer/learn-by-doing/vtcode/hello/src/main.rs";
+        let truncated = truncate_path_middle(path, 40);
+        // Should break at a '/' not in the middle of a word
+        assert!(truncated.contains("…"));
+        // The character after '…' should be a '/' or start of a path component
+        if let Some(char_idx) = truncated.char_indices().find(|(_, c)| *c == '…') {
+            let after: String = truncated[char_idx.0 + '…'.len_utf8()..].chars().collect();
+            assert!(
+                after.starts_with('/') || after.starts_with('h') || after.starts_with('s'),
+                "Expected path break after ellipsis, got: {}",
+                after
+            );
+        }
+    }
+
+    #[test]
+    fn truncate_path_middle_short_path_not_truncated() {
+        let path = "src/main.rs";
+        let truncated = truncate_path_middle(path, 40);
+        assert_eq!(truncated, "src/main.rs");
     }
 }

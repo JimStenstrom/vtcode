@@ -15,7 +15,7 @@ use vtcode_core::utils::style_helpers::{ColorPalette, render_styled};
 use crate::agent::runloop::unified::tool_summary_helpers::{
     collect_param_details, command_line_for_args, describe_fetch_action, describe_grep_file,
     describe_list_files, describe_path_action, describe_shell_command, highlight_texts_for_summary,
-    should_render_command_line, truncate_middle,
+    should_render_command_line, truncate_path_middle,
 };
 
 const RUN_SUMMARY_FIRST_WIDTH: usize = 62;
@@ -74,7 +74,7 @@ pub(crate) fn render_file_operation_indicator(
         .or_else(|| args.get("file_path"))
         .or_else(|| args.get("filename"))
         .and_then(Value::as_str)
-        .map(|p| truncate_middle(p, 60))
+        .map(|p| truncate_path_middle(p, 60))
         .unwrap_or_else(|| "file".to_string());
 
     let mut line = String::new();
@@ -91,7 +91,7 @@ pub(crate) fn render_file_operation_indicator(
     line.push_str(&render_styled(&file_path, palette.muted, None));
     line.push_str(&render_styled("...", palette.muted, None));
 
-    renderer.line(MessageStyle::Info, &line)?;
+    renderer.line(MessageStyle::Tool, &line)?;
 
     Ok(())
 }
