@@ -1,12 +1,10 @@
-/// Centralized error messages for tool operations
+/// Centralized error messages for tool operations.
 ///
-/// This module provides consistent, reusable error messages across tool implementations
-/// to ensure uniformity in user-facing error reporting.
+/// This module provides consistent, reusable error messages across tool
+/// implementations to ensure uniformity in user-facing error reporting.
 ///
-/// NOTE: Only actively-used message groups are retained. Submodules that were
+/// Only actively-used message groups are retained. Submodules that were
 /// defined but never referenced by tool implementations have been removed.
-
-/// Shared execution guidance messages for agent/runloop/tool registry.
 pub mod agent_execution {
     /// Marker used when planning workflow blocks a mutating tool call.
     pub const PLANNING_DENIED_CONTEXT: &str = "tool denied by planning workflow";

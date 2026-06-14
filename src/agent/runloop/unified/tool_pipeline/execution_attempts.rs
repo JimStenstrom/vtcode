@@ -3,7 +3,6 @@ use std::time::{Duration, Instant};
 
 use anyhow::Error;
 use serde_json::Value;
-use tokio::sync::Notify;
 use tokio_util::sync::CancellationToken;
 use tracing::debug;
 use vtcode_core::retry::RetryPolicy;
@@ -20,6 +19,7 @@ use crate::agent::runloop::unified::wait_feedback::{
 };
 use vtcode_core::exec::cancellation;
 
+use super::CancellationTokens;
 use super::execution_helpers::process_llm_tool_output;
 use super::status::ToolExecutionStatus;
 use super::timeout::{TimeoutWarningGuard, create_timeout_error};
@@ -31,16 +31,19 @@ pub(crate) async fn execute_tool_with_timeout(
     name: &str,
     args: Value,
     ctrl_c_state: &Arc<CtrlCState>,
-    ctrl_c_notify: &Arc<Notify>,
+    ctrl_c_notify: &Arc<tokio::sync::Notify>,
     progress_reporter: Option<&ProgressReporter>,
     max_tool_retries: usize,
 ) -> ToolExecutionStatus {
-    execute_tool_with_timeout_ref(
+    let tokens = CancellationTokens {
+        state: ctrl_c_state.clone(),
+        notify: ctrl_c_notify.clone(),
+    };
+    execute_tool_with_timeout_ref_inner(
         registry,
         name,
         &args,
-        ctrl_c_state,
-        ctrl_c_notify,
+        &tokens,
         progress_reporter,
         max_tool_retries,
     )
@@ -53,7 +56,31 @@ pub(crate) async fn execute_tool_with_timeout_ref(
     name: &str,
     args: &Value,
     ctrl_c_state: &Arc<CtrlCState>,
-    ctrl_c_notify: &Arc<Notify>,
+    ctrl_c_notify: &Arc<tokio::sync::Notify>,
+    progress_reporter: Option<&ProgressReporter>,
+    max_tool_retries: usize,
+) -> ToolExecutionStatus {
+    let tokens = CancellationTokens {
+        state: ctrl_c_state.clone(),
+        notify: ctrl_c_notify.clone(),
+    };
+    execute_tool_with_timeout_ref_inner(
+        registry,
+        name,
+        args,
+        &tokens,
+        progress_reporter,
+        max_tool_retries,
+    )
+    .await
+}
+
+#[cfg(test)]
+async fn execute_tool_with_timeout_ref_inner(
+    registry: &ToolRegistry,
+    name: &str,
+    args: &Value,
+    tokens: &CancellationTokens,
     progress_reporter: Option<&ProgressReporter>,
     max_tool_retries: usize,
 ) -> ToolExecutionStatus {
@@ -61,8 +88,7 @@ pub(crate) async fn execute_tool_with_timeout_ref(
         registry,
         name,
         args,
-        ctrl_c_state,
-        ctrl_c_notify,
+        tokens,
         progress_reporter,
         max_tool_retries,
         false,
@@ -77,18 +103,21 @@ pub(crate) async fn execute_tool_with_timeout_ref_prevalidated(
     name: &str,
     args: &Value,
     ctrl_c_state: &Arc<CtrlCState>,
-    ctrl_c_notify: &Arc<Notify>,
+    ctrl_c_notify: &Arc<tokio::sync::Notify>,
     progress_reporter: Option<&ProgressReporter>,
     max_tool_retries: usize,
     exec_settlement_mode: ExecSettlementMode,
     safety_prevalidated: bool,
 ) -> ToolExecutionStatus {
+    let tokens = CancellationTokens {
+        state: ctrl_c_state.clone(),
+        notify: ctrl_c_notify.clone(),
+    };
     execute_tool_with_timeout_ref_mode(
         registry,
         name,
         args,
-        ctrl_c_state,
-        ctrl_c_notify,
+        &tokens,
         progress_reporter,
         max_tool_retries,
         true,
@@ -102,8 +131,7 @@ async fn execute_tool_with_timeout_ref_mode(
     registry: &ToolRegistry,
     name: &str,
     args: &Value,
-    ctrl_c_state: &Arc<CtrlCState>,
-    ctrl_c_notify: &Arc<Notify>,
+    tokens: &CancellationTokens,
     progress_reporter: Option<&ProgressReporter>,
     max_tool_retries: usize,
     prevalidated: bool,
@@ -140,8 +168,7 @@ async fn execute_tool_with_timeout_ref_mode(
         registry,
         name,
         args,
-        ctrl_c_state,
-        ctrl_c_notify,
+        tokens,
         progress_reporter,
         timeout_ceiling,
         timeout_category,
@@ -159,12 +186,12 @@ async fn execute_tool_with_timeout_ref_mode(
     result
 }
 
+#[allow(clippy::too_many_arguments)] // internal pipeline function, all params needed
 async fn execute_tool_with_progress(
     registry: &ToolRegistry,
     name: &str,
     args: &Value,
-    ctrl_c_state: &Arc<CtrlCState>,
-    ctrl_c_notify: &Arc<Notify>,
+    tokens: &CancellationTokens,
     progress_reporter: &ProgressReporter,
     tool_timeout: Duration,
     timeout_category: ToolTimeoutCategory,
@@ -184,8 +211,7 @@ async fn execute_tool_with_progress(
         registry,
         name,
         args,
-        ctrl_c_state,
-        ctrl_c_notify,
+        tokens,
         progress_reporter,
         deadline.saturating_duration_since(Instant::now()),
         prevalidated,
@@ -223,12 +249,12 @@ async fn execute_tool_with_progress(
     status
 }
 
+#[allow(clippy::too_many_arguments)] // internal pipeline function, all params needed
 async fn run_attempt_with_logging(
     registry: &ToolRegistry,
     name: &str,
     args: &Value,
-    ctrl_c_state: &Arc<CtrlCState>,
-    ctrl_c_notify: &Arc<Notify>,
+    tokens: &CancellationTokens,
     progress_reporter: &ProgressReporter,
     timeout: Duration,
     prevalidated: bool,
@@ -244,8 +270,7 @@ async fn run_attempt_with_logging(
         registry,
         name,
         args,
-        ctrl_c_state,
-        ctrl_c_notify,
+        tokens,
         progress_reporter,
         timeout,
         prevalidated,
@@ -270,12 +295,12 @@ async fn run_attempt_with_logging(
     status
 }
 
+#[allow(clippy::too_many_arguments)] // internal pipeline function, all params needed
 async fn run_single_tool_attempt(
     registry: &ToolRegistry,
     name: &str,
     args: &Value,
-    ctrl_c_state: &Arc<CtrlCState>,
-    ctrl_c_notify: &Arc<Notify>,
+    tokens: &CancellationTokens,
     progress_reporter: &ProgressReporter,
     tool_timeout: Duration,
     prevalidated: bool,
@@ -299,7 +324,7 @@ async fn run_single_tool_attempt(
         .await;
     progress_reporter.set_progress(5).await;
 
-    if let Err(_e) = ctrl_c_state.check_cancellation() {
+    if let Err(_e) = tokens.state.check_cancellation() {
         progress_reporter
             .set_message(format!("{} cancelled", name))
             .await;
@@ -322,7 +347,7 @@ async fn run_single_tool_attempt(
     };
 
     let status = loop {
-        if let Err(_e) = ctrl_c_state.check_cancellation() {
+        if let Err(_e) = tokens.state.check_cancellation() {
             progress_reporter
                 .set_message(format!("{} cancelled", name))
                 .await;
@@ -369,7 +394,7 @@ async fn run_single_tool_attempt(
             result
         });
 
-        if ctrl_c_state.is_cancel_requested() || ctrl_c_state.is_exit_requested() {
+        if tokens.state.is_cancel_requested() || tokens.state.is_exit_requested() {
             token.cancel();
             return ToolExecutionStatus::Cancelled;
         }
@@ -387,7 +412,7 @@ async fn run_single_tool_attempt(
         let wait_subject = format!("Tool '{}'", name);
 
         let control = loop {
-            let cancel_notifier = ctrl_c_notify.notified();
+            let cancel_notifier = tokens.notify.notified();
             tokio::pin!(cancel_notifier);
             let keepalive_sleep = tokio::time::sleep_until(next_keepalive_at);
             tokio::pin!(keepalive_sleep);
@@ -395,7 +420,7 @@ async fn run_single_tool_attempt(
             let control = tokio::select! {
                 biased;
                 _ = &mut cancel_notifier => {
-                    if let Err(_e) = ctrl_c_state.check_cancellation() {
+                    if let Err(_e) = tokens.state.check_cancellation() {
                         token.cancel();
                         ExecutionControl::Cancelled
                     } else {

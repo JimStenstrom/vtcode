@@ -157,7 +157,7 @@ pub(super) async fn spool_output_if_needed(
         Ok(log_path)
     })
     .await
-    .map_err(|_| anyhow::anyhow!("Spool thread panicked"))?;
+    .map_err(|e| anyhow::anyhow!("Spool thread panicked: {e}"))?;
 
     // join_result is inner Result<PathBuf, anyhow::Error>
     let path = join_result?;

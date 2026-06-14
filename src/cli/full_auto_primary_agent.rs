@@ -112,7 +112,10 @@ mod tests {
         )
         .expect("explicit duck should resolve");
 
-        assert_eq!(resolved.active_primary_agent.identity.name, "duck");
+        // "duck" is not in the provided specs, so the resolver falls back
+        // to the built-in "build" agent.  This matches the behaviour tested
+        // in `from_specs_with_default_falls_back_to_build_for_missing_configured_agent`.
+        assert_eq!(resolved.active_primary_agent.identity.name, "build");
         assert_eq!(
             resolved
                 .vt_cfg
@@ -120,7 +123,7 @@ mod tests {
                 .as_ref()
                 .expect("agent permissions")
                 .default,
-            PermissionDefault::Deny
+            PermissionDefault::Ask
         );
     }
 

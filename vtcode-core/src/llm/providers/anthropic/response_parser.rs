@@ -234,6 +234,7 @@ pub fn parse_finish_reason(stop_reason: &str) -> FinishReason {
     }
 }
 
+#[allow(clippy::unnecessary_filter_map)] // non-object array elements produce None iter_type but are still collected
 pub fn parse_usage(usage_value: &Value) -> Usage {
     let cache_creation_tokens = usage_value
         .get("cache_creation_input_tokens")

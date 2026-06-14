@@ -198,7 +198,6 @@ impl OpenAIProvider {
         }
     }
 
-    #[expect(clippy::too_many_arguments)]
     pub fn from_config(
         api_key: Option<String>,
         openai_chatgpt_auth: Option<OpenAIChatGptAuthHandle>,

@@ -450,7 +450,6 @@ struct PaletteCoordinator<'a> {
 }
 
 impl<'a> PaletteCoordinator<'a> {
-    #[expect(clippy::too_many_arguments)]
     async fn handle_submit(
         &mut self,
         renderer: &mut AnsiRenderer,

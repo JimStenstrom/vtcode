@@ -156,10 +156,13 @@ impl ProgressReporter {
     }
 
     /// Get the current progress as a percentage (0-100)
+    #[allow(clippy::cast_sign_loss)] // current/total are u64 so ratio is always non-negative
     pub async fn percentage(&self) -> u8 {
         let (current, total, _, _) = self.state.get_progress().await;
         if total > 0 {
-            ((current as f64 / total as f64) * 100.0).round() as u8
+            ((current as f64 / total as f64) * 100.0)
+                .round()
+                .clamp(0.0, 100.0) as u8
         } else {
             0
         }
@@ -208,12 +211,13 @@ impl ProgressInfo {
 }
 
 /// Format an ETA duration as a human-readable string
+#[allow(clippy::cast_sign_loss)] // secs is u64 from Duration::as_secs(), always non-negative
 fn format_eta(duration: Duration) -> String {
     let secs = duration.as_secs();
     if secs < 60 {
         format!("{}s", secs)
     } else if secs < 3600 {
-        format!("{}m", (secs as f64 / 60.0).ceil() as u64)
+        format!("{}m", (secs as f64 / 60.0).ceil().max(0.0) as u64)
     } else {
         let hours = secs / 3600;
         let minutes = (secs % 3600).div_ceil(60); // Round up to nearest minute

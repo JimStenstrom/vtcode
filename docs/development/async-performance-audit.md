@@ -23,7 +23,7 @@ Each module was reviewed for:
 ### Critical
 
 1. Awaiting observer hooks while cache write locks are held
-- File: `vtcode-tools/src/cache.rs`
+- File: `vtcode-core/src/tools/registry/cache.rs`
 - Impact: lock contention amplification, potential stall chains under load
 - Status: fixed in this batch
 
@@ -50,7 +50,7 @@ Each module was reviewed for:
 
 ### 1) Cache lock/await safety remediation
 
-Updated `vtcode-tools/src/cache.rs`:
+Updated `vtcode-core/src/tools/registry/cache.rs`:
 
 - `insert_arc`:
   - removed `await` while `entries/access_order` locks are held
@@ -76,7 +76,7 @@ Outcome: lower-overhead lock path and simpler critical sections in notification 
 
 ### 3) KISS/DRY follow-up pass
 
-Updated `vtcode-tools/src/cache.rs`:
+Updated `vtcode-core/src/tools/registry/cache.rs`:
 
 - simplified `insert_arc` lock scope using a single inner block (removed explicit `drop(...)`)
 - emit manual-eviction observer events only when an entry was actually removed
@@ -109,7 +109,7 @@ Updated `vtcode-core/src/tools/registry/executors.rs`:
 
 ### 6) Final KISS/DRY + hot-path cleanup pass
 
-Updated `vtcode-tools/src/cache.rs`:
+Updated `vtcode-core/src/tools/registry/cache.rs`:
 
 - `insert_arc` now removes prior key occurrence from LRU order before re-inserting
   - avoids duplicate key entries in access queue and keeps eviction order tight

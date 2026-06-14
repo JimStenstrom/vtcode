@@ -40,14 +40,12 @@ pub async fn handle_skills_create(skill_path: &Path) -> Result<()> {
         ))
     );
     println!(
-        "  {} {}",
-        style("SKILL.md").bold(),
-        "Skill metadata and instructions"
+        "  {} Skill metadata and instructions",
+        style("SKILL.md").bold()
     );
     println!(
-        "  {} {}",
-        style("scripts/").bold(),
-        "Optional: executable scripts"
+        "  {} Optional: executable scripts",
+        style("scripts/").bold()
     );
     println!();
     println!("{}", style("Next steps:").bold());

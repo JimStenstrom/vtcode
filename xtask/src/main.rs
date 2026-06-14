@@ -311,7 +311,7 @@ fn check_file_deps(
     let toml_doc: toml_edit::DocumentMut = toml_content.parse()?;
 
     for section in &["dependencies", "dev-dependencies", "build-dependencies"] {
-        let Some(table) = toml_doc.get(*section).and_then(|item| item.as_table_like()) else {
+        let Some(table) = toml_doc.get(section).and_then(|item| item.as_table_like()) else {
             continue;
         };
         for (dep_name, entry) in table.iter() {
@@ -336,15 +336,14 @@ fn check_file_deps(
             // Skip `version.workspace = true` entries -- they auto-track and
             // cannot drift. In TOML this appears as a subtable { workspace = true }
             // rather than a plain string value.
-            if let Some(item) = version_item {
-                if item
+            if let Some(item) = version_item
+                && item
                     .as_table_like()
                     .and_then(|t| t.get("workspace"))
                     .and_then(|v| v.as_bool())
                     == Some(true)
-                {
-                    continue;
-                }
+            {
+                continue;
             }
 
             if let Some(ver_str) = version_item.and_then(|v| v.as_str()) {

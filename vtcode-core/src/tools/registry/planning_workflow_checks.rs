@@ -47,9 +47,8 @@ impl ToolRegistry {
 
         // Keep adaptive task tracker available in all modes.
         let canonical = canonical_tool_name(tool_name);
-        match canonical {
-            tools::TASK_TRACKER => return true,
-            _ => {}
+        if canonical == tools::TASK_TRACKER {
+            return true;
         }
 
         let intent = crate::tools::tool_intent::classify_tool_intent(tool_name, args);

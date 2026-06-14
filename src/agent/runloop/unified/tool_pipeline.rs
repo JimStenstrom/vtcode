@@ -1,6 +1,20 @@
+use std::sync::Arc;
 use std::time::Duration;
 
+use tokio::sync::Notify;
+
+use crate::agent::runloop::unified::state::CtrlCState;
+
 mod cache;
+
+/// Bundles the Ctrl+C state and notification handle together to reduce
+/// parameter counts in internal tool-pipeline functions.
+#[derive(Clone)]
+pub(super) struct CancellationTokens {
+    pub state: Arc<CtrlCState>,
+    pub notify: Arc<Notify>,
+}
+
 mod execution;
 mod execution_attempts;
 mod execution_events;

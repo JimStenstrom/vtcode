@@ -258,6 +258,7 @@ impl OpenRouterProvider {
     /// Returns `Ok(Some(response))` if the fallback succeeds, `Ok(None)` if the
     /// condition doesn't match (caller should try the next fallback), and `Err`
     /// for rate-limit or combined error failures.
+    #[allow(clippy::too_many_arguments)] // fallback dispatcher, all params needed
     async fn try_feature_fallback(
         &self,
         request: &LLMRequest,

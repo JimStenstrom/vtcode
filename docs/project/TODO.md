@@ -4,4 +4,4 @@ some components like quote, table are not wrapped properly and just get cut off 
 
 ---
 
-audit vtcode-\* crates and check if can merged combines any similiar to reduce reduntdant.
+audit vtcode-\* crates and check if can merged combines any similiar to reduce reduntdant. don;t need check tests

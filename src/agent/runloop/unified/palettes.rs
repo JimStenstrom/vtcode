@@ -397,7 +397,6 @@ pub(crate) fn build_lightweight_palette_view<'a>(
     prepare_lightweight_model_palette_view(LIGHTWEIGHT_MODEL_ACTION_PREFIX, config, vt_cfg)
 }
 
-#[expect(clippy::too_many_arguments)]
 pub(crate) async fn refresh_runtime_config_from_manager(
     renderer: &mut AnsiRenderer,
     handle: &InlineHandle,
@@ -455,7 +454,6 @@ pub(crate) async fn refresh_runtime_config_from_manager(
     Ok(())
 }
 
-#[expect(clippy::too_many_arguments)]
 pub(crate) async fn handle_palette_selection(
     palette: ActivePalette,
     selection: InlineListSelection,

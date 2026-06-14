@@ -73,7 +73,6 @@ pub fn maybe_parse_apply_patch_from_command(command: &[String]) -> Option<String
 ///
 /// This function checks if a shell command is attempting to apply a patch
 /// and redirects it through the proper patch application flow.
-#[expect(clippy::too_many_arguments)]
 pub async fn intercept_apply_patch(
     command: &[String],
     cwd: &Path,
@@ -103,7 +102,7 @@ pub async fn intercept_apply_patch(
         return Ok(None);
     }
 
-    // Path safety: ensure the working directory is contained within the session workspace.
+    // Ensure the working directory is contained within the session workspace.
     // The session workspace is owned by the harness kernel and exposed via the tool
     // session trait. This prevents intercepting a patch whose target is outside the
     // workspace sandbox.

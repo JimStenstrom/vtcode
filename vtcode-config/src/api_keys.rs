@@ -196,6 +196,11 @@ fn get_custom_api_key_from_secure_storage(provider: &str) -> Result<Option<Strin
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Mutex;
+
+    // Serialise all env-override tests so that one test's Drop restore cannot
+    // overwrite another test's set.
+    static ENV_TEST_LOCK: Mutex<()> = Mutex::new(());
 
     struct EnvOverrideGuard {
         key: &'static str,
@@ -220,6 +225,7 @@ mod tests {
     where
         F: FnOnce(),
     {
+        let _lock = ENV_TEST_LOCK.lock().expect("env test lock poisoned");
         let _guard = EnvOverrideGuard::set(key, value);
         f();
     }
@@ -228,6 +234,7 @@ mod tests {
     where
         F: FnOnce(),
     {
+        let _lock = ENV_TEST_LOCK.lock().expect("env test lock poisoned");
         let _guards: Vec<_> = overrides
             .iter()
             .map(|(key, value)| EnvOverrideGuard::set(key, *value))

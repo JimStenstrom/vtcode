@@ -30,7 +30,6 @@ use crate::agent::runloop::welcome::SessionBootstrap;
 use std::collections::BTreeSet;
 use std::path::PathBuf;
 
-#[expect(clippy::too_many_arguments)]
 pub(crate) struct InteractionLoopContext<'a> {
     pub thread_id: &'a str,
     pub active_thread_label: &'a str,

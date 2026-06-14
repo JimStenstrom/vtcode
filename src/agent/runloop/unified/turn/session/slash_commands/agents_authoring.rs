@@ -867,7 +867,7 @@ async fn prompt_max_turns(
         PromptTextResult::Value(value) => {
             let parsed = value
                 .parse::<usize>()
-                .map_err(|_| anyhow!("Max turns must be a positive integer"))?;
+                .map_err(|e| anyhow!("Max turns must be a positive integer: {e}"))?;
             if parsed == 0 {
                 bail!("Max turns must be a positive integer");
             }

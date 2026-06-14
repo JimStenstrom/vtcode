@@ -162,6 +162,11 @@ This document serves as an index of all VT Code documentation. When users ask qu
   - **Topics**: Overview, Architecture, Basic Usage, Parameter Reference, Common Patterns
   - **User Questions**: "What can you tell me about grep_file Tool Guide?", "How does Overview work?", "How does Architecture work?"
 
+- **File**: `docs/development/vtcode-crate-audit.md`
+  - **Content**: vtcode-* Crate Audit Report
+  - **Topics**: Workspace Overview, MERGE RECOMMENDATIONS, RE-EXPORT CLEANUP (in vtcode-core), TEST DUPLICATES TO ELIMINATE, IMPLEMENTATION ORDER
+  - **User Questions**: "What can you tell me about vtcode-* Crate Audit Report?", "How does Workspace Overview work?", "How does MERGE RECOMMENDATIONS work?"
+
 ### Editor Integrations
 
 - **File**: `docs/ide/cursor-windsurf-setup.md`

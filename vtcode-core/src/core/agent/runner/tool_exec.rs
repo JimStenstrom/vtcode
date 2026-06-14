@@ -252,6 +252,7 @@ fn finish_successful_tool_output(
     );
 }
 
+#[allow(clippy::too_many_arguments)] // internal pipeline function, all params needed
 fn apply_tool_success(
     runner: &AgentRunner,
     runtime: &mut AgentRuntime,

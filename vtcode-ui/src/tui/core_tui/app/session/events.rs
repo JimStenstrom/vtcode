@@ -173,18 +173,17 @@ pub(super) fn process_key(session: &mut Session, key: KeyEvent) -> Option<Inline
                 // Synchronous preview: fire the callback and sync session theme
                 // before returning so the render picks up the preview in the
                 // same frame as the cursor movement.
-                if let Some(ref cb) = session.preview_callback {
-                    if let CoreInlineEvent::Overlay(OverlayEvent::SelectionChanged(
+                if let Some(ref cb) = session.preview_callback
+                    && let CoreInlineEvent::Overlay(OverlayEvent::SelectionChanged(
                         OverlaySelectionChange::List(ref selection),
                     )) = event
-                    {
-                        let _ = cb(Some(selection));
-                        if theme::has_preview_theme() {
-                            let styles = theme::active_styles();
-                            let inline_theme = theme_from_styles(&styles);
-                            session.core.theme = inline_theme;
-                            session.core.styles.set_theme(session.core.theme.clone());
-                        }
+                {
+                    let _ = cb(Some(selection));
+                    if theme::has_preview_theme() {
+                        let styles = theme::active_styles();
+                        let inline_theme = theme_from_styles(&styles);
+                        session.core.theme = inline_theme;
+                        session.core.styles.set_theme(session.core.theme.clone());
                     }
                 }
                 return Some(event.into());

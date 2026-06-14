@@ -105,7 +105,6 @@ fn emit_turn_metric_log(
 /// - Handling pipeline output (printing to UI)
 /// - Running post-tool-use hooks
 /// - Dispatching MCP events
-#[expect(clippy::too_many_arguments)]
 pub(crate) async fn handle_tool_execution_result<'a>(
     t_ctx: &mut super::handlers::ToolOutcomeContext<'a, '_>,
     tool_call_id: String,

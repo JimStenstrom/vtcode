@@ -109,7 +109,7 @@ impl HarnessEventEmitter {
             .inner
             .open_responses
             .lock()
-            .map_err(|_| anyhow::anyhow!("Open Responses lock poisoned"))?;
+            .map_err(|e| anyhow::anyhow!("Open Responses lock poisoned: {e}"))?;
         *guard = Some(OpenResponsesState {
             integration,
             writer,
@@ -131,7 +131,7 @@ impl HarnessEventEmitter {
             .inner
             .atif
             .lock()
-            .map_err(|_| anyhow::anyhow!("ATIF lock poisoned"))?;
+            .map_err(|e| anyhow::anyhow!("ATIF lock poisoned: {e}"))?;
         *guard = Some(AtifState {
             builder,
             output_path,
@@ -172,7 +172,7 @@ impl HarnessEventEmitter {
                 .inner
                 .writer
                 .lock()
-                .map_err(|_| anyhow::anyhow!("Harness log lock poisoned"))?;
+                .map_err(|e| anyhow::anyhow!("Harness log lock poisoned: {e}"))?;
             let serialized =
                 serde_json::to_string(&payload).context("Failed to serialize harness event")?;
             writer
@@ -318,7 +318,6 @@ pub(crate) fn turn_failed_event(message: impl Into<String>, usage: Option<Usage>
     })
 }
 
-#[expect(clippy::too_many_arguments)]
 pub(crate) fn thread_completed_event(
     thread_id: impl Into<String>,
     session_id: impl Into<String>,

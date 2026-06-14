@@ -88,16 +88,16 @@ pub fn detect_mimo_auth_method(api_key: &str, base_url: Option<&str>) -> MiMoAut
         return MiMoAuthMethod::PayAsYouGo;
     }
     // If no key prefix hint, check base URL
-    if let Some(url) = base_url {
-        if url.contains("token-plan") {
-            return MiMoAuthMethod::TokenPlan;
-        }
+    if let Some(url) = base_url
+        && url.contains("token-plan")
+    {
+        return MiMoAuthMethod::TokenPlan;
     }
     // Check env var for base URL override
-    if let Ok(url) = std::env::var(env_vars::MIMO_TOKEN_PLAN_BASE_URL) {
-        if !url.trim().is_empty() {
-            return MiMoAuthMethod::TokenPlan;
-        }
+    if let Ok(url) = std::env::var(env_vars::MIMO_TOKEN_PLAN_BASE_URL)
+        && !url.trim().is_empty()
+    {
+        return MiMoAuthMethod::TokenPlan;
     }
     MiMoAuthMethod::PayAsYouGo
 }

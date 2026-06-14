@@ -66,6 +66,7 @@ fn structured_failure(tool_name: &str, error: &anyhow::Error) -> ToolExecutionEr
     ToolExecutionError::from_anyhow(tool_name, error, 0, false, false, Some("unified_runloop"))
 }
 
+#[allow(clippy::too_many_arguments)] // pipeline entry point, all params needed
 pub(crate) async fn run_tool_call(
     ctx: &mut RunLoopContext<'_>,
     call: &vtcode_core::llm::provider::ToolCall,
@@ -115,6 +116,7 @@ pub(crate) async fn run_tool_call(
     .await
 }
 
+#[allow(clippy::too_many_arguments)] // pipeline entry point, all params needed
 pub(crate) async fn run_tool_call_with_args(
     ctx: &mut RunLoopContext<'_>,
     tool_item_id: String,
@@ -478,6 +480,7 @@ async fn check_tool_safety(
     }
 }
 
+#[allow(clippy::too_many_arguments)] // internal pipeline function, all params needed
 async fn check_tool_permission(
     ctx: &mut RunLoopContext<'_>,
     tool_call_id: &str,
@@ -577,6 +580,7 @@ fn build_tool_permissions_context<'a>(
     }
 }
 
+#[allow(clippy::too_many_arguments)] // internal pipeline function, all params needed
 async fn apply_post_execution_side_effects(
     ctx: &mut RunLoopContext<'_>,
     tool_item_id: &str,

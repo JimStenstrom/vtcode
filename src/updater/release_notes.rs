@@ -44,8 +44,11 @@ fn extract_highlight_items(body: &str) -> Vec<String> {
             continue;
         }
 
-        // Stop at the next major section (## or ### that isn't a sub-header)
-        if trimmed.starts_with("## ") {
+        // Stop at the next major section: ## headers or ### headers that
+        // are NOT #### sub-headers (e.g. "### Other Changes").
+        if trimmed.starts_with("## ")
+            || (trimmed.starts_with("### ") && !trimmed.starts_with("#### "))
+        {
             break;
         }
 

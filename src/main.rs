@@ -1,6 +1,7 @@
 //! VT Code - Research-preview Rust coding agent
 //!
 //! Thin binary entry point that delegates to modular CLI handlers.
+#![allow(clippy::large_futures)] // deep async call stacks are an architectural trade-off
 
 use anyhow::{Context, Result};
 

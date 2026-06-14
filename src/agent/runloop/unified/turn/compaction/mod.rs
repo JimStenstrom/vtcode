@@ -214,13 +214,18 @@ enum FileReadToolKind {
     UnifiedFileRead,
 }
 
+#[allow(clippy::cast_sign_loss)] // context_size is usize (non-negative), ratio is positive
 pub(crate) fn resolve_compaction_threshold(
     configured_threshold: Option<u64>,
     context_size: usize,
 ) -> Option<u64> {
     let configured_threshold = configured_threshold.filter(|threshold| *threshold > 0);
     let derived_threshold = if context_size > 0 {
-        Some(((context_size as f64) * DEFAULT_COMPACTION_TRIGGER_RATIO).round() as u64)
+        Some(
+            ((context_size as f64) * DEFAULT_COMPACTION_TRIGGER_RATIO)
+                .round()
+                .max(0.0) as u64,
+        )
     } else {
         None
     };

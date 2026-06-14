@@ -1958,7 +1958,7 @@ fn build_atomic_rule_yaml(request: &StructuralSearchRequest, lang: &str) -> Stri
         if !utils.is_empty() {
             yaml.push_str("utils:\n");
             for (util_name, util_rule) in utils {
-                let _ = write!(yaml, "  {}:\n", util_name);
+                let _ = writeln!(yaml, "  {}:", util_name);
                 value_to_yaml(&mut yaml, util_rule, 4);
             }
         }
@@ -2113,7 +2113,7 @@ fn build_atomic_rule_yaml(request: &StructuralSearchRequest, lang: &str) -> Stri
         if !transform.is_empty() {
             yaml.push_str("transform:\n");
             for (var_name, transform_def) in transform {
-                let _ = write!(yaml, "  {}:\n", var_name);
+                let _ = writeln!(yaml, "  {}:", var_name);
                 value_to_yaml(&mut yaml, transform_def, 4);
             }
         }
@@ -2691,7 +2691,7 @@ fn build_fixconfig_rule_yaml(
             yaml.push_str("transform:\n");
             for (var_name, transform_def) in transform {
                 use std::fmt::Write as _;
-                let _ = write!(yaml, "  {}:\n", var_name);
+                let _ = writeln!(yaml, "  {}:", var_name);
                 value_to_yaml(&mut yaml, transform_def, 4);
             }
         }
@@ -3501,8 +3501,7 @@ fn validate_metavariable_syntax(pattern: &str) -> Result<()> {
     for mat in AST_GREP_DOLLAR_TOKEN_RE.find_iter(pattern) {
         let token = mat.as_str();
         if !AST_GREP_VALID_METAVAR_RE.is_match(token) {
-            if token.starts_with("$$$") {
-                let rest = &token[3..];
+            if let Some(rest) = token.strip_prefix("$$$") {
                 if rest.is_empty()
                     || !rest
                         .chars()

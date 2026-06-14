@@ -100,7 +100,6 @@ pub(crate) fn status_line_shows_auto_components(status_config: Option<&StatusLin
     }
 }
 
-#[expect(clippy::too_many_arguments)]
 pub(crate) async fn update_input_status_if_changed(
     handle: &InlineHandle,
     workspace: &Path,

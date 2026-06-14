@@ -48,7 +48,6 @@ use vtcode_core::llm::provider::MessageRole;
 use vtcode_core::utils::session_archive;
 use vtcode_ui::tui::app::ArchivedPromptEntry;
 
-#[expect(clippy::too_many_arguments)]
 pub(super) async fn run_single_agent_loop_unified_impl(
     config: &CoreAgentConfig,
     initial_vt_cfg: Option<VTCodeConfig>,
@@ -511,11 +510,11 @@ pub(super) async fn run_single_agent_loop_unified_impl(
         }
 
         // Show release notes on first launch after update
-        if !startup_update_requested_restart {
-            if let Some((ref version, ref highlights)) = session_bootstrap.release_highlights {
-                crate::updater::display_release_notes(&handle, version, highlights);
-                crate::updater::record_current_version_seen();
-            }
+        if !startup_update_requested_restart
+            && let Some((ref version, ref highlights)) = session_bootstrap.release_highlights
+        {
+            crate::updater::display_release_notes(&handle, version, highlights);
+            crate::updater::record_current_version_seen();
         }
 
         if !startup_update_requested_restart {

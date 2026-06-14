@@ -77,8 +77,8 @@ pub(super) fn parse_compact_command(args: &str) -> Result<CompactConversationCom
             "--max-output-tokens" => {
                 let value = next_value("--max-output-tokens", &mut index)?;
                 options.max_output_tokens =
-                    Some(value.parse::<u32>().map_err(|_| {
-                        format!("Invalid value for --max-output-tokens: {}", value)
+                    Some(value.parse::<u32>().map_err(|e| {
+                        format!("Invalid value for --max-output-tokens: {value}: {e}")
                     })?);
             }
             "--reasoning-effort" => {
@@ -133,8 +133,8 @@ pub(super) fn parse_compact_command(args: &str) -> Result<CompactConversationCom
                     options.instructions = Some(value.to_string());
                     index += 1;
                 } else if let Some(value) = token.strip_prefix("--max-output-tokens=") {
-                    options.max_output_tokens = Some(value.parse::<u32>().map_err(|_| {
-                        format!("Invalid value for --max-output-tokens: {}", value)
+                    options.max_output_tokens = Some(value.parse::<u32>().map_err(|e| {
+                        format!("Invalid value for --max-output-tokens: {value}: {e}")
                     })?);
                     index += 1;
                 } else if let Some(value) = token.strip_prefix("--reasoning-effort=") {

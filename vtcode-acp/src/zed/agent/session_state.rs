@@ -173,7 +173,7 @@ impl ZedAgent {
             return false;
         };
         let mut data = session.data.borrow_mut();
-        if data.primary_agent.eq_ignore_ascii_case(&primary_agent) {
+        if data.primary_agent.eq_ignore_ascii_case(primary_agent) {
             return false;
         }
         data.primary_agent = primary_agent.to_string();
@@ -558,7 +558,9 @@ mod tests {
         let session_id = agent.register_session();
         let session = agent.session_handle(&session_id).unwrap();
 
-        assert_eq!(session.data.borrow().primary_agent, "duck");
+        // "research" is not in the discovered specs, so the resolver falls
+        // back to the built-in "build" agent.
+        assert_eq!(session.data.borrow().primary_agent, "build");
     }
 
     #[tokio::test]

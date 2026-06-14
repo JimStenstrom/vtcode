@@ -1206,14 +1206,13 @@ pub(crate) async fn ensure_tool_permission_with_call_id<S: UiSession + ?Sized>(
                 render_hook_messages(renderer, &outcome.messages)?;
                 if let Some(decision) = outcome.decision {
                     let update_messages = if let Some(permissions_state) = permissions_state {
-                        let update_messages = apply_permission_hook_updates(
+                        apply_permission_hook_updates(
                             tool_registry,
                             permissions_state,
                             decision.behavior,
                             &decision.permission_updates,
                         )
-                        .await;
-                        update_messages
+                        .await
                     } else if !decision.permission_updates.is_empty() {
                         vec![vtcode_core::hooks::HookMessage::warning(
                             "PermissionRequest hook returned permission updates without runtime permission state; ignoring updates.",

@@ -17,6 +17,8 @@ use crate::agent::runloop::unified::state::CtrlCState;
 use crate::agent::runloop::unified::tool_reads::spool_chunk_read_path;
 use crate::agent::runloop::unified::ui_interaction::PlaceholderSpinner;
 
+use super::CancellationTokens;
+
 use super::cache::{
     cache_target_path, create_enhanced_cache_key, is_tool_cacheable, stream_command_parts,
 };
@@ -165,6 +167,7 @@ impl CacheLookupPhase {
     }
 }
 
+#[allow(clippy::too_many_arguments)] // pipeline function, all params needed
 pub(super) async fn execute_with_cache_and_streaming(
     registry: &mut ToolRegistry,
     tool_result_cache: &Arc<tokio::sync::RwLock<ToolResultCache>>,
@@ -174,6 +177,44 @@ pub(super) async fn execute_with_cache_and_streaming(
     args_val: &Value,
     ctrl_c_state: &Arc<CtrlCState>,
     ctrl_c_notify: &Arc<Notify>,
+    handle: &vtcode_ui::tui::app::InlineHandle,
+    harness_emitter: Option<HarnessEventEmitter>,
+    vt_cfg: Option<&VTCodeConfig>,
+    max_tool_retries: usize,
+    exec_settlement_mode: ExecSettlementMode,
+    safety_prevalidated: bool,
+) -> RuntimeToolExecution {
+    let tokens = CancellationTokens {
+        state: ctrl_c_state.clone(),
+        notify: ctrl_c_notify.clone(),
+    };
+    execute_with_cache_and_streaming_inner(
+        registry,
+        tool_result_cache,
+        name,
+        tool_item_id,
+        tool_call_id,
+        args_val,
+        &tokens,
+        handle,
+        harness_emitter,
+        vt_cfg,
+        max_tool_retries,
+        exec_settlement_mode,
+        safety_prevalidated,
+    )
+    .await
+}
+
+#[allow(clippy::too_many_arguments)] // internal pipeline function, all params needed
+async fn execute_with_cache_and_streaming_inner(
+    registry: &mut ToolRegistry,
+    tool_result_cache: &Arc<tokio::sync::RwLock<ToolResultCache>>,
+    name: &str,
+    tool_item_id: &str,
+    tool_call_id: &str,
+    args_val: &Value,
+    tokens: &CancellationTokens,
     handle: &vtcode_ui::tui::app::InlineHandle,
     harness_emitter: Option<HarnessEventEmitter>,
     vt_cfg: Option<&VTCodeConfig>,
@@ -270,8 +311,8 @@ pub(super) async fn execute_with_cache_and_streaming(
         registry,
         name,
         args_val,
-        ctrl_c_state,
-        ctrl_c_notify,
+        &tokens.state,
+        &tokens.notify,
         progress_reporter.as_ref(),
         max_tool_retries,
         exec_settlement_mode,
