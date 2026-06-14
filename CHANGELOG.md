@@ -2,6 +2,26 @@
 
 All notable changes to vtcode will be documented in this file.
 ## v0.73.2 - 2026-01-29
+## 0.131.1 - 2026-06-14
+
+### Highlights
+#### Bug Fixes
+
+- Add libc dependency and create no-console-log test and snapshot files (a6c4b966) 
+- Update page size to read all 7 bytes in detailed file handling (1fa15165) 
+- Remove redundant 'action' parameter from noise filter (ff93faf2) 
+#### Features
+
+- Enhance file reading guidance and tracking for unified_exec commands (82628462) 
+- Implement byte-range reading for large files with offset and page size parameters (46faf766) 
+### Other Changes
+#### Other
+
+- Update TODO (9357e9e6) 
+#### Refactors
+
+- Streamline file reading logic and enhance line-numbered output (026b760d) 
+- Replace truncate_middle with truncate_path_middle for better path handling (42e0b8b1) 
 ## 0.131.0 - 2026-06-14
 
 ### Highlights
