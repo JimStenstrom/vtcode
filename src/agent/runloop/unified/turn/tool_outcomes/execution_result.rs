@@ -97,6 +97,29 @@ fn emit_turn_metric_log(
     );
 }
 
+fn extract_written_path(tool_name: &str, args: &serde_json::Value) -> Option<String> {
+    use vtcode_core::config::constants::tools;
+
+    match tool_name {
+        tools::UNIFIED_FILE => {
+            let action = args.get("action").and_then(serde_json::Value::as_str)?;
+            match action {
+                "write" | "edit" | "patch" | "delete" | "move" | "copy" => args
+                    .get("path")
+                    .or_else(|| args.get("destination"))
+                    .and_then(serde_json::Value::as_str)
+                    .map(|s| s.to_string()),
+                _ => None,
+            }
+        }
+        tools::APPLY_PATCH => args
+            .get("path")
+            .and_then(serde_json::Value::as_str)
+            .map(|s| s.to_string()),
+        _ => None,
+    }
+}
+
 /// Main handler for tool execution results.
 ///
 /// This function coordinates:
@@ -202,6 +225,11 @@ async fn handle_success<'a>(
             .ctx
             .harness_state
             .record_successful_readonly_signature(signature);
+    } else {
+        // Record written files for read-after-write guard
+        if let Some(path) = extract_written_path(tool_name, args_val) {
+            t_ctx.ctx.harness_state.record_written_file(&path);
+        }
     }
     let mut turn_loop_ctx = t_ctx.ctx.as_turn_loop_context();
     let vt_cfg = turn_loop_ctx.vt_cfg;

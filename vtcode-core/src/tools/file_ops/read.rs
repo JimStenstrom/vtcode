@@ -652,15 +652,20 @@ impl FileOpsTool {
             ));
         }
 
+        let parent_dir = Path::new(path_str)
+            .parent()
+            .map(|p| p.to_string_lossy().to_string())
+            .unwrap_or_else(|| ".".to_string());
         Err(anyhow!(
-            "Error: File not found: {}. Tried paths: {}.{}",
+            "Error: File not found: {}. Tried paths: {}.{} Use unified_search action=list path=\"{}\" to discover available files.",
             path_str,
             potential_paths
                 .iter()
                 .map(|p| self.workspace_relative_display(p))
                 .collect::<Vec<_>>()
                 .join(", "),
-            self.missing_path_suggestion_suffix(path_str, PathSuggestionKind::File)
+            self.missing_path_suggestion_suffix(path_str, PathSuggestionKind::File),
+            parent_dir
         ))
     }
 }

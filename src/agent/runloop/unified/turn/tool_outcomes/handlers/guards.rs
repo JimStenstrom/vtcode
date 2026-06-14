@@ -18,7 +18,7 @@ use super::looping::{
 use super::{ValidationResult, build_failure_error_content};
 
 const SPOOL_CHUNK_GREP_PATTERN: &str = "warning|error|TODO";
-const MAX_CONSECUTIVE_SAME_FILE_READ_FAMILY_CALLS: usize = 12;
+const MAX_CONSECUTIVE_SAME_FILE_READ_FAMILY_CALLS: usize = 4;
 
 #[cold]
 fn push_guard_failure_messages(
@@ -140,6 +140,60 @@ fn build_repeated_file_read_family_error_content(target: &str) -> String {
         "repeated_read_family",
     )
     .to_string()
+}
+
+fn is_read_action(canonical_tool_name: &str, args: &Value) -> bool {
+    match canonical_tool_name {
+        tool_names::READ_FILE => true,
+        tool_names::UNIFIED_FILE => {
+            let action = args.get("action").and_then(Value::as_str).unwrap_or("read");
+            action.eq_ignore_ascii_case("read")
+        }
+        _ => false,
+    }
+}
+
+fn extract_read_path(args: &Value) -> Option<String> {
+    args.get("path")
+        .and_then(Value::as_str)
+        .map(|s| s.to_string())
+}
+
+#[cold]
+fn build_read_after_write_error(path: &str) -> String {
+    super::super::execution_result::build_error_content(
+        format!(
+            "File '{}' was just written in this turn. The write response includes a diff preview. Reuse the diff output or specify offset/limit for a specific range.",
+            path
+        ),
+        None,
+        None,
+        "read_after_write",
+    )
+    .to_string()
+}
+
+pub(super) fn enforce_read_after_write_guard(
+    ctx: &mut TurnProcessingContext<'_>,
+    tool_call_id: &str,
+    canonical_tool_name: &str,
+    effective_args: &Value,
+) -> Option<ValidationResult> {
+    if !is_read_action(canonical_tool_name, effective_args) {
+        return None;
+    }
+
+    let Some(path) = extract_read_path(effective_args) else {
+        return None;
+    };
+
+    if !ctx.harness_state.was_recently_written(&path) {
+        return None;
+    }
+
+    let content = build_read_after_write_error(&path);
+    ctx.push_tool_response(tool_call_id, content);
+    Some(ValidationResult::Blocked)
 }
 
 pub(super) fn enforce_duplicate_task_tracker_create_guard<'a>(

@@ -1073,7 +1073,7 @@ impl Tool for TaskTrackerTool {
                             }
                         ]
                     },
-                    "description": "List of task descriptions or structured task items (used with 'create'; also supports bulk 'update' sync with optional [x]/[~]/[!]/[ ] prefixes and indentation for hierarchy in Planning workflow)."
+                    "description": "Task descriptions or structured items. Supports [x]/[~]/[!]/[ ] prefixes for status sync."
                 },
                 "index": {
                     "type": "integer",

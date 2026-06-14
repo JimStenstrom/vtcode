@@ -193,12 +193,11 @@ pub fn unified_file_parameters() -> Value {
             "new_str": {"type": "string", "description": "Replacement text for edit."},
             "patch": {"type": "string", "description": "Patch text in `*** Update File:` format, not unified diff."},
             "destination": {"type": "string", "description": "Destination for move or copy."},
-            "start_line": {"type": "integer", "description": "Read start line (1-indexed)."},
-            "end_line": {"type": "integer", "description": "Read end line (inclusive)."},
-            "offset": {"type": "integer", "description": "Read start line. Compact alias: `o`."},
+            "offset": {"type": "integer", "description": "Read start line (1-indexed). Compact alias: `o`."},
             "limit": {"type": "integer", "description": "Read line count. Compact alias: `l`."},
             "mode": {"type": "string", "description": "Read mode or write mode.", "default": "slice"},
             "condense": {"type": "boolean", "description": "Condense long output.", "default": true},
+            "raw": {"type": "boolean", "description": "Bypass LLM summarization and return full content. Use when you need exact file content, not a summary.", "default": false},
             "indentation": {
                 "description": "Indentation config. `true` uses defaults.",
                 "anyOf": [
@@ -267,21 +266,21 @@ pub fn unified_search_parameters() -> Value {
             "action": {
                 "type": "string",
                 "enum": ["grep", "list", "structural", "tools", "errors", "agent", "web", "skill"],
-                "description": "Action to perform. Default to `structural` for code or syntax-aware search, including read-only ast-grep `run` query, project scan, and project test workflows; use `grep` for raw text and `list` for file discovery. Refine and retry `grep` or `structural` here before switching tools."
+                "description": "Search action: grep (text), list (files), structural (ast-grep), tools, errors, agent, web, skill."
             },
             "workflow": {
                 "type": "string",
                 "enum": ["query", "scan", "test", "rewrite", "new", "apply"],
-                "description": "Structural workflow. `query` is the default parseable-pattern search and maps to read-only ast-grep `run`; `scan` maps to read-only ast-grep `scan` from config; `test` runs ast-grep rule tests; `rewrite` previews pattern-to-pattern replacements without applying them, supporting both simple string fixes via `rewrite` and advanced FixConfig rewrites via `fix_config` with `expand_start`/`expand_end` for range expansion; `apply` writes rewrites to disk (same parameters as `rewrite`); `new` scaffolds ast-grep projects, rules, tests, and utilities via `new_subcommand` and `new_name`.",
+                "description": "Structural workflow: query (search), scan (config rules), test (rule tests), rewrite (preview), apply (write), new (scaffold).",
                 "default": "query"
             },
-            "pattern": {"type": "string", "description": "For `grep` or `errors`, regex or literal text. For `list`, a glob filter for returned paths or names; nested globs such as `**/*.rs` promote `list` to recursive discovery. For `structural` `workflow=\"query\"`, valid parseable code for the selected language using ast-grep pattern syntax, not a raw code fragment; `$VAR` matches one named node, `$$$ARGS` matches zero or more nodes, `$$VAR` includes unnamed nodes, and `$_` suppresses capture. If a fragment fails, retry `action='structural'` with a larger parseable pattern such as a full function signature. At least one of `pattern` or `kind` is required for `workflow=\"query\"`. For `structural` `workflow=\"rewrite\"`, the pattern to match for replacement; required."},
-            "kind": {"type": "string", "description": "Ast-grep tree-sitter node kind for structural `workflow=\"query\"`. Matches nodes by their AST kind name directly, e.g. `function_item`, `call_expression`, `if_statement`. Supports ESQuery-style compound selectors: `A > B` (direct child), `A B` (descendant), `A + B` (immediate sibling), `A ~ B` (general sibling), and `A, B` (either). Also supports pseudo-selectors: `:has(selector)` or `:has(> selector)` for descendants/direct children, `:not(selector)` for exclusion, `:is(selector, ...)` for alternatives, `:nth-child(An+B)` or `:nth-child(An+B of selector)` for positional matching, and `:nth-last-child(position)` for reverse positional matching. Can be used alone or combined with `pattern`; when both are present, `kind` filters the pattern matches by node kind. At least one of `pattern` or `kind` is required for `workflow=\"query\"`."},
+            "pattern": {"type": "string", "description": "For grep: regex/literal. For list: glob filter. For structural: ast-grep pattern ($VAR=node, $$$ARGS=many). At least one of pattern or kind required for structural query."},
+            "kind": {"type": "string", "description": "Ast-grep node kind (e.g. function_item, call_expression). Supports >, +, ~, :has(), :not() selectors. Use alone or with pattern."},
             "path": {"type": "string", "description": "Directory or file path to search in. Used by `grep`, `list`, and structural `workflow=\"query\"|\"scan\"`. Public structural calls take one root per request even though raw ast-grep `run` can accept multiple paths.", "default": "."},
             "config_path": {"type": "string", "description": "Ast-grep config path for structural `workflow=\"scan\"` or `workflow=\"test\"`. Defaults to workspace `sgconfig.yml`."},
             "filter": {"type": "string", "description": "Ast-grep rule or test filter for structural `workflow=\"scan\"` or `workflow=\"test\"`. On `scan`, this maps to `--filter` over rule ids from config."},
             "lang": {"type": "string", "description": "Language for structural `workflow=\"query\"` or `workflow=\"rewrite\"`. Set it whenever the code language is known; required for debug_query and recommended for rewrite."},
-            "selector": {"type": "string", "description": "Ast-grep selector for structural `workflow=\"query\"` when the real match is a subnode inside the parseable pattern. Supports ESQuery-style pseudo-selectors: `:has(selector)`, `:not(selector)`, `:is(selector, ...)`, `:nth-child(An+B)`, and `:nth-child(An+B of selector)`. In YAML rules and `--kind` mode, `kind` also accepts compound selectors: `A > B` (direct child), `A B` (descendant), `A + B` (immediate sibling), `A ~ B` (general sibling), and `A, B` (either)."},
+            "selector": {"type": "string", "description": "Ast-grep selector when match is a subnode. Supports :has(), :not(), :is(), :nth-child()."},
             "strictness": {
                 "type": "string",
                 "enum": ["cst", "smart", "ast", "relaxed", "signature", "template"],
@@ -357,7 +356,7 @@ pub fn unified_search_parameters() -> Value {
             "no_ignore": {
                 "type": "array",
                 "items": {"type": "string", "enum": ["hidden", "dot", "exclude", "global", "parent", "vcs"]},
-                "description": "Control which ignore files ast-grep respects for structural workflows. `hidden` searches hidden files/dirs; `dot` skips .ignore files; `exclude` skips manually configured excludes; `global` skips global ignore files; `parent` skips parent directory ignores; `vcs` skips VCS ignore files."
+                "description": "Ignore file overrides: hidden, dot, exclude, global, parent, vcs."
             },
             "follow": {"type": "boolean", "description": "Follow symbolic links while traversing directories for structural workflows.", "default": false},
             "threads": {"type": "integer", "description": "Number of threads for ast-grep scan parallelism. 0 means auto. Only for `workflow=\"scan\"`.", "minimum": 0, "maximum": 256, "default": 0},

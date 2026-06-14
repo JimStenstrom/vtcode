@@ -172,6 +172,7 @@ pub(crate) struct HarnessTurnState {
     pub stop_hook_active: bool,
     pub seen_task_tracker_create_signatures: HashSet<String>,
     pub replaceable_task_tracker_block: Option<Vec<String>>,
+    pub recently_written_files: HashSet<String>,
     pub tool_budget_warning_emitted: bool,
     pub tool_budget_exhausted_emitted: bool,
     pub recovery_reason: Option<String>,
@@ -211,6 +212,7 @@ impl HarnessTurnState {
             stop_hook_active: false,
             seen_task_tracker_create_signatures: HashSet::new(),
             replaceable_task_tracker_block: None,
+            recently_written_files: HashSet::new(),
             tool_budget_warning_emitted: false,
             tool_budget_exhausted_emitted: false,
             recovery_reason: None,
@@ -466,6 +468,14 @@ impl HarnessTurnState {
     pub(crate) fn reset_file_read_family_streak(&mut self) {
         self.last_file_read_family_signature = None;
         self.consecutive_same_file_read_family_calls = 0;
+    }
+
+    pub(crate) fn record_written_file(&mut self, path: &str) {
+        self.recently_written_files.insert(path.to_string());
+    }
+
+    pub(crate) fn was_recently_written(&self, path: &str) -> bool {
+        self.recently_written_files.contains(path)
     }
 
     pub(crate) fn record_task_tracker_create_signature(&mut self, signature: String) -> bool {

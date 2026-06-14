@@ -39,8 +39,8 @@ use fallbacks::{
 pub(crate) use guards::max_consecutive_blocked_tool_calls_per_turn;
 use guards::{
     enforce_blocked_tool_call_guard, enforce_duplicate_task_tracker_create_guard,
-    enforce_repeated_read_only_call_guard, enforce_repeated_shell_run_guard,
-    enforce_spool_chunk_read_guard,
+    enforce_read_after_write_guard, enforce_repeated_read_only_call_guard,
+    enforce_repeated_shell_run_guard, enforce_spool_chunk_read_guard,
 };
 pub(crate) use handlers_batch::{execute_and_handle_tool_call, handle_tool_call_batch_prepared};
 pub(crate) use looping::low_signal_family_key;
@@ -400,6 +400,12 @@ pub(crate) async fn validate_tool_call<'a>(
         &canonical_tool_name,
         effective_args,
     ) {
+        return Ok(outcome);
+    }
+
+    if let Some(outcome) =
+        enforce_read_after_write_guard(ctx, tool_call_id, &canonical_tool_name, effective_args)
+    {
         return Ok(outcome);
     }
 

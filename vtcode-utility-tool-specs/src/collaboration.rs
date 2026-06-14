@@ -8,7 +8,7 @@ pub fn spawn_agent_parameters() -> Value {
         "type": "object",
         "properties": {
             "agent_type": {"type": "string", "description": "Subagent type or name to run."},
-            "message": {"type": "string", "description": "Task prompt for the child agent. The child receives the same tools as the parent and may spawn its own child agents."},
+            "message": {"type": "string", "description": "Task prompt for the child agent."},
             "items": {
                 "type": "array",
                 "description": "Structured context items for the child agent.",
@@ -17,12 +17,12 @@ pub fn spawn_agent_parameters() -> Value {
             "fork_context": {"type": "boolean", "description": "Seed the child with the current thread history.", "default": false},
             "model": {
                 "type": "string",
-                "description": "Optional subagent model override. Omit this field to reuse the parent session model. VT Code only honors this override when the current user turn explicitly asks for that model."
+                "description": "Model override. Omit to use parent model."
             },
-            "reasoning_effort": {"type": "string", "description": "Optional subagent reasoning effort override."},
+            "reasoning_effort": {"type": "string", "description": "Reasoning effort override."},
             "background": {
                 "type": "boolean",
-                "description": "Mark the delegated child thread as background-style work. This still creates a normal child agent thread in the current session; it does not launch the managed background subprocess runtime.",
+                "description": "Run agent in background. Returns immediately.",
                 "default": false
             },
             "max_turns": {
@@ -39,7 +39,7 @@ pub fn spawn_background_subprocess_parameters() -> Value {
         "type": "object",
         "properties": {
             "agent_type": {"type": "string", "description": "Background-enabled subagent type or name to run."},
-            "message": {"type": "string", "description": "Task prompt for the managed background subprocess. Use this for durable helper work that should be launched once and then managed outside the current foreground turn."},
+            "message": {"type": "string", "description": "Task prompt for the background subprocess."},
             "items": {
                 "type": "array",
                 "description": "Structured context items for the background subprocess.",
@@ -47,9 +47,9 @@ pub fn spawn_background_subprocess_parameters() -> Value {
             },
             "model": {
                 "type": "string",
-                "description": "Optional subagent model override. Omit this field to reuse the parent session model. VT Code only honors this override when the current user turn explicitly asks for that model."
+                "description": "Model override. Omit to use parent model."
             },
-            "reasoning_effort": {"type": "string", "description": "Optional subagent reasoning effort override."},
+            "reasoning_effort": {"type": "string", "description": "Reasoning effort override."},
             "max_turns": {
                 "type": "integer",
                 "description": "Optional turn limit for the launched background subprocess task before it reports readiness. Values below 4 are promoted to 4 for background launches."

@@ -515,8 +515,8 @@ fn summarized_tool_response_payload(
                 serde_json::Value::String(
                     "This summary contains sufficient context for most tasks. \
                      Do NOT re-read this file unless the summary is missing \
-                     specific line-level detail you need. Plan your next action \
-                     based on the summary first."
+                     specific line-level detail you need. Use raw=true to \
+                     bypass summarization if you need exact content."
                         .to_string(),
                 ),
             );
@@ -531,6 +531,17 @@ pub(super) async fn prepare_tool_response_content(
     args_val: &serde_json::Value,
     output: &serde_json::Value,
 ) -> String {
+    // Skip LLM summarization when raw=true is requested
+    if args_val
+        .get("raw")
+        .and_then(serde_json::Value::as_bool)
+        .unwrap_or(false)
+    {
+        let workspace_root = ctx.tool_registry.workspace_root().clone();
+        return maybe_inline_spooled_with_preview(workspace_root.as_path(), tool_name, output)
+            .await;
+    }
+
     let workspace_root = ctx.tool_registry.workspace_root().clone();
     let fallback =
         maybe_inline_spooled_with_preview(workspace_root.as_path(), tool_name, output).await;

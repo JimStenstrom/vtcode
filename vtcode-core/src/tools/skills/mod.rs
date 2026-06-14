@@ -839,7 +839,7 @@ impl Tool for LoadSkillResourceTool {
     }
 
     fn description(&self) -> &str {
-        "Access Level 3 resources (scripts, templates, technical docs) referenced in a skill's SKILL.md. Use this to read files from 'scripts/', 'references/', or 'assets/' when the high-level instructions require them."
+        "Access skill resources (scripts, templates, docs) from skill directories."
     }
 
     fn parameter_schema(&self) -> Option<Value> {

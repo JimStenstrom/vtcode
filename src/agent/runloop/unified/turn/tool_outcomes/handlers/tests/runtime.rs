@@ -352,7 +352,7 @@ async fn repeated_identical_readonly_call_in_same_turn_reuses_recent_result() {
 
 #[tokio::test]
 async fn repeated_same_file_read_variants_activate_recovery_at_read_family_cap() {
-    let read_family_cap = 12;
+    let read_family_cap = 4;
     let mut backing = TestContextBacking::new(read_family_cap).await;
     backing.select_build_primary_agent();
     let sample_file = backing.sample_file.clone();

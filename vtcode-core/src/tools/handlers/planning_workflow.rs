@@ -1394,7 +1394,7 @@ impl Tool for FinishPlanningTool {
     }
 
     fn description(&self) -> &str {
-        "Exit Planning workflow after finishing your plan. This signals that you're done planning and ready for user review. The plan file content will be shown to the user for approval. Only use this when the task requires planning implementation steps, not for research tasks."
+        "Exit Planning workflow. Plan content shown to user for approval."
     }
 
     fn parameter_schema(&self) -> Option<Value> {

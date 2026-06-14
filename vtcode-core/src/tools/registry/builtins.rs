@@ -430,7 +430,7 @@ fn register_unified_exec(_plan_state: Option<&PlanningWorkflowState>) -> ToolReg
         ToolRegistry::unified_exec_executor,
     )
     .with_description(
-        "Run commands, manage command sessions, or execute fresh Python/JavaScript snippets with `action=code`. Runs are pipe-first by default; set `tty=true` for PTY behavior. Use continue for one-call send+read, inspect for one-call output preview/filtering from session or spool file, and set `language` when `action=code` should use JavaScript instead of the default Python.",
+        "Run commands or execute code. Actions: run, write, poll, continue, inspect, list, close, code. Pipe-first by default; set tty=true for PTY. Default language: python3.",
     )
     .with_parameter_schema(unified_exec_parameters())
     .with_aliases([
@@ -438,25 +438,9 @@ fn register_unified_exec(_plan_state: Option<&PlanningWorkflowState>) -> ToolReg
         tools::WRITE_STDIN,
         tools::RUN_PTY_CMD,
         tools::EXECUTE_CODE,
-        tools::CREATE_PTY_SESSION,
-        tools::LIST_PTY_SESSIONS,
-        tools::CLOSE_PTY_SESSION,
-        tools::SEND_PTY_INPUT,
-        tools::READ_PTY_SESSION,
         "bash",
-        "container.exec",
         "exec code",
-        "run code",
         "run command",
-        "send command input",
-        "read command session",
-        "list command sessions",
-        "close command session",
-        "run command (pty)",
-        "send pty input",
-        "read pty session",
-        "list pty sessions",
-        "close pty session",
     ])
 }
 
@@ -473,28 +457,17 @@ fn register_unified_file(_plan_state: Option<&PlanningWorkflowState>) -> ToolReg
         ToolRegistry::unified_file_executor,
     )
     .with_description(
-        "Unified file ops: read, write, edit, patch, delete, move, copy. Use `action=read` for file contents instead of shell `cat`/`sed` during normal repo browsing. Paths are relative to the workspace root. For edit, `old_str` must match exactly. For patch, use VT Code patch format (`*** Begin Patch`), not unified diff.",
+        "File ops: read, write, edit, patch, delete, move, copy. Use action=read for contents. Edit requires exact old_str. Patch uses *** Begin Patch format.",
     )
     .with_parameter_schema(unified_file_parameters())
     .with_aliases([
         tools::READ_FILE,
         tools::WRITE_FILE,
-        tools::DELETE_FILE,
         tools::EDIT_FILE,
+        tools::DELETE_FILE,
         tools::CREATE_FILE,
-        tools::MOVE_FILE,
-        tools::COPY_FILE,
-        tools::FILE_OP,
         "repo_browser.read_file",
         "repo_browser.write_file",
-        "read file",
-        "write file",
-        "edit file",
-        "apply patch",
-        "delete file",
-        "move file",
-        "copy file",
-        "file operation",
     ])
 }
 
