@@ -2,6 +2,13 @@
 
 All notable changes to vtcode will be documented in this file.
 ## v0.73.2 - 2026-01-29
+## 0.131.0 - 2026-06-14
+
+### Highlights
+#### Bug Fixes
+
+- Remove non-publishable crates from publish list and fix cargo doc --all-features flag (41b65ad0) 
+### Other Changes
 ## 0.130.0 - 2026-06-14
 
 ### Highlights
