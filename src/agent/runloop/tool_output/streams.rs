@@ -228,7 +228,12 @@ fn format_diff_line_with_gutter_and_syntax(
         DiffDisplayKind::Deletion => ('-', line.text.as_str()),
         DiffDisplayKind::Context => (' ', line.text.as_str()),
         DiffDisplayKind::Metadata | DiffDisplayKind::HunkHeader => {
-            return line.numbered_text(line_number_width);
+            let raw = line.numbered_text(line_number_width);
+            if let Some(style) = base_style {
+                let reset = Reset;
+                return format!("{}{}{}", style.render(), raw, reset);
+            }
+            return raw;
         }
     };
     if content.is_empty() {

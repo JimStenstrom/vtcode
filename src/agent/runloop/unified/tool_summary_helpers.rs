@@ -327,6 +327,8 @@ fn is_noise_param(key: &str) -> bool {
             | "type"
             | "tool_call_id"
             | "call_type"
+            // Redundant with summary headline (e.g., "Read file" already implies action=read)
+            | "action"
     )
 }
 
@@ -497,19 +499,19 @@ mod tests {
         let mut keys = HashSet::new();
         keys.insert("pattern".to_string());
         let details = collect_param_details(&args, &keys);
-        // Only action, detail_level, max_results, and scope should remain;
-        // pattern is in keys (highlighted), noise params are skipped.
+        // Only detail_level, max_results, and scope should remain;
+        // pattern is in keys (highlighted), noise params (including action) are skipped.
         for detail in &details {
             assert!(
                 !detail.contains("Timeout")
                     && !detail.contains("Max bytes")
                     && !detail.contains("Debug query")
                     && !detail.contains("Strictness")
-                    && !detail.contains("Context lines"),
+                    && !detail.contains("Context lines")
+                    && !detail.contains("Action"),
                 "Noise param leaked through: {detail}"
             );
         }
-        assert!(details.iter().any(|d| d.contains("Action")));
     }
 
     #[test]
@@ -547,8 +549,8 @@ mod tests {
         assert!(is_noise_param("limit"));
         assert!(is_noise_param("shell"));
         assert!(is_noise_param("sandbox_permissions"));
+        assert!(is_noise_param("action")); // Redundant with summary headline
         // Meaningful params should pass through
-        assert!(!is_noise_param("action"));
         assert!(!is_noise_param("pattern"));
         assert!(!is_noise_param("path"));
         assert!(!is_noise_param("mode"));
