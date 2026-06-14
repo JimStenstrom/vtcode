@@ -12,7 +12,7 @@ use crate::tui::config::constants::ui;
 use super::super::types::{InlineHeaderContext, InlineHeaderHighlight};
 use super::terminal_capabilities;
 use super::utils::line_truncation::truncate_line_with_ellipsis_if_overflow;
-use super::{Session, ratatui_color_from_ansi};
+use super::{Session, ratatui_color_from_ansi, ratatui_style_from_inline};
 
 fn clean_reasoning_text(text: &str) -> String {
     vtcode_commons::formatting::clean_reasoning_text(text)
@@ -497,6 +497,26 @@ impl Session {
             push_badge(
                 &mut spans,
                 "Safe".to_string(),
+                badge_style,
+                &mut first_section,
+            );
+        }
+
+        // Show active subagent badge (first one, matching input block behavior)
+        if let Some(badge) = self.header_context.subagent_badges.first() {
+            let mut badge_style = ratatui_style_from_inline(&badge.style, self.theme.foreground);
+            if badge.full_background {
+                badge_style = badge_style.add_modifier(Modifier::BOLD);
+            }
+            let hidden = self.header_context.subagent_badges.len().saturating_sub(1);
+            let label = if hidden == 0 {
+                badge.text.clone()
+            } else {
+                format!("{} +{}", badge.text, hidden)
+            };
+            push_badge(
+                &mut spans,
+                format!(" {label} "),
                 badge_style,
                 &mut first_section,
             );

@@ -19,18 +19,4 @@ impl ToolRegistry {
         self.pty_poll_counter
             .load(std::sync::atomic::Ordering::Relaxed)
     }
-
-    /// Increment tool call counter (should be called by tool executors).
-    #[expect(dead_code)]
-    pub(crate) fn increment_tool_calls(&self) {
-        self.tool_call_counter
-            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-    }
-
-    /// Increment PTY poll counter (called by PTY polling loop).
-    #[expect(dead_code)]
-    pub(crate) fn increment_pty_polls(&self) {
-        self.pty_poll_counter
-            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-    }
 }

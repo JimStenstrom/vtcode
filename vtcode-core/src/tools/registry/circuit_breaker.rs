@@ -367,18 +367,6 @@ impl McpCircuitBreaker {
             is_blocking: self.state() == CircuitState::Open,
         }
     }
-
-    /// Reset the circuit breaker to closed state
-    #[expect(dead_code)]
-    pub fn reset(&self) {
-        self.state
-            .store(CircuitState::Closed as u8, Ordering::Release);
-        self.consecutive_failures.store(0);
-        self.half_open_successes.store(0);
-        self.blocked_requests.store(0);
-        *self.last_failure_time.lock() = None;
-        self.persist();
-    }
 }
 
 impl Default for McpCircuitBreaker {

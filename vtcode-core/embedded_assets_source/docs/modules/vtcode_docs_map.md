@@ -488,9 +488,9 @@ This document serves as an index of all VT Code documentation. When users ask qu
   - **User Questions**: "What can you tell me about `vtcode-markdown-store`?", "How does Storage building blocks work?", "How does Feature flags work?"
 
 - **File**: `docs/modules/vtcode_tools_policy.md`
-  - **Content**: vtcode-tools Policy Customization Guide
-  - **Topics**: 1. Enable the `policies` feature, 2. Pick a custom storage location, 3. Construct a `ToolPolicyManager` with your path, 4. Inject the manager into the registry, 5. Apply your application's defaults
-  - **User Questions**: "What can you tell me about vtcode-tools Policy Customization Guide?", "How does 1. Enable the `policies` feature work?", "How does 2. Pick a custom storage location work?"
+  - **Content**: vtcode-tools Policy Customization Guide (Historical)
+  - **Topics**: Custom storage location, Construct a `ToolPolicyManager` with your path
+  - **User Questions**: "What can you tell me about vtcode-tools Policy Customization Guide (Historical)?", "How does Custom storage location work?", "How does Construct a `ToolPolicyManager` with your path work?"
 
 - **File**: `docs/modules/vtcode_indexer.md`
   - **Content**: vtcode_indexer.md

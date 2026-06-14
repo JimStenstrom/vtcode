@@ -3,7 +3,7 @@
 //! Tracks file activity, edits, and value changes to provide context for
 //! lazy/vague user requests.
 
-use hashbrown::{HashMap, HashSet};
+use hashbrown::HashMap;
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 use std::path::{Path, PathBuf};
@@ -77,10 +77,6 @@ pub struct WorkspaceState {
     /// Recent file activities (bounded queue)
     recent_files: VecDeque<FileActivity>,
 
-    /// Files currently open/being edited
-    #[expect(dead_code)]
-    open_files: HashSet<PathBuf>,
-
     /// Recent changes
     recent_changes: Vec<FileChange>,
 
@@ -92,10 +88,6 @@ pub struct WorkspaceState {
 
     /// Last user intent/request
     last_user_intent: Option<String>,
-
-    /// Pending unresolved references
-    #[expect(dead_code)]
-    pending_references: Vec<UnresolvedReference>,
 }
 
 impl Default for WorkspaceState {
@@ -109,12 +101,10 @@ impl WorkspaceState {
     pub fn new() -> Self {
         Self {
             recent_files: VecDeque::with_capacity(MAX_RECENT_FILES),
-            open_files: HashSet::new(),
             recent_changes: Vec::with_capacity(MAX_RECENT_CHANGES),
             hot_files: Vec::with_capacity(MAX_HOT_FILES),
             value_snapshots: HashMap::new(),
             last_user_intent: None,
-            pending_references: Vec::new(),
         }
     }
 

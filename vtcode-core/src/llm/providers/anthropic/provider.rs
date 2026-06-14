@@ -189,11 +189,6 @@ impl AnthropicProvider {
                     .ok()
                     .and_then(|value| sanitize(&value))
             })
-            .or_else(|| {
-                env::var(env_vars::ANTHROPIC_BASE_URL)
-                    .ok()
-                    .and_then(|value| sanitize(&value))
-            })
             .or_else(|| sanitize(urls::MINIMAX_API_BASE))
             .unwrap_or_else(|| urls::MINIMAX_API_BASE.trim_end_matches('/').to_string());
 

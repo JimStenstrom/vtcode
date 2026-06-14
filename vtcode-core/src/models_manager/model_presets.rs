@@ -1921,7 +1921,7 @@ mod tests {
     }
 
     #[test]
-    fn moonshot_presets_exist_and_default_to_kimi_k26() {
+    fn moonshot_presets_exist_and_default_to_kimi_k27_code() {
         let presets = moonshot_presets();
         assert_eq!(presets.len(), 2);
 
@@ -1929,7 +1929,7 @@ mod tests {
             .iter()
             .find(|preset| preset.is_default)
             .expect("moonshot default preset");
-        assert_eq!(default.id, "kimi-k2.6");
+        assert_eq!(default.id, "kimi-k2.7-code");
         assert_eq!(default.provider, Provider::Moonshot);
     }
 }

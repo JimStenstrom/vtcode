@@ -227,14 +227,6 @@ impl CodexAppServerClient {
         self.request("review/start", params.as_json())
     }
 
-    #[expect(dead_code)]
-    pub(crate) fn command_exec(
-        &self,
-        params: CodexCommandExecRequest,
-    ) -> impl Future<Output = Result<CodexCommandExecResponse>> + '_ {
-        self.request("command/exec", params.as_json())
-    }
-
     pub(crate) fn respond_to_server_request(&self, id: Value, result: Value) -> Result<()> {
         self.transport
             .respond_value(id, result)
@@ -832,32 +824,6 @@ pub(crate) enum CodexReviewTarget {
     },
     #[serde(rename = "custom")]
     Custom { instructions: String },
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub(crate) struct CodexCommandExecRequest {
-    pub(crate) command: Vec<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) cwd: Option<String>,
-    #[serde(rename = "sandboxPolicy", skip_serializing_if = "Option::is_none")]
-    pub(crate) sandbox_policy: Option<Value>,
-    #[serde(rename = "streamStdoutStderr", skip_serializing_if = "Option::is_none")]
-    pub(crate) stream_stdout_stderr: Option<bool>,
-}
-
-impl CodexCommandExecRequest {
-    fn as_json(&self) -> Value {
-        json!(self)
-    }
-}
-
-#[expect(dead_code)]
-#[derive(Debug, Clone, Deserialize)]
-pub(crate) struct CodexCommandExecResponse {
-    #[serde(rename = "exitCode")]
-    pub(crate) exit_code: i32,
-    pub(crate) stdout: String,
-    pub(crate) stderr: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]

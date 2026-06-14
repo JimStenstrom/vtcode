@@ -31,45 +31,7 @@ pub enum SkillLocationType {
     CodexUser = 0,
 }
 
-impl SkillLocationType {
-    /// Get location type from path
-    #[expect(dead_code)]
-    fn from_path(path: &Path) -> Option<Self> {
-        let path_str = path.to_string_lossy();
-
-        if path_str.contains(".vtcode/skills")
-            && (path_str.contains("~/")
-                || path_str.contains("/home/")
-                || path_str.contains("/Users/"))
-        {
-            Some(SkillLocationType::VtcodeUser)
-        } else if path_str.contains(".agents/skills") {
-            Some(SkillLocationType::AgentsProject)
-        } else if path_str.contains(".vtcode/skills") {
-            Some(SkillLocationType::VtcodeProject)
-        } else if path_str.contains(".pi/skills")
-            && (path_str.contains("~/")
-                || path_str.contains("/home/")
-                || path_str.contains("/Users/"))
-        {
-            Some(SkillLocationType::PiUser)
-        } else if path_str.contains(".pi/skills") {
-            Some(SkillLocationType::PiProject)
-        } else if path_str.contains(".claude/skills")
-            && (path_str.contains("~/")
-                || path_str.contains("/home/")
-                || path_str.contains("/Users/"))
-        {
-            Some(SkillLocationType::ClaudeUser)
-        } else if path_str.contains(".claude/skills") {
-            Some(SkillLocationType::ClaudeProject)
-        } else if path_str.contains(".codex/skills") {
-            Some(SkillLocationType::CodexUser)
-        } else {
-            None
-        }
-    }
-}
+impl SkillLocationType {}
 
 /// Skill location configuration
 #[derive(Debug, Clone)]

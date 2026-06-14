@@ -347,12 +347,11 @@ pub(crate) struct PromptEnricher {
 
 impl PromptEnricher {
     /// Create new enricher
-    pub(crate) fn new(workspace_root: PathBuf, vt_cfg: VTCodeConfig) -> Self {
+    pub(crate) fn new(_workspace_root: PathBuf, vt_cfg: VTCodeConfig) -> Self {
         let workspace_state = Arc::new(RwLock::new(WorkspaceState::new()));
-        let entity_resolver = Arc::new(RwLock::new(EntityResolver::with_cache(
-            workspace_root.clone(),
-            PathBuf::from(&vt_cfg.agent.vibe_coding.entity_index_cache),
-        )));
+        let entity_resolver = Arc::new(RwLock::new(EntityResolver::with_cache(PathBuf::from(
+            &vt_cfg.agent.vibe_coding.entity_index_cache,
+        ))));
         let conversation_memory = Arc::new(RwLock::new(ConversationMemory::new()));
 
         Self {

@@ -76,22 +76,19 @@ The ACP client library is located in `vtcode-acp/` and provides:
     - `AcpError`: Comprehensive error handling
     - `AcpResult<T>`: Standard result type for ACP operations
 
-### `vtcode-tools` Integration
+### Agent Tool Integration
 
-Three MCP tools expose ACP functionality to the main agent:
+Three MCP tools expose ACP functionality to the main agent (now in `vtcode-core`):
 
-1. **`AcpTool`** - Inter-agent RPC calls
+1. **`acp_call`** - Inter-agent RPC calls
 
-    - Action: `acp_call`
     - Params: `remote_agent_id`, `action`, `args`, `method` (sync/async)
 
-2. **`AcpDiscoveryTool`** - Agent discovery
+2. **`acp_discover`** - Agent discovery
 
-    - Action: `acp_discover`
     - Modes: `list_all`, `list_online`, `by_capability`, `by_id`
 
-3. **`AcpHealthTool`** - Health monitoring
-    - Action: `acp_health`
+3. **`acp_health`** - Health monitoring
     - Checks agent liveness via ping
 
 ## Usage Examples

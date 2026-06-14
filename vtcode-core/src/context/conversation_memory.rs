@@ -96,10 +96,6 @@ pub struct ConversationMemory {
     /// Recent file contexts (files mentioned or edited)
     recent_file_contexts: VecDeque<PathBuf>,
 
-    /// Unresolved pronouns
-    #[expect(dead_code)]
-    unresolved_pronouns: Vec<PronounReference>,
-
     /// Resolved reference mappings
     resolved_references: HashMap<String, String>,
 
@@ -121,7 +117,6 @@ impl ConversationMemory {
             entity_timeline: VecDeque::with_capacity(MAX_ENTITY_MENTIONS),
             recent_user_messages: VecDeque::with_capacity(MAX_MEMORY_TURNS),
             recent_file_contexts: VecDeque::with_capacity(20),
-            unresolved_pronouns: Vec::new(),
             resolved_references: HashMap::new(),
             current_turn: 0,
         }

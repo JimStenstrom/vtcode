@@ -290,17 +290,6 @@ impl ToolInventory {
             || self.state.read().aliases.contains_key(&name_lower)
     }
 
-    /// Get all registered aliases with their canonical targets
-    #[expect(dead_code)]
-    pub fn all_aliases(&self) -> Vec<(String, String)> {
-        self.state
-            .read()
-            .aliases
-            .iter()
-            .map(|(k, v)| (k.clone(), v.clone()))
-            .collect()
-    }
-
     pub fn registrations_snapshot(&self) -> Vec<ToolRegistration> {
         self.tools
             .read()

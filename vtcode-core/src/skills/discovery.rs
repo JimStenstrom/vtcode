@@ -87,7 +87,6 @@ pub struct SkillDiscovery {
 
 #[derive(Debug, Clone)]
 struct DiscoveryCacheEntry {
-    timestamp: std::time::SystemTime,
     skills: Vec<SkillContext>,
     tools: Vec<CliToolConfig>,
 }
@@ -433,38 +432,6 @@ impl SkillDiscovery {
         }
     }
 
-    /// Get cached discovery result for path
-    #[expect(dead_code)]
-    fn get_cached(&self, path: &Path) -> Option<&DiscoveryCacheEntry> {
-        self.cache.get(path).and_then(|entry| {
-            // Check if cache is still valid (5 minutes)
-            let elapsed = entry.timestamp.elapsed().ok()?;
-            if elapsed.as_secs() < 300 {
-                Some(entry)
-            } else {
-                None
-            }
-        })
-    }
-
-    /// Cache discovery result
-    #[expect(dead_code)]
-    fn cache_result(
-        &mut self,
-        path: PathBuf,
-        skills: Vec<SkillContext>,
-        tools: Vec<CliToolConfig>,
-    ) {
-        self.cache.insert(
-            path,
-            DiscoveryCacheEntry {
-                timestamp: std::time::SystemTime::now(),
-                skills,
-                tools,
-            },
-        );
-    }
-
     /// Clear discovery cache
     pub fn clear_cache(&mut self) {
         self.cache.clear();
@@ -551,8 +518,6 @@ pub fn tool_config_to_skill_context(config: &CliToolConfig) -> Result<SkillConte
 pub struct ProgressiveSkillLoader {
     discovery: SkillDiscovery,
     skill_cache: HashMap<String, crate::skills::types::Skill>,
-    #[expect(dead_code)]
-    tool_cache: HashMap<String, CliToolBridge>,
 }
 
 impl ProgressiveSkillLoader {
@@ -560,7 +525,6 @@ impl ProgressiveSkillLoader {
         Self {
             discovery: SkillDiscovery::with_config(config),
             skill_cache: HashMap::new(),
-            tool_cache: HashMap::new(),
         }
     }
 

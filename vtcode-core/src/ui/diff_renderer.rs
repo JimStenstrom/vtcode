@@ -217,8 +217,6 @@ pub struct DiffRenderer {
     show_line_numbers: bool,
     context_lines: usize,
     use_colors: bool,
-    #[expect(dead_code)]
-    pub(crate) palette: GitDiffPalette,
     // Pre-rendered ANSI codes for performance (cached)
     cached_styles: CachedStyles,
 }
@@ -281,7 +279,6 @@ impl DiffRenderer {
             show_line_numbers,
             context_lines,
             use_colors,
-            palette,
             cached_styles,
         }
     }
@@ -299,7 +296,6 @@ impl DiffRenderer {
             show_line_numbers,
             context_lines,
             use_colors,
-            palette,
             cached_styles,
         }
     }
@@ -421,17 +417,6 @@ impl DiffRenderer {
                 }
                 output.push_str(&self.cached_styles.reset);
             }
-        }
-    }
-
-    #[expect(dead_code)]
-    pub(crate) fn paint(&self, style: &Style, text: &str) -> String {
-        if self.use_colors {
-            // CRITICAL: Apply style and reset without including newlines in the styled block
-            // This ensures Reset appears before any line terminators, preventing color bleed
-            format!("{}{}{}", style.render(), text, Reset.render())
-        } else {
-            text.to_owned()
         }
     }
 

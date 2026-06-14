@@ -5,16 +5,13 @@
 
 use super::traits::Tool;
 use crate::config::constants::tools;
-use crate::tools::error_helpers::with_path_context;
 use anyhow::{Context, Result, anyhow, bail};
 use async_trait::async_trait;
 use hashbrown::HashSet;
 use reqwest::header::{ACCEPT, HeaderMap, HeaderValue, USER_AGENT};
 use serde::Deserialize;
 use serde_json::{Value, json};
-use std::fs;
 use std::net::IpAddr;
-use std::path::Path;
 use url::Url;
 
 pub mod domains;
@@ -244,76 +241,6 @@ impl WebFetchTool {
         }
 
         Ok(())
-    }
-
-    /// Expand ~ to home directory
-    fn expand_home_path(path: &str) -> String {
-        if path.starts_with("~/")
-            && let Ok(home) = std::env::var("HOME")
-        {
-            return path.replace("~/", &format!("{}/", home));
-        }
-        path.to_string()
-    }
-
-    /// Load blocklist from external JSON file
-    #[expect(dead_code)]
-    async fn load_dynamic_blocklist(&self, path: &str) -> Result<(Vec<String>, Vec<String>)> {
-        let expanded_path = Self::expand_home_path(path);
-        if !Path::new(&expanded_path).exists() {
-            return Ok((Vec::new(), Vec::new()));
-        }
-
-        let content = with_path_context(
-            fs::read_to_string(&expanded_path),
-            "read blocklist from",
-            path,
-        )?;
-
-        #[derive(Deserialize)]
-        struct BlocklistFile {
-            blocked_domains: Option<Vec<String>>,
-            blocked_patterns: Option<Vec<String>>,
-        }
-
-        let blocklist: BlocklistFile = with_path_context(
-            serde_json::from_str(&content),
-            "parse blocklist JSON from",
-            path,
-        )?;
-
-        Ok((
-            blocklist.blocked_domains.unwrap_or_default(),
-            blocklist.blocked_patterns.unwrap_or_default(),
-        ))
-    }
-
-    /// Load whitelist from external JSON file
-    #[expect(dead_code)]
-    async fn load_dynamic_whitelist(&self, path: &str) -> Result<Vec<String>> {
-        let expanded_path = Self::expand_home_path(path);
-        if !Path::new(&expanded_path).exists() {
-            return Ok(Vec::new());
-        }
-
-        let content = with_path_context(
-            fs::read_to_string(&expanded_path),
-            "read whitelist from",
-            path,
-        )?;
-
-        #[derive(Deserialize)]
-        struct WhitelistFile {
-            allowed_domains: Option<Vec<String>>,
-        }
-
-        let whitelist: WhitelistFile = with_path_context(
-            serde_json::from_str(&content),
-            "parse whitelist JSON from",
-            path,
-        )?;
-
-        Ok(whitelist.allowed_domains.unwrap_or_default())
     }
 
     fn validate_content_type(&self, content_type: &str) -> Result<()> {

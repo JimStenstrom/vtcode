@@ -10,7 +10,7 @@ use crate::skills::file_references::FileReferenceValidator;
 use crate::skills::loader::{EnhancedSkill, EnhancedSkillLoader, SkillLoaderConfig};
 use crate::skills::manager::SkillsManager;
 use crate::skills::model::{SkillErrorInfo, SkillLoadOutcome};
-use crate::skills::types::{Skill, SkillVariety};
+use crate::skills::types::{Skill, SkillManifestMetadata, SkillVariety};
 use crate::tool_policy::ToolPolicy;
 use crate::tools::handlers::{
     DeferredToolPolicy, SessionSurface, SessionToolsConfig, ToolModelCapabilities,
@@ -448,12 +448,44 @@ fn resolve_skill_resource_path(skill_root: &Path, resource_path: &str) -> anyhow
     Ok(canonical_path)
 }
 
+fn extract_metadata_keywords(metadata: &Option<SkillManifestMetadata>) -> Vec<String> {
+    let Some(meta) = metadata else {
+        return Vec::new();
+    };
+    let Some(keywords_value) = meta.get("keywords") else {
+        return Vec::new();
+    };
+    let Some(keywords_array) = keywords_value.as_array() else {
+        return Vec::new();
+    };
+    keywords_array
+        .iter()
+        .filter_map(|v| v.as_str().map(String::from))
+        .collect()
+}
+
+fn matches_keywords(keywords: &[String], query_lower: &str) -> bool {
+    let query_words: Vec<&str> = query_lower.split_whitespace().collect();
+    if query_words.is_empty() || keywords.is_empty() {
+        return false;
+    }
+    query_words.iter().all(|word| {
+        let normalized_word = word.replace('-', " ");
+        keywords.iter().any(|kw| {
+            kw.replace('-', " ")
+                .to_lowercase()
+                .contains(normalized_word.as_str())
+        })
+    })
+}
+
 fn matches_skill_filters(
     name: &str,
     description: &str,
     variety: SkillVariety,
     query: Option<&str>,
     variety_filter: Option<&str>,
+    keywords: &[String],
 ) -> bool {
     let normalized_variety = format!("{variety:?}").to_lowercase();
     if let Some(filter) = variety_filter
@@ -466,6 +498,7 @@ fn matches_skill_filters(
         let query = query.to_lowercase();
         if !name.to_lowercase().contains(query.as_str())
             && !description.to_lowercase().contains(query.as_str())
+            && !matches_keywords(keywords, &query)
         {
             return false;
         }
@@ -691,12 +724,14 @@ impl Tool for ListSkillsTool {
                 .manifest
                 .as_ref()
                 .expect("filtered to skills with manifests");
+            let keywords = extract_metadata_keywords(&manifest.metadata);
             if !matches_skill_filters(
                 manifest.name.as_str(),
                 manifest.description.as_str(),
                 manifest.variety,
                 query.as_deref(),
                 variety_filter,
+                &keywords,
             ) {
                 continue;
             }
@@ -724,6 +759,7 @@ impl Tool for ListSkillsTool {
                 SkillVariety::SystemUtility,
                 query.as_deref(),
                 variety_filter,
+                &[],
             ) {
                 continue;
             }

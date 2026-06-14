@@ -141,29 +141,29 @@ pub struct EntityResolver {
     /// The entity index
     index: EntityIndex,
 
-    /// Workspace root for path resolution
-    #[expect(dead_code)]
-    workspace_root: PathBuf,
-
     /// Cache file path
     cache_path: Option<PathBuf>,
 }
 
+impl Default for EntityResolver {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl EntityResolver {
     /// Create a new entity resolver
-    pub fn new(workspace_root: PathBuf) -> Self {
+    pub fn new() -> Self {
         Self {
             index: EntityIndex::default(),
-            workspace_root,
             cache_path: None,
         }
     }
 
     /// Create with cache file path
-    pub fn with_cache(workspace_root: PathBuf, cache_path: PathBuf) -> Self {
+    pub fn with_cache(cache_path: PathBuf) -> Self {
         Self {
             index: EntityIndex::default(),
-            workspace_root,
             cache_path: Some(cache_path),
         }
     }
@@ -417,7 +417,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_entity_resolver_exact_match() {
-        let mut resolver = EntityResolver::new(PathBuf::from("/test"));
+        let mut resolver = EntityResolver::new();
 
         resolver.index_mut().ui_components.insert(
             "Sidebar".to_string(),

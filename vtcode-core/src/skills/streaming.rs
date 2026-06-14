@@ -225,7 +225,7 @@ impl StreamingSkillExecutor {
             };
 
             // Create progress tracking
-            let progress_tracker = ProgressTracker::new(config.update_interval_ms);
+            let progress_tracker = ProgressTracker::new();
             let mut progress_interval = interval(Duration::from_millis(config.update_interval_ms));
 
             // Stream stdout
@@ -527,19 +527,22 @@ impl StreamingSkillExecutor {
 #[derive(Debug, Clone)]
 pub struct ProgressTracker {
     start_time: Instant,
-    #[expect(dead_code)]
-    update_interval_ms: u64,
     total_output_bytes: usize,
     last_output_time: Instant,
     estimated_total_bytes: Option<usize>,
 }
 
+impl Default for ProgressTracker {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ProgressTracker {
     /// Create new progress tracker
-    pub fn new(update_interval_ms: u64) -> Self {
+    pub fn new() -> Self {
         Self {
             start_time: Instant::now(),
-            update_interval_ms,
             total_output_bytes: 0,
             last_output_time: Instant::now(),
             estimated_total_bytes: None,
@@ -656,7 +659,7 @@ mod tests {
 
     #[test]
     fn test_progress_tracker() {
-        let mut tracker = ProgressTracker::new(100);
+        let mut tracker = ProgressTracker::new();
 
         // Initial progress
         let progress = tracker.get_progress();

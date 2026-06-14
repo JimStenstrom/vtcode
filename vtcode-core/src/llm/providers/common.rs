@@ -239,13 +239,13 @@ pub fn serialize_message_content_openai_for_model(message: &Message, model: &str
 #[inline]
 pub fn is_minimax_m2_model(model: &str) -> bool {
     let lower = model.to_ascii_lowercase();
-    lower.contains("minimax-m2.7") || lower.contains("minimax-m3")
+    lower.contains("minimax-m2.5") || lower.contains("minimax-m2.7") || lower.contains("minimax-m3")
 }
 
 #[inline]
 fn is_glm_interleaved_thinking_model(model: &str) -> bool {
     let lower = model.to_ascii_lowercase();
-    lower.contains("glm-5.1") || lower.contains("glm45") || lower.contains("glm-4.5")
+    lower.contains("glm-5") || lower.contains("glm45") || lower.contains("glm-4.5")
 }
 
 /// Returns true when the model family relies on interleaved `<think>...</think>`
@@ -1401,6 +1401,9 @@ mod tests {
 
     #[test]
     fn minimax_m2_model_detection_handles_variants() {
+        assert!(is_minimax_m2_model("MiniMax-M2.5"));
+        assert!(is_minimax_m2_model("minimax/minimax-m2.5"));
+        assert!(is_minimax_m2_model("MiniMaxAI/MiniMax-M2.5:novita"));
         assert!(is_minimax_m2_model("MiniMax-M2.7"));
         assert!(is_minimax_m2_model("MiniMax-M3"));
         assert!(is_minimax_m2_model("minimax/minimax-m2.7"));
@@ -1411,6 +1414,8 @@ mod tests {
     fn interleaved_thinking_model_detection_handles_glm5() {
         assert!(is_interleaved_thinking_model("glm-5.1"));
         assert!(is_interleaved_thinking_model("zai-org/GLM-5.1:novita"));
+        assert!(is_interleaved_thinking_model("z-ai/glm-5"));
+        assert!(is_interleaved_thinking_model("zai-org/GLM-5:novita"));
         assert!(is_interleaved_thinking_model("MiniMax-M2.7"));
         assert!(!is_interleaved_thinking_model("deepseek-r1"));
     }
