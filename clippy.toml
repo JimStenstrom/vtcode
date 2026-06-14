@@ -24,11 +24,9 @@ absolute-paths-allowed-crates = [
     "vtcode-commons",
     "vtcode-config",
     "vtcode-ui",
-    "vtcode-markdown-store",
     "vtcode-indexer",
     "vtcode-bash-runner",
     "vtcode-exec-events",
-    "vtcode-file-search",
     "vtcode-acp",
     "vtcode-process-hardening",
 ]

@@ -6,7 +6,7 @@ use rustc_hash::FxHashMap;
 use std::sync::RwLock;
 use vtcode_commons::llm::BackendKind;
 
-use vtcode_tool_types::CompactStr;
+use vtcode_commons::tool_types::CompactStr;
 
 use super::{
     LLMNormalizedStream, LLMRequest, LLMResponse, LLMStream, LLMStreamEvent, Message,

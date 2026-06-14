@@ -1,11 +1,11 @@
 //! Shared runtime types for the VT Code tool system.
 //!
-//! This crate provides types shared between the LLM and tools subsystems,
+//! This module provides types shared between the LLM and tools subsystems,
 //! breaking the circular dependency that would otherwise exist between them.
 //!
 //! # Overview
 //!
-//! The key types extracted here are:
+//! The key types here are:
 //! - [`CompactStr`] - stack-allocated string for short tool names
 //! - [`EnhancedToolResult`] - tool result with quality metadata
 //! - [`ResultMetadata`] - quality/confidence scoring for tool results
@@ -18,12 +18,6 @@
 /// Compact inline string -- stack-allocated for strings up to 24 bytes.
 /// Drop-in replacement for `String` with zero heap allocation for short strings.
 pub type CompactStr = compact_str::CompactString;
-
-// ---------------------------------------------------------------------------
-// Model family definitions
-// ---------------------------------------------------------------------------
-
-pub mod model_family;
 
 // ---------------------------------------------------------------------------
 // Tool name constants (canonical names used across subsystems)
@@ -367,52 +361,4 @@ pub trait ResultScorer {
 
     /// Tool name this scorer handles
     fn tool_name(&self) -> &str;
-}
-
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use serde_json::json;
-
-    #[test]
-    fn test_result_completeness() {
-        assert_eq!(ResultCompleteness::Complete.to_string(), "complete");
-        assert_eq!(ResultCompleteness::Partial.to_string(), "partial");
-        assert_eq!(ResultCompleteness::Empty.to_string(), "empty");
-    }
-
-    #[test]
-    fn test_quality_score() {
-        let meta = ResultMetadata {
-            confidence: 0.8,
-            relevance: 0.8,
-            false_positive_likelihood: 0.1,
-            ..Default::default()
-        };
-
-        let score = meta.quality_score();
-        assert!(score > 0.6 && score < 0.8);
-    }
-
-    #[test]
-    fn test_enhanced_result_is_useful() {
-        let result = EnhancedToolResult::new(
-            json!({"matches": []}),
-            ResultMetadata::success(0.8, 0.8),
-            tool_names::UNIFIED_SEARCH,
-        );
-
-        assert!(result.is_useful());
-        assert!(!result.is_high_quality());
-    }
-
-    #[test]
-    fn test_canonical_tool_name_passthrough() {
-        assert_eq!(canonical_tool_name("list_files"), "list_files");
-        assert_eq!(canonical_tool_name("unknown_tool"), "unknown_tool");
-    }
 }

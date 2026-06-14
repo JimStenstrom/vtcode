@@ -5,11 +5,11 @@
 //! and prioritize high-quality results in context windows.
 //!
 //! Core types (`ResultCompleteness`, `ResultMetadata`, `EnhancedToolResult`, `ResultScorer`)
-//! are defined in `vtcode-tool-types` and re-exported here for backward compatibility.
+//! are defined in `vtcode-commons::tool_types` and re-exported here for backward compatibility.
 //! This module retains the scorer implementations that depend on tool_intent.
 
-// Re-export core types from vtcode-tool-types for backward compatibility
-pub use vtcode_tool_types::{
+// Re-export core types from vtcode-commons::tool_types for backward compatibility
+pub use vtcode_commons::tool_types::{
     CompactStr, EnhancedToolResult, ResultCompleteness, ResultMetadata, ResultScorer,
 };
 

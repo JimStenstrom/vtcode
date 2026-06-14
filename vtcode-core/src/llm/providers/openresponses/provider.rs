@@ -440,7 +440,14 @@ impl OpenResponsesProvider {
         });
 
         if let Some(tools) = &request.tools {
-            req.tools = Some((**tools).clone());
+            // Convert vtcode-core ToolDefinition -> vtcode-llm ToolDefinition via serde.
+            // Both crates define identical structs during the extraction transition.
+            let converted: Vec<vtcode_llm::provider::ToolDefinition> = tools
+                .iter()
+                .filter_map(|t| serde_json::to_value(t).ok())
+                .filter_map(|v| serde_json::from_value(v).ok())
+                .collect();
+            req.tools = Some(converted);
         }
 
         let mut payload = serde_json::to_value(req).map_err(|e| LLMError::Provider {

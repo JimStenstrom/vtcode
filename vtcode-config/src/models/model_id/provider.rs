@@ -1,4 +1,4 @@
-use crate::models::Provider;
+use crate::models::{Provider, ProviderModelSupport};
 
 use super::ModelId;
 

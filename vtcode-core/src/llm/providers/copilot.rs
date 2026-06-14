@@ -75,12 +75,19 @@ impl CopilotProvider {
             });
         }
 
+        // Convert vtcode-core ToolDefinition -> vtcode-llm ToolDefinition via serde
+        let llm_tools: Vec<vtcode_llm::provider::ToolDefinition> = tools
+            .iter()
+            .filter_map(|t| serde_json::to_value(t).ok())
+            .filter_map(|v| serde_json::from_value(v).ok())
+            .collect();
+
         let created = Arc::new(
             CopilotAcpClient::connect(
                 &self.auth_config,
                 &self.workspace_root,
                 model.raw_model.as_deref(),
-                tools,
+                &llm_tools,
             )
             .await
             .map_err(map_copilot_error)?,

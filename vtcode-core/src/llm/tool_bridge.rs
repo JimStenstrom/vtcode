@@ -8,7 +8,7 @@ use std::fmt;
 
 #[cfg(test)]
 use crate::config::constants::tools;
-use vtcode_tool_types::EnhancedToolResult;
+use vtcode_commons::tool_types::EnhancedToolResult;
 
 /// Tracks intent fulfillment
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]

@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use super::{OpenResponseError, OpenUsage, OutputItem};
-use crate::llm::provider::ToolDefinition;
+use crate::provider::ToolDefinition;
 
 /// Unique identifier for a response.
 pub type ResponseId = String;

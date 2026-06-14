@@ -1,6 +1,5 @@
 //! Common types and interfaces used throughout the application
 
-use crate::constants::reasoning;
 use crate::core::PromptCachingConfig;
 use hashbrown::HashMap;
 use serde::{Deserialize, Deserializer, Serialize};
@@ -9,73 +8,8 @@ use std::collections::BTreeMap;
 use std::fmt;
 use std::path::PathBuf;
 
-/// Supported reasoning effort levels configured via vtcode.toml
-/// These map to different provider-specific parameters:
-/// - For Gemini 3 Pro: Maps to thinking_level (low, high) - medium coming soon
-/// - For other models: Maps to provider-specific reasoning parameters
-#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "lowercase")]
-#[derive(Default)]
-pub enum ReasoningEffortLevel {
-    /// No reasoning configuration - for models that don't support configurable reasoning
-    None,
-    /// Minimal reasoning effort - maps to low thinking level for Gemini 3 Pro
-    Minimal,
-    /// Low reasoning effort - maps to low thinking level for Gemini 3 Pro
-    Low,
-    /// Medium reasoning effort - Note: Not fully available for Gemini 3 Pro yet, defaults to high
-    #[default]
-    Medium,
-    /// High reasoning effort - maps to high thinking level for Gemini 3 Pro
-    High,
-    /// Extra high reasoning effort - for GPT-5.4-family and similar long-running tasks
-    XHigh,
-    /// Maximum reasoning effort - for Claude Opus 4.7 adaptive thinking
-    Max,
-}
-
-impl ReasoningEffortLevel {
-    /// Return the textual representation expected by downstream APIs
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Self::None => reasoning::NONE,
-            Self::Minimal => reasoning::MINIMAL,
-            Self::Low => reasoning::LOW,
-            Self::Medium => reasoning::MEDIUM,
-            Self::High => reasoning::HIGH,
-            Self::XHigh => reasoning::XHIGH,
-            Self::Max => reasoning::MAX,
-        }
-    }
-
-    /// Attempt to parse an effort level from user configuration input
-    pub fn parse(value: &str) -> Option<Self> {
-        let normalized = value.trim();
-        if normalized.eq_ignore_ascii_case(reasoning::NONE) {
-            Some(Self::None)
-        } else if normalized.eq_ignore_ascii_case(reasoning::MINIMAL) {
-            Some(Self::Minimal)
-        } else if normalized.eq_ignore_ascii_case(reasoning::LOW) {
-            Some(Self::Low)
-        } else if normalized.eq_ignore_ascii_case(reasoning::MEDIUM) {
-            Some(Self::Medium)
-        } else if normalized.eq_ignore_ascii_case(reasoning::HIGH) {
-            Some(Self::High)
-        } else if normalized.eq_ignore_ascii_case(reasoning::XHIGH) {
-            Some(Self::XHigh)
-        } else if normalized.eq_ignore_ascii_case(reasoning::MAX) {
-            Some(Self::Max)
-        } else {
-            None
-        }
-    }
-
-    /// Enumerate the allowed configuration values for validation and messaging
-    pub fn allowed_values() -> &'static [&'static str] {
-        reasoning::ALLOWED_LEVELS
-    }
-}
+// Re-export from vtcode-commons so downstream code can use `vtcode_config::types::ReasoningEffortLevel`.
+pub use vtcode_commons::reasoning::ReasoningEffortLevel;
 
 /// System prompt mode (inspired by pi-coding-agent philosophy)
 /// Controls verbosity and complexity of system prompts sent to models
@@ -270,26 +204,6 @@ impl fmt::Display for VerbosityLevel {
 }
 
 impl<'de> Deserialize<'de> for VerbosityLevel {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let raw = String::deserialize(deserializer)?;
-        if let Some(parsed) = Self::parse(&raw) {
-            Ok(parsed)
-        } else {
-            Ok(Self::default())
-        }
-    }
-}
-
-impl fmt::Display for ReasoningEffortLevel {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(self.as_str())
-    }
-}
-
-impl<'de> Deserialize<'de> for ReasoningEffortLevel {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,

@@ -3,7 +3,8 @@ use std::str::FromStr;
 
 use crate::config::api_keys::api_key_env_var;
 use crate::config::models::{
-    ModelCatalogEntry, ModelId, ModelPricing, Provider, catalog_provider_keys, model_catalog_entry,
+    ModelCatalogEntry, ModelId, ModelPricing, Provider, ProviderModelSupport,
+    catalog_provider_keys, model_catalog_entry,
 };
 use crate::llm::provider::Usage;
 use vtcode_config::auth::{AuthCredentialsStoreMode, CustomApiKeyStorage};

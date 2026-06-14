@@ -109,7 +109,6 @@ ratatui = { workspace = true, features = [
 ] }
 
 nucleo-matcher = "0.3"
-vtcode-file-search = { version = "0.128.4", path = "../vtcode-file-search" }
 rig = { package = "rig-core", version = "0.38.2", default-features = false, features = [
     "reqwest",
     "rustls",
@@ -123,16 +122,14 @@ vtcode-exec-events = { path = "../vtcode-exec-events", version = "0.128.4" }
 vtcode-auth = { path = "../vtcode-auth", version = "0.128.4" }
 vtcode-config = { path = "../vtcode-config", version = "0.128.4" }
 vtcode-utility-tool-specs = { path = "../vtcode-utility-tool-specs", version = "0.128.4" }
-vtcode-markdown-store = { path = "../vtcode-markdown-store", version = "0.128.4" }
 vtcode-indexer = { path = "../vtcode-indexer", version = "0.128.4" }
 vtcode-bash-runner = { path = "../vtcode-bash-runner", version = "0.128.4" }
 vtcode-terminal-detection = { path = "../vtcode-terminal-detection", version = "0.128.4" }
-vtcode-tool-types = { path = "../vtcode-tool-types", version = "0.128.4" }
 vtcode-safety = { path = "../vtcode-safety", version = "0.128.4" }
 vtcode-pods = { path = "../vtcode-pods", version = "0.128.4" }
 vtcode-a2a = { path = "../vtcode-a2a", version = "0.128.4" }
 vtcode-mcp = { path = "../vtcode-mcp", version = "0.128.4" }
-vtcode-llm = { path = "../vtcode-llm", version = "0.128.4" }
+vtcode-llm = { path = "../vtcode-llm", version = "0.128.4", features = ["copilot"] }
 vtcode-skills = { path = "../vtcode-skills", version = "0.128.4" }
 
 # Schema generation

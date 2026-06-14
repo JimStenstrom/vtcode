@@ -14,7 +14,7 @@ use rig::providers::openai::responses_api::{
 use serde_json::{Value, json};
 use vtcode_config::constants::models::openai as openai_models;
 use vtcode_config::core::OpenAIHostedShellConfig;
-use vtcode_config::models::Provider as ModelProvider;
+use vtcode_config::models::{Provider as ModelProvider, ProviderModelSupport};
 use vtcode_config::types::{ReasoningEffortLevel, VerbosityLevel};
 
 use super::responses_api::build_standard_responses_payload;

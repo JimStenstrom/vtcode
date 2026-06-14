@@ -6,7 +6,7 @@ use vtcode_config::OpenAIServiceTier;
 use vtcode_config::VTCodeConfig;
 use vtcode_config::core::CustomProviderConfig;
 use vtcode_core::config::constants::reasoning;
-use vtcode_core::config::models::{ModelId, Provider};
+use vtcode_core::config::models::{ModelId, Provider, ProviderModelSupport};
 use vtcode_core::config::types::ReasoningEffortLevel;
 use vtcode_core::llm::{DynamicModelMeta, ModelResolver, ResolvedModel};
 

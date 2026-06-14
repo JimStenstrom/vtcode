@@ -619,6 +619,11 @@ This document serves as an index of all VT Code documentation. When users ask qu
   - **Topics**: Why Exec Plans?, Exec Plans vs Planning Workflow, Directory Structure, Mandatory Sections, Template
   - **User Questions**: "What can you tell me about Execution Plans?", "How does Why Exec Plans? work?", "How does Exec Plans vs Planning Workflow work?"
 
+- **File**: `docs/project/extraction-remaining-plan.md`
+  - **Content**: Extraction Remaining Plan
+  - **Topics**: Issue Tracker, Remaining Work (5 items), Execution Order, Verification Checklist
+  - **User Questions**: "What can you tell me about Extraction Remaining Plan?", "How does Issue Tracker work?", "How does Remaining Work (5 items) work?"
+
 - **File**: `docs/features/FILE_REFERENCE.md`
   - **Content**: File Reference Feature (@-Symbol)
   - **Topics**: Overview, Usage, UI Design, Implementation Details, Benefits

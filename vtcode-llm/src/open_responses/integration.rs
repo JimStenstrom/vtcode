@@ -6,7 +6,7 @@
 
 use std::sync::{Arc, Mutex};
 
-use crate::llm::provider::NormalizedStreamEvent;
+use crate::provider::NormalizedStreamEvent;
 use vtcode_config::OpenResponsesConfig;
 use vtcode_exec_events::ThreadEvent;
 
@@ -215,7 +215,7 @@ pub trait ToOpenResponse {
     fn to_open_response(&self, response_id: &str, model: &str) -> Response;
 }
 
-impl ToOpenResponse for crate::llm::provider::LLMResponse {
+impl ToOpenResponse for crate::provider::LLMResponse {
     fn to_open_response(&self, response_id: &str, model: &str) -> Response {
         let mut response = Response::new(response_id, model);
 
@@ -282,7 +282,7 @@ impl ToOpenResponse for crate::llm::provider::LLMResponse {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::llm::provider::{FinishReason, LLMResponse, NormalizedStreamEvent};
+    use crate::provider::{FinishReason, LLMResponse, NormalizedStreamEvent};
 
     #[test]
     fn test_integration_disabled_by_default() {

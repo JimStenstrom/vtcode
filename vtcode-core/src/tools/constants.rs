@@ -3,11 +3,11 @@
 //! This module provides common constants used across multiple tool implementations
 //! to reduce code duplication and ensure consistency.
 //!
-//! Core constants are defined in `vtcode-tool-types` and re-exported here
+//! Core constants are defined in `vtcode-commons::tool_types` and re-exported here
 //! for backward compatibility. Additional vtcode-specific constants are defined below.
 
-// Re-export core constants from vtcode-tool-types for backward compatibility
-pub use vtcode_tool_types::{
+// Re-export core constants from vtcode-commons::tool_types for backward compatibility
+pub use vtcode_commons::tool_types::{
     DEFAULT_HASHMAP_CAPACITY, DEFAULT_STRING_CAPACITY, DEFAULT_VEC_CAPACITY,
     ERROR_DETECTION_PATTERNS, MAX_CONTEXT_LINES, MAX_FILE_SIZE_FOR_PROCESSING,
     MAX_LIST_ITEMS_SUMMARY, MAX_OUTPUT_TOKENS, MAX_SEARCH_RESULTS, NETWORK_ERROR_PATTERNS,

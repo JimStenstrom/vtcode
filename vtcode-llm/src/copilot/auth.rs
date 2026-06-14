@@ -18,7 +18,7 @@ use tokio::time::timeout;
 use url::Url;
 use vtcode_config::auth::CopilotAuthConfig;
 
-use crate::utils::ansi_parser::strip_ansi;
+use vtcode_commons::ansi::strip_ansi;
 
 use super::command::{ResolvedCopilotCommand, copilot_command_available, resolve_copilot_command};
 use super::types::{COPILOT_AUTH_DOC_PATH, CopilotAuthEvent, CopilotAuthStatus};

@@ -40,12 +40,15 @@ url = { workspace = true }
 uuid = { workspace = true, features = ["v4"] }
 vtcode-commons = { path = "../vtcode-commons", version = "0.128.4" }
 vtcode-config = { path = "../vtcode-config", version = "0.128.4" }
-vtcode-tool-types = { path = "../vtcode-tool-types", version = "0.128.4" }
+vtcode-exec-events = { path = "../vtcode-exec-events", version = "0.128.4" }
 vtcode-utility-tool-specs = { path = "../vtcode-utility-tool-specs", version = "0.128.4" }
 anstyle = { workspace = true }
 lru = "0.18"
 which = "8.0.2"
 shell-words = { workspace = true }
+regex = { workspace = true }
+dirs = { workspace = true }
+portable-pty = { version = "0.9.0", optional = true }
 ratatui = { workspace = true }
 
 [dev-dependencies]
@@ -56,7 +59,7 @@ wiremock = "0.6.5"
 [features]
 default = []
 http-server = ["dep:tokio-stream"]
-copilot = []
+copilot = ["dep:portable-pty"]
 anthropic-api = []
 
 [package.metadata.docs.rs]

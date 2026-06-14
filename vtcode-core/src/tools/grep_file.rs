@@ -674,7 +674,7 @@ impl GrepSearchManager {
 
     /// Perform file enumeration using the optimized file search bridge
     ///
-    /// This method uses the vtcode-file-search crate for parallel, fuzzy file discovery.
+    /// This method uses vtcode-indexer::file_search for parallel, fuzzy file discovery.
     /// It's optimized for:
     /// - Listing files in large directories
     /// - Fuzzy filename matching

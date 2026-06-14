@@ -150,7 +150,10 @@ pub mod components; // Context-Generic Programming (CGP) substrate for composabl
 pub mod config;
 pub mod constants;
 pub mod context; // Vibe coding support: entity resolution, workspace state, conversation memory
-pub mod copilot;
+// copilot module moved to vtcode-llm; re-exported for backward compatibility
+pub mod copilot {
+    pub use vtcode_llm::copilot::*;
+}
 pub mod core;
 pub mod diagnostics;
 pub mod dotfile_protection; // Comprehensive dotfile protection system
@@ -174,7 +177,10 @@ pub mod metrics;
 pub mod models;
 pub mod models_manager; // Models discovery, caching, and selection (Codex patterns)
 pub mod notifications;
-pub mod open_responses; // Open Responses specification conformance layer
+// open_responses module moved to vtcode-llm; re-exported for backward compatibility
+pub mod open_responses {
+    pub use vtcode_llm::open_responses::*;
+}
 pub mod orchestrator;
 pub mod permissions;
 pub mod persistent_memory;
@@ -313,7 +319,7 @@ pub use security::{IntegrityTag, PayloadEnvelope, ZeroTrustContext};
 pub use telemetry::{TelemetryEvent, TelemetryPipeline};
 pub use zsh_exec_bridge::maybe_run_zsh_exec_wrapper_mode;
 
-// Open Responses specification types
+// Open Responses specification types (canonical module lives in vtcode-llm)
 pub use open_responses::{
     ContentPart, CustomItem, DualEventEmitter, FunctionCallItem, FunctionCallOutputItem,
     IncompleteDetails, IncompleteReason, InputTokensDetails, ItemStatus, MessageItem, MessageRole,
@@ -350,7 +356,7 @@ pub use utils::dot_config::{
 };
 pub use utils::vtcodegitignore::initialize_vtcode_gitignore;
 pub use vtcode_indexer::SimpleIndexer;
-pub use vtcode_markdown_store::{
+pub use vtcode_indexer::markdown_store::{
     MarkdownStorage, ProjectData, ProjectStorage, SimpleCache, SimpleKVStorage,
     SimpleProjectManager,
 };

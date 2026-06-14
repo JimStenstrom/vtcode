@@ -6,13 +6,28 @@
 
 use serde_json::json;
 
+/// Canonicalize unified exec tool names to their standard form.
+///
+/// This mirrors the canonicalization in vtcode-core's `tools::tool_intent` module,
+/// using inline string constants to avoid a circular dependency.
+fn canonical_unified_exec_tool_name(tool_name: &str) -> Option<&'static str> {
+    const UNIFIED_EXEC: &str = "unified_exec";
+    match tool_name {
+        "unified_exec" | "run_pty_cmd" | "send_pty_input" | "create_pty_session"
+        | "read_pty_session" | "list_pty_sessions" | "close_pty_session" | "execute_code"
+        | "exec_pty_cmd" | "exec_command" | "write_stdin" | "shell" | "bash" | "exec"
+        | "container.exec" => Some(UNIFIED_EXEC),
+        _ => None,
+    }
+}
+
 use super::{
     ContentPart, CustomItem, FunctionCallItem, ItemStatus, MessageItem, MessageRole,
     OpenResponseError, OpenUsage, OutputItem, ReasoningItem, Response, ResponseStatus,
     ResponseStreamEvent, StreamEventEmitter,
     response::{generate_item_id, generate_response_id},
 };
-use crate::llm::provider::{FinishReason, NormalizedStreamEvent, ToolCall};
+use crate::provider::{FinishReason, NormalizedStreamEvent, ToolCall};
 use vtcode_exec_events::{
     CommandExecutionStatus, McpToolCallStatus, PatchApplyStatus, ThreadEvent, ThreadItem,
     ThreadItemDetails, ToolOutputItem,
@@ -606,11 +621,9 @@ impl ResponseBuilder {
             }),
 
             ThreadItemDetails::ToolInvocation(invocation) => {
-                let tool_name = crate::tools::tool_intent::canonical_unified_exec_tool_name(
-                    &invocation.tool_name,
-                )
-                .unwrap_or(invocation.tool_name.as_str())
-                .to_string();
+                let tool_name = canonical_unified_exec_tool_name(&invocation.tool_name)
+                    .unwrap_or(invocation.tool_name.as_str())
+                    .to_string();
                 OutputItem::FunctionCall(FunctionCallItem {
                     id: item.id.clone(),
                     status,
@@ -879,7 +892,7 @@ impl ResponseBuilder {
 
     fn finalize_normalized_response<E: StreamEventEmitter>(
         &mut self,
-        response: &crate::llm::provider::LLMResponse,
+        response: &crate::provider::LLMResponse,
         emitter: &mut E,
     ) {
         if let Some(usage) = response.usage.as_ref() {
@@ -1223,8 +1236,8 @@ impl<E: StreamEventEmitter> DualEventEmitter<E> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::llm::provider::{FinishReason, LLMResponse, NormalizedStreamEvent, ToolCall};
     use crate::open_responses::{ResponseStreamEvent, events::VecStreamEmitter};
+    use crate::provider::{FinishReason, LLMResponse, NormalizedStreamEvent, ToolCall};
     use serde_json::json;
     use vtcode_exec_events::{
         AgentMessageItem, CommandExecutionItem, CommandExecutionStatus, ItemCompletedEvent,
@@ -1839,7 +1852,7 @@ mod tests {
                 delta: "{\"pattern\":\"phase\"}".to_string(),
             },
             NormalizedStreamEvent::Usage {
-                usage: crate::llm::provider::Usage {
+                usage: crate::provider::Usage {
                     prompt_tokens: 10,
                     completion_tokens: 4,
                     total_tokens: 14,

@@ -6,10 +6,13 @@
 pub mod capabilities;
 pub mod client;
 pub mod config_adapter;
+#[cfg(feature = "copilot")]
+pub mod copilot;
 pub mod error_display;
 pub mod factory_types;
 pub mod http_client;
 pub mod model_resolver;
+pub mod open_responses;
 pub mod optimized_client;
 pub mod provider;
 pub mod provider_base;

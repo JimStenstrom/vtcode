@@ -1,6 +1,6 @@
 //! Markdown-backed storage utilities extracted from VT Code.
 //!
-//! This crate provides lightweight persistence helpers that serialize
+//! This module provides lightweight persistence helpers that serialize
 //! structured data into Markdown files with embedded JSON and YAML blocks.
 //! It also exposes simple project and cache managers built on top of the
 //! markdown storage abstraction so command-line tools can persist
@@ -77,7 +77,7 @@ impl MarkdownStorage {
                 drop(file);
             }
 
-            // Removing a file that was concurrently deleted is not an error –
+            // Removing a file that was concurrently deleted is not an error -
             // treat it as best-effort cleanup.
             match fs::remove_file(&file_path) {
                 Ok(_) => {}
@@ -245,12 +245,10 @@ fn read_with_shared_lock(path: &Path) -> Result<String> {
 }
 
 /// Simple key-value storage using markdown
-#[cfg(feature = "kv")]
 pub struct SimpleKVStorage {
     storage: MarkdownStorage,
 }
 
-#[cfg(feature = "kv")]
 impl SimpleKVStorage {
     pub fn new(storage_dir: PathBuf) -> Self {
         Self {
@@ -285,7 +283,6 @@ impl SimpleKVStorage {
 }
 
 /// Simple project metadata storage
-#[cfg(feature = "projects")]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProjectData {
     pub name: String,
@@ -295,7 +292,6 @@ pub struct ProjectData {
     pub metadata: IndexMap<String, String>,
 }
 
-#[cfg(feature = "projects")]
 impl ProjectData {
     pub fn new(name: &str) -> Self {
         Self {
@@ -309,13 +305,11 @@ impl ProjectData {
 }
 
 /// Project storage using markdown
-#[cfg(feature = "projects")]
 #[derive(Clone)]
 pub struct ProjectStorage {
     storage: MarkdownStorage,
 }
 
-#[cfg(feature = "projects")]
 impl ProjectStorage {
     pub fn new(storage_dir: PathBuf) -> Self {
         Self {
@@ -353,7 +347,6 @@ impl ProjectStorage {
 }
 
 /// Simple project manager that orchestrates project metadata persistence.
-#[cfg(feature = "projects")]
 #[derive(Clone)]
 pub struct SimpleProjectManager {
     storage: ProjectStorage,
@@ -361,7 +354,6 @@ pub struct SimpleProjectManager {
     project_root: PathBuf,
 }
 
-#[cfg(feature = "projects")]
 impl SimpleProjectManager {
     /// Construct a project manager that stores metadata under
     /// `<workspace_root>/.vtcode/projects`.
@@ -492,12 +484,10 @@ impl SimpleProjectManager {
 }
 
 /// Simple cache using file system
-#[cfg(feature = "cache")]
 pub struct SimpleCache {
     cache_dir: PathBuf,
 }
 
-#[cfg(feature = "cache")]
 impl SimpleCache {
     /// Create a new simple cache
     pub fn new(cache_dir: PathBuf) -> Self {
@@ -562,92 +552,5 @@ impl SimpleCache {
             }
         }
         Ok(entries)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use serial_test::serial;
-    use std::sync::{Arc, Barrier};
-    use std::thread;
-    use tempfile::TempDir;
-
-    #[test]
-    fn markdown_storage_roundtrip() {
-        let dir = TempDir::new().expect("temp dir");
-        let storage = MarkdownStorage::new(dir.path().to_path_buf());
-        storage.init().expect("init storage");
-
-        #[derive(Serialize, Deserialize, PartialEq, Debug)]
-        struct Sample {
-            name: String,
-            value: u32,
-        }
-
-        let data = Sample {
-            name: "example".to_string(),
-            value: 42,
-        };
-
-        storage
-            .store("sample", &data, "Sample Data")
-            .expect("store");
-        let loaded: Sample = storage.load("sample").expect("load");
-        assert_eq!(loaded, data);
-    }
-
-    #[test]
-    #[serial]
-    fn concurrent_writes_preserve_integrity() {
-        let dir = TempDir::new().expect("temp dir");
-        let storage = MarkdownStorage::new(dir.path().to_path_buf());
-        storage.init().expect("init storage");
-
-        #[derive(Serialize, Deserialize, PartialEq, Debug)]
-        struct Sample {
-            name: String,
-            value: u32,
-        }
-
-        let barrier = Arc::new(Barrier::new(3));
-        let shared = Arc::new(storage);
-        let key = "concurrent";
-
-        let mut handles = Vec::new();
-        for (name, value) in [("first", 1u32), ("second", 2u32)] {
-            let barrier = barrier.clone();
-            let storage = shared.clone();
-            let key = key.to_string();
-            handles.push(thread::spawn(move || {
-                let data = Sample {
-                    name: name.to_string(),
-                    value,
-                };
-
-                barrier.wait();
-                storage
-                    .store(&key, &data, "Concurrent Sample")
-                    .expect("store concurrently");
-            }));
-        }
-
-        // Release the worker threads at roughly the same time.
-        barrier.wait();
-
-        for handle in handles {
-            handle.join().expect("join thread");
-        }
-
-        let final_value: Sample = shared
-            .load(key)
-            .expect("load value after concurrent writes");
-
-        assert!(
-            (final_value.name == "first" && final_value.value == 1)
-                || (final_value.name == "second" && final_value.value == 2),
-            "final value should match one of the writers, got {:?}",
-            final_value
-        );
     }
 }

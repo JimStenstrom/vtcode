@@ -7,7 +7,7 @@ use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 
 use super::{MessageRole, OutputItem};
-use crate::llm::provider::ToolDefinition;
+use crate::provider::ToolDefinition;
 
 /// The main request object per the Open Responses specification.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

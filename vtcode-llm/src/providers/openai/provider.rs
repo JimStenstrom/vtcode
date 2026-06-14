@@ -23,6 +23,7 @@ use tokio::sync::Mutex as AsyncMutex;
 use tracing::debug;
 use uuid::Uuid;
 use vtcode_commons::file_input::{MAX_INPUT_FILE_BYTES, decoded_base64_size};
+use vtcode_commons::model_family::find_family_for_model;
 use vtcode_config::TimeoutsConfig;
 use vtcode_config::auth::{OpenAIChatGptAuthHandle, OpenAIChatGptSession};
 use vtcode_config::constants::models;
@@ -30,7 +31,6 @@ use vtcode_config::core::{
     AnthropicConfig, ModelConfig, OpenAIConfig, OpenAIHostedShellConfig, OpenAIPromptCacheSettings,
     OpenAIServiceTier, PromptCachingConfig,
 };
-use vtcode_tool_types::model_family::find_family_for_model;
 
 // Import from extracted modules
 use super::CustomProviderAuthHandle;

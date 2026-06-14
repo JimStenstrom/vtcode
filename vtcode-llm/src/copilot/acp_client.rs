@@ -21,8 +21,8 @@ use super::types::{
     CopilotTerminalWaitForExitRequest, CopilotToolCallFailure, CopilotToolCallRequest,
     CopilotToolCallResponse,
 };
-use crate::config::constants::tools;
-use crate::llm::provider::ToolDefinition;
+use crate::provider::ToolDefinition;
+use vtcode_config::constants::tools;
 
 type RpcId = i64;
 

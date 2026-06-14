@@ -102,7 +102,7 @@ impl OpenUsage {
     }
 
     /// Creates usage from VT Code's internal LLM usage type.
-    pub fn from_llm_usage(usage: &crate::llm::provider::Usage) -> Self {
+    pub fn from_llm_usage(usage: &crate::provider::Usage) -> Self {
         let mut details = InputTokensDetails::default();
         let cached = usage.cache_read_tokens_or_fallback();
         if cached > 0 {
@@ -193,7 +193,7 @@ mod tests {
 
     #[test]
     fn test_from_llm_usage_falls_back_to_cached_prompt_tokens() {
-        let usage = OpenUsage::from_llm_usage(&crate::llm::provider::Usage {
+        let usage = OpenUsage::from_llm_usage(&crate::provider::Usage {
             prompt_tokens: 1000,
             completion_tokens: 250,
             total_tokens: 1250,

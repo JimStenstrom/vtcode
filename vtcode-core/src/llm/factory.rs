@@ -4,16 +4,13 @@ use super::provider::{LLMError, LLMProvider};
 use super::providers::OpenAIProvider;
 use super::providers::openai::CustomProviderAuthHandle;
 use hashbrown::HashMap;
-use std::path::PathBuf;
 use vtcode_commons::ctx_err;
-use vtcode_config::TimeoutsConfig;
-use vtcode_config::auth::CopilotAuthConfig;
-use vtcode_config::auth::OpenAIChatGptAuthHandle;
-use vtcode_config::core::{AnthropicConfig, ModelConfig, OpenAIConfig, PromptCachingConfig};
+use vtcode_config::core::{ModelConfig, PromptCachingConfig};
 use vtcode_config::models::Provider;
-// ProviderConfig is defined locally (same shape as vtcode_llm::ProviderConfig).
-// During partial extraction both copies exist; they will merge when vtcode-llm
-// is fully decoupled from the CGP registration system.
+
+// ProviderConfig is the canonical factory config imported from vtcode-llm.
+// The struct was consolidated here to eliminate the duplicate definition.
+pub use vtcode_llm::provider_config_types::ProviderConfig;
 
 type ProviderFactory = Box<dyn Fn(ProviderConfig) -> Box<dyn LLMProvider> + Send + Sync>;
 
@@ -45,21 +42,6 @@ const BUILTIN_PROVIDER_KEYS: &[&str] = &[
 /// LLM provider factory and registry
 pub struct LLMFactory {
     providers: HashMap<String, ProviderFactory>,
-}
-
-#[derive(Debug, Clone)]
-pub struct ProviderConfig {
-    pub api_key: Option<String>,
-    pub openai_chatgpt_auth: Option<OpenAIChatGptAuthHandle>,
-    pub copilot_auth: Option<CopilotAuthConfig>,
-    pub base_url: Option<String>,
-    pub model: Option<String>,
-    pub prompt_cache: Option<PromptCachingConfig>,
-    pub timeouts: Option<TimeoutsConfig>,
-    pub openai: Option<OpenAIConfig>,
-    pub anthropic: Option<AnthropicConfig>,
-    pub model_behavior: Option<ModelConfig>,
-    pub workspace_root: Option<PathBuf>,
 }
 
 impl LLMFactory {
@@ -162,7 +144,7 @@ pub fn get_models_manager() -> &'static ModelsManager {
 /// `provider_from_model` by checking against known model presets first.
 pub fn infer_provider_from_model(model: &str) -> Option<Provider> {
     ModelResolver::resolve_provider(None, model, &[]).or_else(|| {
-        let family = vtcode_tool_types::model_family::find_family_for_model(model);
+        let family = vtcode_commons::model_family::find_family_for_model(model);
         (family.family != "unknown").then_some(family.provider)
     })
 }

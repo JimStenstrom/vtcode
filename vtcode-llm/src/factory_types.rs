@@ -12,7 +12,7 @@ use vtcode_config::models::Provider;
 /// Infer provider from model slug using model resolver.
 pub fn infer_provider_from_model(model: &str) -> Option<Provider> {
     ModelResolver::resolve_provider(None, model, &[]).or_else(|| {
-        let family = vtcode_tool_types::model_family::find_family_for_model(model);
+        let family = vtcode_commons::model_family::find_family_for_model(model);
         (family.family != "unknown").then_some(family.provider)
     })
 }

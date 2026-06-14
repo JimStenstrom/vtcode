@@ -4,7 +4,7 @@
 
 use crate::config::constants::models::openai as openai_models;
 use crate::config::core::OpenAIHostedShellConfig;
-use crate::config::models::Provider as ModelProvider;
+use crate::config::models::{Provider as ModelProvider, ProviderModelSupport};
 use crate::config::types::{ReasoningEffortLevel, VerbosityLevel};
 use crate::llm::error_display;
 use crate::llm::provider;

@@ -17,7 +17,7 @@ use async_stream::try_stream;
 use futures::StreamExt;
 use serde_json::Value;
 use std::time::Instant;
-use vtcode_tool_types::model_family::find_family_for_model;
+use vtcode_commons::model_family::find_family_for_model;
 
 use super::responses_api::parse_responses_payload;
 use super::streaming::OpenAIStreamTelemetry;

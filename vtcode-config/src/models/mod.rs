@@ -18,7 +18,7 @@ pub use model_id::{
 };
 pub use openrouter::OpenRouterMetadata;
 pub use openrouter::openrouter_generated;
-pub use provider::Provider;
+pub use provider::{Provider, ProviderModelSupport};
 
 #[cfg(test)]
 mod tests;

@@ -6,9 +6,9 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::fmt;
 
+use vtcode_commons::tool_types::EnhancedToolResult;
 #[cfg(test)]
 use vtcode_config::constants::tools;
-use vtcode_tool_types::EnhancedToolResult;
 
 /// Tracks intent fulfillment
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]

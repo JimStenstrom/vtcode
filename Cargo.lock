@@ -7045,7 +7045,6 @@ dependencies = [
  "vtcode-process-hardening",
  "vtcode-safety",
  "vtcode-terminal-detection",
- "vtcode-tool-types",
  "vtcode-ui",
  "webbrowser",
 ]
@@ -7317,17 +7316,14 @@ dependencies = [
  "vtcode-commons",
  "vtcode-config",
  "vtcode-exec-events",
- "vtcode-file-search",
  "vtcode-indexer",
  "vtcode-llm",
  "vtcode-macros",
- "vtcode-markdown-store",
  "vtcode-mcp",
  "vtcode-pods",
  "vtcode-safety",
  "vtcode-skills",
  "vtcode-terminal-detection",
- "vtcode-tool-types",
  "vtcode-ui",
  "vtcode-utility-tool-specs",
  "webbrowser",
@@ -7353,33 +7349,25 @@ dependencies = [
 ]
 
 [[package]]
-name = "vtcode-file-search"
-version = "0.128.4"
-dependencies = [
- "anyhow",
- "clap",
- "ignore",
- "nucleo-matcher",
- "num_cpus",
- "parking_lot",
- "serde",
- "serde_json",
- "tempfile",
- "tokio",
- "tracing",
- "vtcode-commons",
-]
-
-[[package]]
 name = "vtcode-indexer"
 version = "0.128.4"
 dependencies = [
  "anyhow",
+ "fs2",
  "hashbrown 0.17.1",
  "ignore",
+ "indexmap 2.14.0",
+ "nucleo-matcher",
+ "num_cpus",
+ "parking_lot",
  "regex",
  "serde",
+ "serde-saphyr",
+ "serde_json",
+ "serial_test",
  "tempfile",
+ "tokio",
+ "tracing",
  "vtcode-commons",
 ]
 
@@ -7394,13 +7382,16 @@ dependencies = [
  "base64",
  "bytes",
  "compact_str",
+ "dirs",
  "futures",
  "hashbrown 0.17.1",
  "lru",
  "once_cell",
  "openai-harmony",
  "parking_lot",
+ "portable-pty",
  "ratatui",
+ "regex",
  "reqwest 0.12.28",
  "rig-core",
  "rustc-hash 2.1.2",
@@ -7419,7 +7410,7 @@ dependencies = [
  "uuid",
  "vtcode-commons",
  "vtcode-config",
- "vtcode-tool-types",
+ "vtcode-exec-events",
  "vtcode-utility-tool-specs",
  "which",
  "wiremock",
@@ -7432,20 +7423,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.117",
-]
-
-[[package]]
-name = "vtcode-markdown-store"
-version = "0.128.4"
-dependencies = [
- "anyhow",
- "fs2",
- "indexmap 2.14.0",
- "serde",
- "serde-saphyr",
- "serde_json",
- "serial_test",
- "tempfile",
 ]
 
 [[package]]
@@ -7557,17 +7534,6 @@ version = "0.128.4"
 dependencies = [
  "anyhow",
  "dirs",
-]
-
-[[package]]
-name = "vtcode-tool-types"
-version = "0.128.4"
-dependencies = [
- "compact_str",
- "hashbrown 0.17.1",
- "serde",
- "serde_json",
- "vtcode-config",
 ]
 
 [[package]]

@@ -43,7 +43,7 @@ tracing = { workspace = true }
 url = { workspace = true }
 vtcode-commons = { path = "../vtcode-commons", version = "0.128.4" }
 vtcode-config = { path = "../vtcode-config", version = "0.128.4" }
-vtcode-utility-tool-specs = { path = "../vtcode-utility-tool-specs", version = "0.128.4" }
+vtcode-utility-tool-specs = { path = "../vtcode-utility-tool-specs", version = "0.128.4", features = ["mcp"] }
 schemars = { workspace = true, optional = true }
 
 [features]

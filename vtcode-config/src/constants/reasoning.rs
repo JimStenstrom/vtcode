@@ -1,14 +1,5 @@
-pub const NONE: &str = "none";
-pub const MINIMAL: &str = "minimal";
-pub const LOW: &str = "low";
-pub const MEDIUM: &str = "medium";
-pub const HIGH: &str = "high";
-pub const XHIGH: &str = "xhigh";
-pub const MAX: &str = "max";
-pub const ALLOWED_LEVELS: &[&str] = &[MINIMAL, LOW, MEDIUM, HIGH, XHIGH, MAX];
-pub const LABEL_LOW: &str = "Low";
-pub const LABEL_MEDIUM: &str = "Medium";
-pub const LABEL_HIGH: &str = "High";
-pub const DESCRIPTION_LOW: &str = "Fast responses with lightweight reasoning.";
-pub const DESCRIPTION_MEDIUM: &str = "Balanced depth and speed for general tasks. (Note: May not be fully available for all models including Gemini 3 Pro)";
-pub const DESCRIPTION_HIGH: &str = "Maximum reasoning depth for complex problems.";
+//! Reasoning effort level constants.
+//!
+//! Re-exported from `vtcode-commons::reasoning::constants` for backward compatibility.
+
+pub use vtcode_commons::reasoning::constants::*;

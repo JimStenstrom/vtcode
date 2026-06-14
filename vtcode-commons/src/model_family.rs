@@ -5,8 +5,8 @@
 
 use serde::{Deserialize, Serialize};
 
-use vtcode_config::models::Provider;
-use vtcode_config::types::ReasoningEffortLevel;
+use crate::provider::Provider;
+use crate::reasoning::ReasoningEffortLevel;
 
 /// Default context window for most models
 pub const DEFAULT_CONTEXT_WINDOW: i64 = 128_000;

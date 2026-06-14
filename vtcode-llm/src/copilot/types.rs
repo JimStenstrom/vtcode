@@ -4,7 +4,7 @@ use std::pin::Pin;
 
 use serde_json::Value;
 
-use crate::llm::provider::LLMError;
+use crate::provider::LLMError;
 
 pub const COPILOT_PROVIDER_KEY: &str = "copilot";
 pub const COPILOT_MODEL_ID: &str = vtcode_config::constants::models::copilot::DEFAULT_MODEL;

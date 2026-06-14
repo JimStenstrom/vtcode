@@ -1,24 +1,23 @@
-//! Bridge module integrating vtcode-file-search with grep_file.rs
+//! Bridge module integrating vtcode-indexer::file_search with grep_file.rs
 //!
-//! This module provides a clean interface to use the dedicated file-search
-//! crate for file discovery operations, replacing direct ripgrep subprocess
+//! This module provides a clean interface to use the file-search module
+//! for file discovery operations, replacing direct ripgrep subprocess
 //! calls for file enumeration.
 //!
 //! It handles:
-//! - Converting between vtcode-core and vtcode-file-search APIs
+//! - Converting between vtcode-core and vtcode-indexer::file_search APIs
 //! - Integrating file search results with existing grep workflows
-//! - Maintaining backward compatibility during transition
 
 use anyhow::Result;
 use std::num::NonZero;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
-use vtcode_file_search::{
+use vtcode_indexer::file_search::{
     FileMatch, FileSearchResults, MatchType, file_name_from_path, run as file_search_run,
 };
 
-pub use vtcode_file_search::MatchType as FileMatchType;
+pub use vtcode_indexer::file_search::MatchType as FileMatchType;
 
 /// Configuration for file search operations
 #[derive(Debug, Clone)]
@@ -103,7 +102,7 @@ pub fn search_files(
     let limit = NonZero::new(config.max_results).unwrap_or(NonZero::<usize>::MIN);
     let threads = NonZero::new(config.num_threads).unwrap_or(NonZero::<usize>::MIN);
 
-    file_search_run(vtcode_file_search::FileSearchConfig {
+    file_search_run(vtcode_indexer::file_search::FileSearchConfig {
         pattern_text: config.pattern,
         limit,
         search_directory: config.search_dir,

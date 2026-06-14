@@ -1,7 +1,7 @@
 //! Integration tests for file search bridge integration with grep_file.rs
 //!
 //! Phase 2C: Tool Integration Testing
-//! Tests the integration of vtcode-file-search into existing tools
+//! Tests the integration of vtcode-indexer::file_search into existing tools
 
 #[cfg(test)]
 mod file_search_integration_tests {

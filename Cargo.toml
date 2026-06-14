@@ -116,14 +116,11 @@ members = [
     "vtcode-vim",
     "vtcode-commons",
     "vtcode-config",
-    "vtcode-markdown-store",
     "vtcode-indexer",
     "vtcode-bash-runner",
     "vtcode-exec-events",
-    "vtcode-file-search",
     "vtcode-process-hardening",
     "vtcode-macros",
-    "vtcode-tool-types",
     "vtcode-safety",
     "vtcode-pods",
     "vtcode-a2a",
@@ -144,12 +141,9 @@ vtcode-core = { path = "vtcode-core" }
 vtcode-ui = { path = "vtcode-ui" }
 vtcode-process-hardening = { path = "vtcode-process-hardening" }
 vtcode-terminal-detection = { path = "vtcode-terminal-detection" }
-vtcode-markdown-store = { path = "vtcode-markdown-store" }
 vtcode-indexer = { path = "vtcode-indexer" }
 vtcode-bash-runner = { path = "vtcode-bash-runner" }
 vtcode-exec-events = { path = "vtcode-exec-events" }
-vtcode-file-search = { path = "vtcode-file-search" }
-vtcode-tool-types = { path = "vtcode-tool-types" }
 vtcode-safety = { path = "vtcode-safety" }
 vtcode-pods = { path = "vtcode-pods" }
 vtcode-a2a = { path = "vtcode-a2a" }
@@ -241,7 +235,6 @@ vtcode-auth = { path = "vtcode-auth", version = "0.128.4" }
 vtcode-core = { path = "vtcode-core", version = "0.128.4", default-features = false }
 vtcode-process-hardening = { path = "vtcode-process-hardening", version = "0.128.4" }
 vtcode-terminal-detection = { path = "vtcode-terminal-detection", version = "0.128.4" }
-vtcode-tool-types = { path = "vtcode-tool-types", version = "0.128.4" }
 vtcode-safety = { path = "vtcode-safety", version = "0.128.4" }
 vtcode-pods = { path = "vtcode-pods", version = "0.128.4" }
 vtcode-a2a = { path = "vtcode-a2a", version = "0.128.4" }

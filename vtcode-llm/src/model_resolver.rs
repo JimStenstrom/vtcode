@@ -5,7 +5,8 @@ use crate::provider::Usage;
 use vtcode_config::api_keys::api_key_env_var;
 use vtcode_config::auth::{AuthCredentialsStoreMode, CustomApiKeyStorage};
 use vtcode_config::models::{
-    ModelCatalogEntry, ModelId, ModelPricing, Provider, catalog_provider_keys, model_catalog_entry,
+    ModelCatalogEntry, ModelId, ModelPricing, Provider, ProviderModelSupport,
+    catalog_provider_keys, model_catalog_entry,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
