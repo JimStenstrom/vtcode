@@ -29,11 +29,6 @@ anyhow = { workspace = true }
 hashbrown = { workspace = true }
 clap = { workspace = true, features = ["derive"] }
 reqwest = { workspace = true, features = ["http2"] }
-rmcp-reqwest = { package = "reqwest", version = "0.13.2", default-features = false, features = [
-    "json",
-    "rustls",
-    "stream",
-] }
 serde = { workspace = true }
 serde_json = { workspace = true }
 compact_str = { workspace = true }
@@ -132,17 +127,17 @@ vtcode-markdown-store = { path = "../vtcode-markdown-store", version = "0.128.4"
 vtcode-indexer = { path = "../vtcode-indexer", version = "0.128.4" }
 vtcode-bash-runner = { path = "../vtcode-bash-runner", version = "0.128.4" }
 vtcode-terminal-detection = { path = "../vtcode-terminal-detection", version = "0.128.4" }
+vtcode-tool-types = { path = "../vtcode-tool-types", version = "0.128.4" }
+vtcode-safety = { path = "../vtcode-safety", version = "0.128.4" }
+vtcode-pods = { path = "../vtcode-pods", version = "0.128.4" }
+vtcode-a2a = { path = "../vtcode-a2a", version = "0.128.4" }
+vtcode-mcp = { path = "../vtcode-mcp", version = "0.128.4" }
 
 # Schema generation
 schemars = { workspace = true, optional = true }
 
 # MCP (Model Context Protocol) support
 # Phase 1: Upgrade to 0.9.0+ for improved transport and lifecycle management
-rmcp = { version = "1.7", features = [
-    "client",
-    "transport-child-process",
-    "transport-streamable-http-client-reqwest",
-] }
 openai-harmony = "0.0.8"
 url = { workspace = true }
 jsonschema = "0.46"
@@ -195,7 +190,7 @@ tui = ["dep:crossterm"]
 mock = []
 policies = []
 schema = ["dep:schemars", "vtcode-config/schema"]
-a2a-server = ["http-server"]
+a2a-server = ["http-server", "vtcode-a2a/a2a-server"]
 anthropic-api = ["http-server"]
 http-server = ["dep:axum", "dep:tower", "dep:tower-http", "dep:tokio-stream"]
 desktop-notifications = ["dep:notify-rust"]

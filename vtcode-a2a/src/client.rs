@@ -11,15 +11,15 @@ use futures::{Stream, StreamExt};
 use reqwest::Client;
 use serde_json::Value;
 
-use crate::a2a::agent_card::AgentCard;
-use crate::a2a::errors::{A2aError, A2aErrorCode, A2aResult};
-use crate::a2a::rpc::{
+use crate::agent_card::AgentCard;
+use crate::errors::{A2aError, A2aErrorCode, A2aResult};
+use crate::rpc::{
     JsonRpcRequest, ListTasksParams, METHOD_MESSAGE_SEND, METHOD_MESSAGE_STREAM,
     METHOD_TASKS_CANCEL, METHOD_TASKS_GET, METHOD_TASKS_LIST, METHOD_TASKS_PUSH_CONFIG_GET,
     METHOD_TASKS_PUSH_CONFIG_SET, MessageSendParams, SendStreamingMessageResponse, StreamingEvent,
     TaskIdParams, TaskPushNotificationConfig, TaskQueryParams,
 };
-use crate::a2a::types::Task;
+use crate::types::Task;
 
 /// HTTP client for interacting with A2A agents
 #[derive(Clone, Debug)]
@@ -252,7 +252,7 @@ impl A2aClient {
         }
 
         // Deserialize JSON-RPC envelope
-        let rpc_response: crate::a2a::rpc::JsonRpcResponse = serde_json::from_value(json.clone())
+        let rpc_response: crate::rpc::JsonRpcResponse = serde_json::from_value(json.clone())
             .context("Invalid JSON-RPC response")
             .map_err(|e| A2aError::Internal(e.to_string()))?;
 

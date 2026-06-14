@@ -1,7 +1,7 @@
 # vtcode-* Crate Audit Report
 
 **Date**: 2026-06-14
-**Scope**: All 16 vtcode-* workspace crates
+**Scope**: All 21 vtcode-* workspace crates
 **Goal**: Identify mergeable crates, redundant code, and test duplicates
 
 ---
@@ -26,6 +26,11 @@
 | vtcode-terminal-detection | 1 | 1 | Terminal emulator detection | none (leaf) |
 | vtcode-utility-tool-specs | 5 | 4 | JSON schemas for tool parameter definitions | none (leaf) |
 | vtcode-vim | 4 | 1 | Vim-style prompt editing engine | none (leaf) |
+| vtcode-tool-types | 6 | 0 | Shared tool runtime types (breaks circular deps) | none (leaf) |
+| vtcode-safety | 15 | 31 | Command safety detection, execution policies, sandboxing | commons |
+| vtcode-pods | 6 | 0 | GPU pod management | commons |
+| vtcode-a2a | 10 | 6 | Agent2Agent protocol client and server | none (leaf) |
+| vtcode-mcp | 15 | 31 | MCP client, connection pooling, tool discovery | config, commons, utility-tool-specs |
 
 **Dependency graph** (leaf crates at bottom):
 
@@ -38,6 +43,12 @@
               / | | | \  \    /   \      |
     commons auth bash exec file idx md-store
          macros    events search         utility-tool-specs
+              \      |      /
+               vtcode-safety (command_safety + exec_policy + sandboxing)
+                    vtcode-pods (GPU management)
+                    vtcode-a2a (Agent2Agent protocol)
+                    vtcode-tool-types (shared types, breaks circular deps)
+                    vtcode-mcp (MCP client, connection pooling, tool discovery)
 ```
 
 ---

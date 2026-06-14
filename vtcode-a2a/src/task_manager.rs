@@ -376,7 +376,7 @@ impl TaskManager {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::a2a::types::MessageRole;
+    use crate::types::MessageRole;
 
     #[tokio::test]
     async fn test_create_task() {

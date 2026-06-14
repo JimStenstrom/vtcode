@@ -1,4 +1,4 @@
-use crate::pods::state::PodState;
+use crate::state::PodState;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
@@ -124,7 +124,7 @@ fn default_command_template() -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::pods::state::{PodGpu, PodState};
+    use crate::state::{PodGpu, PodState};
 
     #[test]
     fn profile_matches_gpu_types_by_substring() {

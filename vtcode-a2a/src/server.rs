@@ -6,17 +6,17 @@
 //! - RPC endpoints at `/a2a` for message sending and task management
 //! - Streaming endpoint at `/a2a/stream` for real-time updates via Server-Sent Events
 
-use crate::a2a::WebhookNotifier;
-use crate::a2a::agent_card::AgentCard;
-use crate::a2a::errors::{A2aError, A2aErrorCode, A2aResult};
-use crate::a2a::rpc::{
+use crate::WebhookNotifier;
+use crate::agent_card::AgentCard;
+use crate::errors::{A2aError, A2aErrorCode, A2aResult};
+use crate::rpc::{
     JSONRPC_VERSION, JsonRpcError, JsonRpcRequest, JsonRpcResponse, ListTasksParams,
     METHOD_MESSAGE_SEND, METHOD_MESSAGE_STREAM, METHOD_TASKS_CANCEL, METHOD_TASKS_GET,
     METHOD_TASKS_LIST, METHOD_TASKS_PUSH_CONFIG_GET, METHOD_TASKS_PUSH_CONFIG_SET,
     MessageSendParams, SendStreamingMessageResponse, StreamingEvent, TaskIdParams, TaskQueryParams,
 };
-use crate::a2a::task_manager::TaskManager;
-use crate::a2a::types::TaskState;
+use crate::task_manager::TaskManager;
+use crate::types::TaskState;
 use axum::{
     Json, Router,
     extract::State,
@@ -245,7 +245,7 @@ async fn handle_stream(
         let status_event = StreamingEvent::TaskStatus {
             task_id: task_id_clone.clone(),
             context_id: params.context_id.clone(),
-            status: crate::a2a::types::TaskStatus::new(TaskState::Working),
+            status: crate::types::TaskStatus::new(TaskState::Working),
             kind: "status-update".to_string(),
             r#final: false,
         };
@@ -263,7 +263,7 @@ async fn handle_stream(
 
         // Simulate generating a response message
         tokio::time::sleep(Duration::from_millis(200)).await;
-        let response_msg = crate::a2a::types::Message::agent_text("Processing your request...");
+        let response_msg = crate::types::Message::agent_text("Processing your request...");
         let message_event = StreamingEvent::Message {
             message: response_msg,
             context_id: params.context_id.clone(),
@@ -293,7 +293,7 @@ async fn handle_stream(
         let final_status_event = StreamingEvent::TaskStatus {
             task_id: task_id_clone,
             context_id: params.context_id,
-            status: crate::a2a::types::TaskStatus::new(TaskState::Completed),
+            status: crate::types::TaskStatus::new(TaskState::Completed),
             kind: "status-update".to_string(),
             r#final: true,
         };
@@ -360,7 +360,7 @@ async fn handle_push_config_set(
     params: Option<Value>,
     _id: Value,
 ) -> A2aResult<Value> {
-    let config: crate::a2a::rpc::TaskPushNotificationConfig =
+    let config: crate::rpc::TaskPushNotificationConfig =
         serde_json::from_value(params.unwrap_or_default()).map_err(|_| {
             A2aError::rpc(
                 A2aErrorCode::InvalidParams,
@@ -511,7 +511,7 @@ pub async fn run(state: A2aServerState, addr: SocketAddr) -> anyhow::Result<()> 
     let listener = tokio::net::TcpListener::bind(addr).await?;
     tracing::info!("A2A server listening on {}", addr);
     axum::serve(listener, create_router(state))
-        .with_graceful_shutdown(crate::shutdown::shutdown_signal_logged("A2A"))
+        .with_graceful_shutdown(crate::shutdown_signal_logged("A2A"))
         .await?;
     Ok(())
 }

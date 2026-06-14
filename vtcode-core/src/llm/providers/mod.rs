@@ -32,8 +32,8 @@ pub mod reasoning;
 pub mod shared;
 pub use shared::TagStreamSanitizer;
 
-// Re-export commonly used constants
-pub use crate::tools::constants::{
+// Re-export commonly used constants from vtcode-tool-types
+pub use vtcode_tool_types::{
     DEFAULT_VEC_CAPACITY, ERROR_DETECTION_PATTERNS, MAX_SEARCH_RESULTS, OVERFLOW_INDICATOR_PREFIX,
 };
 

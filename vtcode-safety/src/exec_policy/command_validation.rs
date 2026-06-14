@@ -3,8 +3,8 @@ use std::io;
 use std::path::{Path, PathBuf};
 use tokio::fs;
 
-use crate::utils::path::{canonicalize_workspace, normalize_path};
 use anyhow::{Context, Result, anyhow};
+use vtcode_commons::paths::{canonicalize_workspace, normalize_path};
 
 /// Helper to validate flags in arguments (reduces duplication in 10+ validators)
 /// Returns error if any flag not in allowed_flags is found

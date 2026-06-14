@@ -13,7 +13,7 @@
 </p>
 
 <p align="center">
-  <img src="./resources/gif/vtcode.gif" alt="VT Code demo" width="40%" />&nbsp;&nbsp;&nbsp;&nbsp;<img src="./resources/screenshots/vtcode-01237.png" alt="VT Code screenshot" width="46%" />
+  <img src="./resources/gif/vtcode.gif" alt="VT Code demo" width="40%" style="border-radius: 10px" />&nbsp;&nbsp;&nbsp;&nbsp;<img src="./resources/screenshots/vtcode-01237.png" alt="VT Code screenshot" width="46%" style="border-radius: 10px" />
   <br><em>Secure, open, universal.</em>
 </p>
 
@@ -81,12 +81,12 @@ Read: [Provider Guides](./docs/providers/PROVIDER_GUIDES.md).
 ### Xiaomi MiMo V2.5 Series
 
 <p align="center">
-  <a href="https://platform.xiaomimimo.com"><img src="./resources/screenshots/xiaomi_mi_promo.png" alt="Xiaomi MiMo V2.5" width="300" style="border-radius: 12px" /></a>
+  <a href="https://platform.xiaomimimo.com"><img src="./resources/screenshots/xiaomi_mi_promo.png" alt="Xiaomi MiMo V2.5" width="300" style="border-radius: 10px" /></a>
 </p>
 
 <p align="center">
   <a href="https://openrouter.ai/xiaomi/mimo-v2.5-pro">
-    <img src="./resources/screenshots/xiaomi-mimo.png" alt="Xiaomi MiMo V2.5 Pro on OpenRouter" />
+    <img src="./resources/screenshots/xiaomi-mimo.png" alt="Xiaomi MiMo V2.5 Pro on OpenRouter" style="border-radius: 10px" />
   </a>
 </p>
 
@@ -109,7 +109,16 @@ cd vtcode
 ./scripts/run-debug.sh
 ```
 
-Rust stable, edition 2024, MSRV 1.88.
+Rust stable, edition 2024, MSRV 1.88. Workspace of ~30 crates:
+
+| Layer | Crates |
+|---|---|
+| Binary | `vtcode` |
+| Core | `vtcode-core`, `vtcode-ui`, `vtcode-config` |
+| Extracted | `vtcode-safety`, `vtcode-pods`, `vtcode-a2a`, `vtcode-tool-types`, `vtcode-mcp` |
+| Infrastructure | `vtcode-commons`, `vtcode-auth`, `vtcode-bash-runner`, `vtcode-macros` |
+| Tooling | `vtcode-indexer`, `vtcode-file-search`, `vtcode-exec-events` |
+| Protocol | `vtcode-acp`, `vtcode-utility-tool-specs` |
 
 ```shell
 ./scripts/check-dev.sh  # fast quality gate (clippy, fmt, check)

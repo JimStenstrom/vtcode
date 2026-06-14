@@ -18,7 +18,8 @@ Options:
                      performing the real publish. This is the default when the
                      VT_RELEASE_DRY_RUN environment variable is set to `1`.
   --start-from CRATE Resume publishing from the provided crate name. Valid
-                     crates: vtcode-commons, vtcode-process-hardening,
+                     crates: vtcode-commons, vtcode-tool-types,
+                     vtcode-process-hardening,
                      vtcode-auth, vtcode-exec-events,
                      vtcode-markdown-store,
                      vtcode-macros, vtcode-vim,
@@ -27,6 +28,8 @@ Options:
                      vtcode-terminal-detection,
                      vtcode-collaboration-tool-specs,
                      vtcode-utility-tool-specs,
+                     vtcode-safety, vtcode-pods, vtcode-a2a,
+                     vtcode-mcp,
                      vtcode-ui, vtcode-core, vtcode-acp, vtcode.
   --skip-tests       Skip running the workspace fmt/clippy/test checks. Use with
                      caution; the release plan expects the validation suite to
@@ -99,6 +102,7 @@ done
 
 CRATES=(
     vtcode-commons
+    vtcode-tool-types
     vtcode-process-hardening
     vtcode-auth
     vtcode-exec-events
@@ -112,6 +116,10 @@ CRATES=(
     vtcode-terminal-detection
     vtcode-collaboration-tool-specs
     vtcode-utility-tool-specs
+    vtcode-safety
+    vtcode-pods
+    vtcode-a2a
+    vtcode-mcp
     vtcode-ui
     vtcode-core
     vtcode-acp

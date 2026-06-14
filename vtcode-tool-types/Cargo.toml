@@ -1,0 +1,28 @@
+[package]
+name = "vtcode-tool-types"
+version.workspace = true
+edition.workspace = true
+rust-version = "1.88"
+authors = ["Vinh Nguyen <vinhnguyen2308@gmail.com>"]
+description = "Shared runtime types for VT Code tool system - breaks circular dependencies between LLM and tools"
+license.workspace = true
+readme = "README.md"
+homepage = "https://github.com/vinhnx/vtcode"
+repository = "https://github.com/vinhnx/vtcode"
+documentation = "https://docs.rs/vtcode-tool-types"
+categories = ["development-tools"]
+keywords = ["vt", "tool-types", "shared", "runtime"]
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+compact_str = { workspace = true }
+hashbrown = { workspace = true }
+
+[package.metadata.docs.rs]
+all-features = true
+default-target = "x86_64-unknown-linux-gnu"
+rustdoc-args = ["--cfg", "docsrs"]
+
+[lints]
+workspace = true

@@ -10,8 +10,8 @@ use tokio::sync::{RwLock, Semaphore};
 use tracing::{error, info, warn};
 
 use super::{McpElicitationHandler, McpProvider};
-use crate::config::mcp::{McpAllowListConfig, McpProviderConfig};
 use rmcp::model::{ClientCapabilities, InitializeRequestParams};
+use vtcode_config::mcp::{McpAllowListConfig, McpProviderConfig};
 
 /// MCP connection pool for efficient provider management
 pub struct McpConnectionPool {

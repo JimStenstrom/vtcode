@@ -16,8 +16,8 @@ use url::Url;
 
 use super::{LATEST_PROTOCOL_VERSION, SUPPORTED_PROTOCOL_VERSIONS};
 
-use crate::config::mcp::{McpAllowListConfig, McpProviderConfig, McpTransportConfig};
 use vtcode_config::auth::McpOAuthService;
+use vtcode_config::mcp::{McpAllowListConfig, McpProviderConfig, McpTransportConfig};
 use vtcode_utility_tool_specs::parse_mcp_tool;
 
 use super::{McpClient, RmcpClient};
@@ -690,17 +690,57 @@ fn mcp_tool_call_span(
 #[cfg(test)]
 mod tests {
     use super::mcp_tool_call_span;
-    use crate::config::mcp::{McpHttpServerConfig, McpStdioServerConfig, McpTransportConfig};
-    use crate::utils::trace_writer::FlushableWriter;
-    use std::fs;
+    use std::fs::{self, File, OpenOptions};
+    use std::io::{BufWriter, Write};
+    use std::sync::{Arc, Mutex};
     use tempfile::tempdir;
     use tracing_subscriber::{fmt::format::FmtSpan, prelude::*};
+    use vtcode_config::mcp::{McpHttpServerConfig, McpStdioServerConfig, McpTransportConfig};
+
+    /// Minimal clonable buffered writer for tests. Implements `Write` so it can
+    /// be passed to `tracing_subscriber::fmt::layer().with_writer(..)`.
+    #[derive(Clone)]
+    struct TestWriter(Arc<Mutex<BufWriter<File>>>);
+
+    impl TestWriter {
+        fn open(path: &std::path::Path) -> Self {
+            let file = OpenOptions::new()
+                .create(true)
+                .truncate(true)
+                .write(true)
+                .open(path)
+                .expect("open trace log");
+            Self(Arc::new(Mutex::new(BufWriter::new(file))))
+        }
+
+        fn flush(&self) {
+            if let Ok(mut w) = self.0.lock() {
+                let _ = w.flush();
+            }
+        }
+    }
+
+    impl Write for TestWriter {
+        fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+            self.0
+                .lock()
+                .map_err(|e| std::io::Error::other(e.to_string()))?
+                .write(buf)
+        }
+
+        fn flush(&mut self) -> std::io::Result<()> {
+            self.0
+                .lock()
+                .map_err(|e| std::io::Error::other(e.to_string()))?
+                .flush()
+        }
+    }
 
     #[test]
     fn mcp_tool_call_span_records_http_metadata() {
         let tempdir = tempdir().expect("tempdir");
         let log_file = tempdir.path().join("trace.log");
-        let writer = FlushableWriter::open(&log_file).expect("trace writer");
+        let writer = TestWriter::open(&log_file);
         let writer_for_layer = writer.clone();
         let subscriber = tracing_subscriber::registry().with(
             tracing_subscriber::fmt::layer()

@@ -1,7 +1,3 @@
-use crate::config::mcp::{
-    McpAllowListConfig, McpClientConfig, McpProviderConfig, McpTransportConfig,
-};
-use crate::utils::file_utils::{ensure_dir_exists, write_file_with_context};
 use anyhow::{Context, Result, anyhow, bail};
 use async_trait::async_trait;
 use chrono::Utc;
@@ -13,6 +9,10 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 use tracing::{debug, error, info, warn};
+use vtcode_commons::fs::{ensure_dir_exists, write_file_with_context};
+use vtcode_config::mcp::{
+    McpAllowListConfig, McpClientConfig, McpProviderConfig, McpTransportConfig,
+};
 
 use super::{
     McpClientStatus, McpElicitationHandler, McpPromptDetail, McpPromptInfo, McpProvider,
@@ -1276,7 +1276,7 @@ impl McpToolExecutor for McpClient {
 #[cfg(test)]
 mod tests {
     use super::McpClient;
-    use crate::config::mcp::{
+    use vtcode_config::mcp::{
         McpClientConfig, McpHttpServerConfig, McpProviderConfig, McpRequirementsConfig,
         McpStdioServerConfig, McpTransportConfig,
     };

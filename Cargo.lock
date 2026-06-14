@@ -7035,15 +7035,43 @@ dependencies = [
  "tracing-subscriber",
  "unicode-width",
  "url",
+ "vtcode-a2a",
  "vtcode-acp",
  "vtcode-auth",
  "vtcode-commons",
  "vtcode-config",
  "vtcode-core",
+ "vtcode-pods",
  "vtcode-process-hardening",
+ "vtcode-safety",
  "vtcode-terminal-detection",
+ "vtcode-tool-types",
  "vtcode-ui",
  "webbrowser",
+]
+
+[[package]]
+name = "vtcode-a2a"
+version = "0.128.4"
+dependencies = [
+ "anyhow",
+ "async-stream",
+ "axum",
+ "base64",
+ "chrono",
+ "clap",
+ "futures",
+ "hashbrown 0.17.1",
+ "reqwest 0.12.28",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "tokio",
+ "tokio-stream",
+ "tower",
+ "tower-http",
+ "tracing",
+ "uuid",
 ]
 
 [[package]]
@@ -7242,10 +7270,8 @@ dependencies = [
  "ratatui",
  "regex",
  "reqwest 0.12.28",
- "reqwest 0.13.4",
  "rig-core",
  "ring",
- "rmcp",
  "roff",
  "rustc-hash 2.1.2",
  "schemars 1.2.1",
@@ -7285,6 +7311,7 @@ dependencies = [
  "url",
  "uuid",
  "vt100",
+ "vtcode-a2a",
  "vtcode-auth",
  "vtcode-bash-runner",
  "vtcode-commons",
@@ -7294,7 +7321,11 @@ dependencies = [
  "vtcode-indexer",
  "vtcode-macros",
  "vtcode-markdown-store",
+ "vtcode-mcp",
+ "vtcode-pods",
+ "vtcode-safety",
  "vtcode-terminal-detection",
+ "vtcode-tool-types",
  "vtcode-ui",
  "vtcode-utility-tool-specs",
  "webbrowser",
@@ -7374,6 +7405,53 @@ dependencies = [
 ]
 
 [[package]]
+name = "vtcode-mcp"
+version = "0.128.4"
+dependencies = [
+ "anyhow",
+ "arc-swap",
+ "async-trait",
+ "chrono",
+ "futures",
+ "hashbrown 0.17.1",
+ "iana-time-zone",
+ "jsonschema",
+ "lru",
+ "parking_lot",
+ "reqwest 0.13.4",
+ "rmcp",
+ "rustc-hash 2.1.2",
+ "schemars 1.2.1",
+ "serde",
+ "serde_json",
+ "serial_test",
+ "tempfile",
+ "thiserror 2.0.18",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+ "url",
+ "vtcode-commons",
+ "vtcode-config",
+ "vtcode-utility-tool-specs",
+]
+
+[[package]]
+name = "vtcode-pods"
+version = "0.128.4"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "dirs",
+ "parking_lot",
+ "serde",
+ "serde_json",
+ "shell-words",
+ "tokio",
+ "vtcode-commons",
+]
+
+[[package]]
 name = "vtcode-process-hardening"
 version = "0.128.4"
 dependencies = [
@@ -7383,11 +7461,44 @@ dependencies = [
 ]
 
 [[package]]
+name = "vtcode-safety"
+version = "0.128.4"
+dependencies = [
+ "anyhow",
+ "dirs",
+ "hashbrown 0.17.1",
+ "once_cell",
+ "rustc-hash 2.1.2",
+ "serde",
+ "serde_json",
+ "shell-words",
+ "tempfile",
+ "thiserror 2.0.18",
+ "tokio",
+ "tokio-util",
+ "toml",
+ "tracing",
+ "tree-sitter",
+ "tree-sitter-bash",
+ "vtcode-commons",
+]
+
+[[package]]
 name = "vtcode-terminal-detection"
 version = "0.128.4"
 dependencies = [
  "anyhow",
  "dirs",
+]
+
+[[package]]
+name = "vtcode-tool-types"
+version = "0.128.4"
+dependencies = [
+ "compact_str",
+ "hashbrown 0.17.1",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

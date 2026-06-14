@@ -2,42 +2,17 @@
 //!
 //! This module provides common constants used across multiple tool implementations
 //! to reduce code duplication and ensure consistency.
+//!
+//! Core constants are defined in `vtcode-tool-types` and re-exported here
+//! for backward compatibility. Additional vtcode-specific constants are defined below.
 
-/// Standard error patterns used for error detection across tools
-/// These patterns are used in grep operations and error analysis
-pub const ERROR_DETECTION_PATTERNS: &[&str] = &[
-    "error",
-    "failed",
-    "exception",
-    "permission denied",
-    "not found",
-    "no such file",
-    "cannot",
-    "could not",
-    "panic",
-    "crash",
-    "unhandled",
-    "fatal",
-    "timeout",
-    "connection refused",
-    "access denied",
-    "stack trace",
-    "traceback",
-    "abort",
-    "terminate",
-];
-
-/// Network-related error patterns for more specific error detection
-pub const NETWORK_ERROR_PATTERNS: &[&str] = &[
-    "connection",
-    "timeout",
-    "network",
-    "http",
-    "ssl",
-    "tls",
-    "dns",
-    "proxy",
-];
+// Re-export core constants from vtcode-tool-types for backward compatibility
+pub use vtcode_tool_types::{
+    DEFAULT_HASHMAP_CAPACITY, DEFAULT_STRING_CAPACITY, DEFAULT_VEC_CAPACITY,
+    ERROR_DETECTION_PATTERNS, MAX_CONTEXT_LINES, MAX_FILE_SIZE_FOR_PROCESSING,
+    MAX_LIST_ITEMS_SUMMARY, MAX_OUTPUT_TOKENS, MAX_SEARCH_RESULTS, NETWORK_ERROR_PATTERNS,
+    OVERFLOW_INDICATOR_PREFIX, OVERFLOW_INDICATOR_SUFFIX, empty_object_schema,
+};
 
 /// Memory and resource error patterns
 pub const RESOURCE_ERROR_PATTERNS: &[&str] = &[
@@ -77,25 +52,3 @@ pub const FILESYSTEM_ERROR_PATTERNS: &[&str] = &[
     "read-only file system",
     "disk quota exceeded",
 ];
-
-/// Default capacity hints for common collections
-pub const DEFAULT_VEC_CAPACITY: usize = 32;
-pub const DEFAULT_HASHMAP_CAPACITY: usize = 16;
-pub const DEFAULT_STRING_CAPACITY: usize = 256;
-
-/// Context optimization constants following AGENTS.md guidelines
-pub const MAX_SEARCH_RESULTS: usize = 5;
-pub const MAX_LIST_ITEMS_SUMMARY: usize = 5;
-pub const OVERFLOW_INDICATOR_PREFIX: &str = "[+]";
-pub const OVERFLOW_INDICATOR_SUFFIX: &str = "more items]";
-
-/// Common tool operation limits
-pub const MAX_FILE_SIZE_FOR_PROCESSING: usize = 100 * 1024 * 1024; // 100MB
-pub const MAX_CONTEXT_LINES: usize = 20;
-pub const MAX_OUTPUT_TOKENS: usize = 4000;
-
-/// Reusable empty JSON object schema `{"type": "object"}` for tool parameter definitions.
-/// Used by tools that accept no parameters or only optional parameters.
-pub fn empty_object_schema() -> serde_json::Value {
-    serde_json::json!({"type": "object"})
-}

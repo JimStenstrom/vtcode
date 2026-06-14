@@ -27,7 +27,7 @@ Keep this file concise and under 150 lines. Root guidance belongs here; detailed
 
 ## Workspace
 
-Cargo workspace, ~26 crates. Rust stable, MSRV 1.88, edition 2024. `default-members` = root, `vtcode-core`, `vtcode-ui` only.
+Cargo workspace, ~30 crates. Rust stable, MSRV 1.88, edition 2024. `default-members` = root, `vtcode-core`, `vtcode-ui` only.
 
 | Crate | Role |
 |---|---|
@@ -48,6 +48,11 @@ Cargo workspace, ~26 crates. Rust stable, MSRV 1.88, edition 2024. `default-memb
 | `vtcode-utility-tool-specs` | JSON schemas for utility, file, and collaboration/HITL tools |
 | `vtcode-file-search` | Parallel fuzzy file search |
 | `vtcode-vim` | Vim-style prompt editing engine |
+| `vtcode-tool-types` | Shared tool runtime types (breaks circular deps between tools and llm) |
+| `vtcode-safety` | Command safety detection, execution policies, sandboxing |
+| `vtcode-pods` | GPU pod management |
+| `vtcode-a2a` | Agent2Agent (A2A) protocol client and server |
+| `vtcode-mcp` | Model Context Protocol client, connection pooling, tool discovery |
 | `xtask` | Release packaging automation |
 
 New reusable logic: put it in an existing small crate or a new one. Keep it out of `vtcode-core` by default unless tightly coupled to the core runtime.
@@ -75,7 +80,11 @@ Every crate has its own AGENTS.md with crate-specific conventions:
 | `vtcode-utility-tool-specs` | [vtcode-utility-tool-specs/AGENTS.md](vtcode-utility-tool-specs/AGENTS.md) |
 | `vtcode-file-search` | [vtcode-file-search/AGENTS.md](vtcode-file-search/AGENTS.md) |
 | `vtcode-vim` | [vtcode-vim/AGENTS.md](vtcode-vim/AGENTS.md) |
-| `vtcode-lmstudio` | [vtcode-lmstudio/AGENTS.md](vtcode-lmstudio/AGENTS.md) |
+| `vtcode-tool-types` | [vtcode-tool-types/AGENTS.md](vtcode-tool-types/AGENTS.md) |
+| `vtcode-safety` | [vtcode-safety/AGENTS.md](vtcode-safety/AGENTS.md) |
+| `vtcode-pods` | [vtcode-pods/AGENTS.md](vtcode-pods/AGENTS.md) |
+| `vtcode-a2a` | [vtcode-a2a/AGENTS.md](vtcode-a2a/AGENTS.md) |
+| `vtcode-mcp` | [vtcode-mcp/AGENTS.md](vtcode-mcp/AGENTS.md) |
 | `xtask` | [xtask/AGENTS.md](xtask/AGENTS.md) |
 
 After significant changes (new modules, convention shifts, discovered gotchas, public API changes), use the `audit-module-agents` skill to check if the affected crate's AGENTS.md needs updating. Keep each local AGENTS.md under 30 lines.

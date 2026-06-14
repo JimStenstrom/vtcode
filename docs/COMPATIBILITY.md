@@ -48,6 +48,11 @@ All VT Code crates require Rust 1.88 or later due to dependencies (ratatui 0.30,
 | vtcode-ui | 0.123.10 | 1.88 | 2024 | Internal (publish=false) |
 | vtcode-utility-tool-specs | 0.123.4 | 1.88 | 2024 | Includes collaboration schemas (merged from vtcode-collaboration-tool-specs) |
 | vtcode-vim | 0.123.4 | 1.88 | 2024 | Initial release |
+| vtcode-tool-types | 0.128.4 | 1.88 | 2024 | Extracted from vtcode-core |
+| vtcode-safety | 0.128.4 | 1.88 | 2024 | Extracted from vtcode-core |
+| vtcode-pods | 0.128.4 | 1.88 | 2024 | Extracted from vtcode-core |
+| vtcode-a2a | 0.128.4 | 1.88 | 2024 | Extracted from vtcode-core |
+| vtcode-mcp | 0.128.4 | 1.88 | 2024 | Extracted from vtcode-core |
 | xtask | 0.8.4 | 1.88 | 2024 | Internal |
 
 ---
@@ -244,5 +249,5 @@ When adding new features, please:
 
 ---
 
-*Last updated: 2026-06-07*
-*VT Code Version: 0.123.4*
+*Last updated: 2026-06-14*
+*VT Code Version: 0.128.4*

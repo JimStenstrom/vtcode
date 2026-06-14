@@ -1,0 +1,64 @@
+[package]
+name = "vtcode-mcp"
+version.workspace = true
+edition.workspace = true
+rust-version = "1.88"
+authors = ["Vinh Nguyen <vinhnguyen2308@gmail.com>"]
+description = "Model Context Protocol (MCP) client, connection pooling, and tool discovery for VT Code"
+license.workspace = true
+readme = "README.md"
+homepage = "https://github.com/vinhnx/vtcode"
+repository = "https://github.com/vinhnx/vtcode"
+documentation = "https://docs.rs/vtcode-mcp"
+categories = ["development-tools"]
+keywords = ["vt", "mcp", "model-context-protocol", "client"]
+
+[dependencies]
+anyhow = { workspace = true }
+arc-swap = "1.9"
+async-trait = { workspace = true }
+chrono = { workspace = true }
+futures = { workspace = true }
+hashbrown = { workspace = true }
+iana-time-zone = "0.1"
+jsonschema = "0.46"
+lru = "0.18"
+parking_lot = "0.12"
+rmcp = { version = "1.7", features = [
+    "client",
+    "transport-child-process",
+    "transport-streamable-http-client-reqwest",
+] }
+rmcp-reqwest = { package = "reqwest", version = "0.13.2", default-features = false, features = [
+    "json",
+    "rustls",
+    "stream",
+] }
+rustc-hash = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true, features = ["fs", "io-util", "macros", "rt-multi-thread", "sync", "process", "time"] }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+url = { workspace = true }
+vtcode-commons = { path = "../vtcode-commons", version = "0.128.4" }
+vtcode-config = { path = "../vtcode-config", version = "0.128.4" }
+vtcode-utility-tool-specs = { path = "../vtcode-utility-tool-specs", version = "0.128.4" }
+schemars = { workspace = true, optional = true }
+
+[features]
+default = []
+schema = ["dep:schemars"]
+
+[dev-dependencies]
+serial_test = { workspace = true }
+tempfile = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+[package.metadata.docs.rs]
+all-features = true
+default-target = "x86_64-unknown-linux-gnu"
+rustdoc-args = ["--cfg", "docsrs"]
+
+[lints]
+workspace = true

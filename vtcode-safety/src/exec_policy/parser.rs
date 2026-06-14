@@ -4,10 +4,10 @@
 //! Each line specifies a command prefix and a decision.
 
 use super::policy::{Decision, Policy, PrefixRule};
-use crate::utils::file_utils::{parse_json_with_context, read_file_with_context};
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
+use vtcode_commons::fs::{parse_json_with_context, read_file_with_context};
 
 /// A serializable policy file format.
 #[derive(Debug, Clone, Serialize, Deserialize)]
