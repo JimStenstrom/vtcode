@@ -215,7 +215,9 @@ pub fn unified_file_parameters() -> Value {
                         "additionalProperties": false
                     }
                 ]
-            }
+            },
+            "offset_bytes": {"type": "integer", "description": "Byte offset (0-indexed) for byte-range reads. Enables chunked preview of large files.", "minimum": 0},
+            "page_size_bytes": {"type": "integer", "description": "Bytes to read. Accepts alias `length`. Default: 8192.", "minimum": 1}
         }
     })
 }

@@ -10,8 +10,9 @@ use futures::stream::{self, StreamExt};
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::{Value, json};
 use tokio::fs::File;
-use tokio::io::{AsyncBufReadExt, BufReader};
+use tokio::io::{AsyncBufReadExt, AsyncSeekExt, BufReader};
 use tokio::sync::Semaphore;
+use vtcode_commons::async_utils::read_exact_uninit;
 use vtcode_commons::diff_paths::looks_like_diff_content;
 
 use crate::tools::error_helpers::deserialize_tool_args;
@@ -26,6 +27,7 @@ const COMMENT_PREFIXES: &[&str] = &["#", "//", "--"];
 const MIN_BATCH_LIMIT: usize = 200;
 const DEFAULT_MAX_CONCURRENCY: usize = 8;
 const BATCH_CONDENSED_THRESHOLD: usize = 100;
+const DEFAULT_BYTE_CHUNK_SIZE: usize = 8192;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct ReadFileOutcome {
@@ -72,6 +74,16 @@ pub struct ReadFileArgs {
         deserialize_with = "deserialize_maybe_quoted"
     )]
     pub condense: bool,
+    /// Byte offset (0-indexed) to start reading from. When present, enables byte-range read mode.
+    #[serde(default, deserialize_with = "deserialize_opt_maybe_quoted")]
+    pub offset_bytes: Option<u64>,
+    /// Number of bytes to read. Accepts alias `length`. When present with `offset_bytes`, enables byte-range read mode.
+    #[serde(
+        default,
+        alias = "length",
+        deserialize_with = "deserialize_opt_maybe_quoted"
+    )]
+    pub page_size_bytes: Option<usize>,
 }
 
 /// Batch read request for reading multiple files or ranges in parallel.
@@ -465,13 +477,22 @@ impl ReadFileHandler {
             indentation,
             max_tokens,
             condense,
+            offset_bytes,
+            page_size_bytes,
         } = args;
-
-        anyhow::ensure!(offset > 0, "offset must be a 1-indexed line number");
-        anyhow::ensure!(limit > 0, "limit must be greater than zero");
 
         let path = PathBuf::from(&file_path);
         anyhow::ensure!(path.is_absolute(), "file_path must be an absolute path");
+
+        // Byte-range read path: when offset_bytes or page_size_bytes is present
+        if offset_bytes.is_some() || page_size_bytes.is_some() {
+            let byte_offset = offset_bytes.unwrap_or(0);
+            let byte_length = page_size_bytes.unwrap_or(DEFAULT_BYTE_CHUNK_SIZE);
+            return self.read_byte_range(&path, byte_offset, byte_length).await;
+        }
+
+        anyhow::ensure!(offset > 0, "offset must be a 1-indexed line number");
+        anyhow::ensure!(limit > 0, "limit must be greater than zero");
 
         let effective_limit =
             if matches!(mode, ReadMode::Slice) && max_tokens.is_none() && limit < MIN_BATCH_LIMIT {
@@ -503,6 +524,78 @@ impl ReadFileHandler {
         Ok(ReadFileOutcome {
             content: collected.join("\n"),
             lines_read,
+            has_more,
+        })
+    }
+
+    /// Read a byte range from a file using seek-based access.
+    ///
+    /// Only the requested chunk is loaded into memory, making this efficient for
+    /// large files. Returns the content as a UTF-8 string (lossy for non-UTF-8 bytes).
+    async fn read_byte_range(
+        &self,
+        file_path: &Path,
+        offset_bytes: u64,
+        page_size_bytes: usize,
+    ) -> Result<ReadFileOutcome> {
+        let metadata = tokio::fs::metadata(file_path)
+            .await
+            .with_context(|| format!("Failed to read metadata for: {}", file_path.display()))?;
+
+        if !metadata.is_file() {
+            anyhow::bail!("Path is not a file: {}", file_path.display());
+        }
+
+        let file_size = metadata.len();
+
+        // Offset beyond file boundary: return empty
+        if offset_bytes >= file_size {
+            return Ok(ReadFileOutcome {
+                content: String::new(),
+                lines_read: 0,
+                has_more: false,
+            });
+        }
+
+        let mut file = File::open(file_path)
+            .await
+            .with_context(|| format!("Failed to open: {}", file_path.display()))?;
+
+        file.seek(std::io::SeekFrom::Start(offset_bytes))
+            .await
+            .with_context(|| {
+                format!(
+                    "Failed to seek to offset {} in: {}",
+                    offset_bytes,
+                    file_path.display()
+                )
+            })?;
+
+        // Clamp read size to file bounds
+        let end_pos = std::cmp::min(offset_bytes + page_size_bytes as u64, file_size);
+        let actual_read_size = (end_pos - offset_bytes) as usize;
+
+        let buffer = if actual_read_size > 0 {
+            read_exact_uninit(&mut file, actual_read_size)
+                .await
+                .with_context(|| {
+                    format!(
+                        "Failed to read {} bytes from offset {} in: {}",
+                        actual_read_size,
+                        offset_bytes,
+                        file_path.display()
+                    )
+                })?
+        } else {
+            Vec::new()
+        };
+
+        let content = String::from_utf8_lossy(&buffer).into_owned();
+        let has_more = end_pos < file_size;
+
+        Ok(ReadFileOutcome {
+            content,
+            lines_read: 0,
             has_more,
         })
     }
@@ -613,6 +706,17 @@ impl Tool for ReadFileHandler {
                     "type": "boolean",
                     "description": "Condense long outputs to head/tail (default: true)",
                     "default": true
+                },
+                "offset_bytes": {
+                    "type": "integer",
+                    "description": "Byte offset (0-indexed) to start reading from. Enables byte-range read mode.",
+                    "minimum": 0
+                },
+                "page_size_bytes": {
+                    "type": "integer",
+                    "description": "Number of bytes to read. Accepts alias `length`. Default: 8192.",
+                    "alias": "length",
+                    "minimum": 1
                 },
                 "reads": {
                     "type": "array",
@@ -1128,6 +1232,8 @@ mod tests {
             indentation: None,
             max_tokens: None,
             condense: false,
+            offset_bytes: None,
+            page_size_bytes: None,
         };
         let handler = ReadFileHandler;
         let content = handler.handle(args).await?;
@@ -1363,5 +1469,194 @@ mod tests {
         let (condensed, omitted) = condense_for_batch(&mut lines);
         assert!(!condensed);
         assert_eq!(omitted, 0);
+    }
+
+    // --- Byte-range read tests ---
+
+    #[tokio::test]
+    async fn byte_range_reads_first_bytes() -> Result<()> {
+        let mut temp = NamedTempFile::new()?;
+        temp.as_file_mut().write_all(b"Hello, World!")?;
+
+        let handler = ReadFileHandler;
+        let args = ReadFileArgs {
+            file_path: temp.path().to_string_lossy().to_string(),
+            offset: 1,
+            limit: 2000,
+            mode: ReadMode::Slice,
+            indentation: None,
+            max_tokens: None,
+            condense: false,
+            offset_bytes: Some(0),
+            page_size_bytes: Some(5),
+        };
+        let outcome = handler.handle_detailed(args).await?;
+        assert_eq!(outcome.content, "Hello");
+        assert!(outcome.has_more);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn byte_range_reads_with_offset() -> Result<()> {
+        let mut temp = NamedTempFile::new()?;
+        temp.as_file_mut().write_all(b"Hello, World!")?;
+
+        let handler = ReadFileHandler;
+        let args = ReadFileArgs {
+            file_path: temp.path().to_string_lossy().to_string(),
+            offset: 1,
+            limit: 2000,
+            mode: ReadMode::Slice,
+            indentation: None,
+            max_tokens: None,
+            condense: false,
+            offset_bytes: Some(7),
+            page_size_bytes: Some(6),
+        };
+        let outcome = handler.handle_detailed(args).await?;
+        assert_eq!(outcome.content, "World!");
+        assert!(!outcome.has_more);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn byte_range_beyond_eof_returns_empty() -> Result<()> {
+        let mut temp = NamedTempFile::new()?;
+        temp.as_file_mut().write_all(b"short")?;
+
+        let handler = ReadFileHandler;
+        let args = ReadFileArgs {
+            file_path: temp.path().to_string_lossy().to_string(),
+            offset: 1,
+            limit: 2000,
+            mode: ReadMode::Slice,
+            indentation: None,
+            max_tokens: None,
+            condense: false,
+            offset_bytes: Some(100),
+            page_size_bytes: Some(10),
+        };
+        let outcome = handler.handle_detailed(args).await?;
+        assert_eq!(outcome.content, "");
+        assert!(!outcome.has_more);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn byte_range_clamps_to_file_size() -> Result<()> {
+        let mut temp = NamedTempFile::new()?;
+        temp.as_file_mut().write_all(b"abcde")?;
+
+        let handler = ReadFileHandler;
+        let args = ReadFileArgs {
+            file_path: temp.path().to_string_lossy().to_string(),
+            offset: 1,
+            limit: 2000,
+            mode: ReadMode::Slice,
+            indentation: None,
+            max_tokens: None,
+            condense: false,
+            offset_bytes: Some(3),
+            page_size_bytes: Some(100), // Request more than available
+        };
+        let outcome = handler.handle_detailed(args).await?;
+        assert_eq!(outcome.content, "de");
+        assert!(!outcome.has_more);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn byte_range_reads_non_utf8_lossy() -> Result<()> {
+        let mut temp = NamedTempFile::new()?;
+        temp.as_file_mut().write_all(b"\xff\xfeplain")?;
+
+        let handler = ReadFileHandler;
+        let args = ReadFileArgs {
+            file_path: temp.path().to_string_lossy().to_string(),
+            offset: 1,
+            limit: 2000,
+            mode: ReadMode::Slice,
+            indentation: None,
+            max_tokens: None,
+            condense: false,
+            offset_bytes: Some(0),
+            page_size_bytes: Some(6),
+        };
+        let outcome = handler.handle_detailed(args).await?;
+        // Lossy conversion replaces invalid UTF-8 with U+FFFD
+        assert!(outcome.content.contains('\u{FFFD}'));
+        assert!(outcome.content.contains("plain"));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn byte_range_has_more_when_not_at_eof() -> Result<()> {
+        let mut temp = NamedTempFile::new()?;
+        temp.as_file_mut().write_all(b"abcdef")?;
+
+        let handler = ReadFileHandler;
+        let args = ReadFileArgs {
+            file_path: temp.path().to_string_lossy().to_string(),
+            offset: 1,
+            limit: 2000,
+            mode: ReadMode::Slice,
+            indentation: None,
+            max_tokens: None,
+            condense: false,
+            offset_bytes: Some(0),
+            page_size_bytes: Some(3),
+        };
+        let outcome = handler.handle_detailed(args).await?;
+        assert_eq!(outcome.content, "abc");
+        assert!(outcome.has_more);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn byte_range_defaults_to_8192_when_length_omitted() -> Result<()> {
+        let mut temp = NamedTempFile::new()?;
+        let data = "x".repeat(10000);
+        temp.as_file_mut().write_all(data.as_bytes())?;
+
+        let handler = ReadFileHandler;
+        let args = ReadFileArgs {
+            file_path: temp.path().to_string_lossy().to_string(),
+            offset: 1,
+            limit: 2000,
+            mode: ReadMode::Slice,
+            indentation: None,
+            max_tokens: None,
+            condense: false,
+            offset_bytes: Some(0),
+            page_size_bytes: None, // Should default to 8192
+        };
+        let outcome = handler.handle_detailed(args).await?;
+        assert_eq!(outcome.content.len(), 8192);
+        assert!(outcome.has_more);
+        Ok(())
+    }
+
+    #[test]
+    fn byte_range_args_from_json() {
+        let args = json!({
+            "file_path": "/tmp/test.bin",
+            "offset_bytes": 1024,
+            "page_size_bytes": 4096
+        });
+        let parsed: ReadFileArgs = serde_json::from_value(args).unwrap();
+        assert_eq!(parsed.offset_bytes, Some(1024));
+        assert_eq!(parsed.page_size_bytes, Some(4096));
+    }
+
+    #[test]
+    fn byte_range_args_length_alias() {
+        let args = json!({
+            "file_path": "/tmp/test.bin",
+            "offset_bytes": 0,
+            "length": 2048
+        });
+        let parsed: ReadFileArgs = serde_json::from_value(args).unwrap();
+        assert_eq!(parsed.offset_bytes, Some(0));
+        assert_eq!(parsed.page_size_bytes, Some(2048));
     }
 }

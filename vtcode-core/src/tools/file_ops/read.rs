@@ -36,9 +36,7 @@ fn is_legacy_read_request(args: &Value, is_image: bool) -> bool {
         obj.keys().any(|key| {
             matches!(
                 key.as_str(),
-                "offset_bytes"
-                    | "page_size_bytes"
-                    | "offset_lines"
+                "offset_lines"
                     | "page_size_lines"
                     | "max_bytes"
                     | "max_lines"
@@ -53,7 +51,17 @@ fn is_legacy_read_request(args: &Value, is_image: bool) -> bool {
 }
 
 fn is_new_read_request(args: &Value) -> bool {
-    let new_keys = ["mode", "indentation", "offset", "limit", "o", "l"];
+    let new_keys = [
+        "mode",
+        "indentation",
+        "offset",
+        "limit",
+        "o",
+        "l",
+        "offset_bytes",
+        "page_size_bytes",
+        "length",
+    ];
     new_keys.iter().any(|key| args.get(*key).is_some())
 }
 
@@ -150,6 +158,11 @@ fn build_read_handler_args(args: &Value, canonical_path: &Path) -> Value {
         }
         if let Some(src) = obj.get("page_size_lines").or_else(|| obj.get("l")).cloned() {
             obj.entry("limit".to_string()).or_insert(src);
+        }
+
+        // Map `length` alias to `page_size_bytes` for byte-range reads
+        if let Some(src) = obj.get("length").cloned() {
+            obj.entry("page_size_bytes".to_string()).or_insert(src);
         }
 
         // Map start_line/end_line to offset/limit when offset is not already set.

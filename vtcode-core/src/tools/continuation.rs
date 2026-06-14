@@ -12,6 +12,8 @@ const OFFSET_KEY: &str = "offset";
 const COMPACT_OFFSET_KEY: &str = "o";
 const LIMIT_KEY: &str = "limit";
 const COMPACT_LIMIT_KEY: &str = "l";
+const OFFSET_BYTES_KEY: &str = "offset_bytes";
+const PAGE_SIZE_BYTES_KEY: &str = "page_size_bytes";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PtyContinuationArgs {
@@ -47,6 +49,8 @@ pub struct ReadChunkContinuationArgs {
     pub path: String,
     pub offset: usize,
     pub limit: usize,
+    pub offset_bytes: Option<u64>,
+    pub page_size_bytes: Option<usize>,
 }
 
 impl ReadChunkContinuationArgs {
@@ -55,6 +59,23 @@ impl ReadChunkContinuationArgs {
             path: path.into(),
             offset: offset.max(1),
             limit: limit.max(1),
+            offset_bytes: None,
+            page_size_bytes: None,
+        }
+    }
+
+    /// Create byte-based continuation args.
+    pub fn new_byte_range(
+        path: impl Into<String>,
+        offset_bytes: u64,
+        page_size_bytes: usize,
+    ) -> Self {
+        Self {
+            path: path.into(),
+            offset: 1,
+            limit: DEFAULT_NEXT_READ_LIMIT,
+            offset_bytes: Some(offset_bytes),
+            page_size_bytes: Some(page_size_bytes),
         }
     }
 
@@ -64,6 +85,22 @@ impl ReadChunkContinuationArgs {
             .or_else(|| value.get(COMPACT_PATH_KEY))
             .and_then(Value::as_str)?
             .to_string();
+
+        // Byte-based continuation
+        let offset_bytes = value.get(OFFSET_BYTES_KEY).and_then(Value::as_u64);
+        let page_size_bytes = value.get(PAGE_SIZE_BYTES_KEY).and_then(value_to_usize);
+
+        if offset_bytes.is_some() || page_size_bytes.is_some() {
+            return Some(Self {
+                path,
+                offset: 1,
+                limit: DEFAULT_NEXT_READ_LIMIT,
+                offset_bytes,
+                page_size_bytes,
+            });
+        }
+
+        // Line-based continuation
         let offset = value
             .get(OFFSET_KEY)
             .or_else(|| value.get(COMPACT_OFFSET_KEY))
@@ -79,10 +116,24 @@ impl ReadChunkContinuationArgs {
             path,
             offset,
             limit,
+            offset_bytes: None,
+            page_size_bytes: None,
         })
     }
 
     pub fn to_value(&self) -> Value {
+        if self.offset_bytes.is_some() || self.page_size_bytes.is_some() {
+            let mut map = json!({
+                PATH_KEY: self.path,
+            });
+            if let Some(ob) = self.offset_bytes {
+                map[OFFSET_BYTES_KEY] = json!(ob);
+            }
+            if let Some(ps) = self.page_size_bytes {
+                map[PAGE_SIZE_BYTES_KEY] = json!(ps);
+            }
+            return map;
+        }
         json!({
             PATH_KEY: self.path,
             OFFSET_KEY: self.offset,
@@ -91,6 +142,18 @@ impl ReadChunkContinuationArgs {
     }
 
     pub fn to_compact_value(&self) -> Value {
+        if self.offset_bytes.is_some() || self.page_size_bytes.is_some() {
+            let mut map = json!({
+                COMPACT_PATH_KEY: self.path,
+            });
+            if let Some(ob) = self.offset_bytes {
+                map[OFFSET_BYTES_KEY] = json!(ob);
+            }
+            if let Some(ps) = self.page_size_bytes {
+                map[PAGE_SIZE_BYTES_KEY] = json!(ps);
+            }
+            return map;
+        }
         json!({
             COMPACT_PATH_KEY: self.path,
             COMPACT_OFFSET_KEY: self.offset,
@@ -206,5 +269,55 @@ mod tests {
             "chunk_limit": "0"
         });
         assert_eq!(read_chunk_progress_from_result(&result), None);
+    }
+
+    #[test]
+    fn byte_range_continuation_round_trips() {
+        let args = ReadChunkContinuationArgs::new_byte_range("big.bin", 8192, 4096);
+        let payload = args.to_value();
+        let parsed = ReadChunkContinuationArgs::from_value(&payload).unwrap();
+
+        assert_eq!(parsed.path, "big.bin");
+        assert_eq!(parsed.offset_bytes, Some(8192));
+        assert_eq!(parsed.page_size_bytes, Some(4096));
+    }
+
+    #[test]
+    fn byte_range_continuation_from_value() {
+        let parsed = ReadChunkContinuationArgs::from_value(&json!({
+            "path": "data.log",
+            "offset_bytes": 1024,
+            "page_size_bytes": 2048
+        }))
+        .unwrap();
+
+        assert_eq!(parsed.path, "data.log");
+        assert_eq!(parsed.offset_bytes, Some(1024));
+        assert_eq!(parsed.page_size_bytes, Some(2048));
+    }
+
+    #[test]
+    fn byte_range_continuation_to_value_includes_byte_fields() {
+        let args = ReadChunkContinuationArgs::new_byte_range("out.bin", 0, 8192);
+        let value = args.to_value();
+
+        assert_eq!(value["path"], "out.bin");
+        assert_eq!(value["offset_bytes"], 0);
+        assert_eq!(value["page_size_bytes"], 8192);
+        // Line-based fields should not be present
+        assert!(value.get("offset").is_none());
+        assert!(value.get("limit").is_none());
+    }
+
+    #[test]
+    fn line_based_continuation_excludes_byte_fields() {
+        let args = ReadChunkContinuationArgs::new("out.txt", 41, 40);
+        let value = args.to_value();
+
+        assert_eq!(value["path"], "out.txt");
+        assert_eq!(value["offset"], 41);
+        assert_eq!(value["limit"], 40);
+        assert!(value.get("offset_bytes").is_none());
+        assert!(value.get("page_size_bytes").is_none());
     }
 }

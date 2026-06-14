@@ -286,6 +286,21 @@ pub(crate) async fn validate_tool_call<'a>(
     tool_name: &str,
     args_val: &serde_json::Value,
 ) -> Result<ValidationResult> {
+    // Early guard: reject empty tool names with a clear error message.
+    // This handles malformed LLM responses where tool name is missing.
+    if tool_name.trim().is_empty() {
+        ctx.push_tool_response(
+            tool_call_id,
+            build_validation_error_content_with_fallback(
+                "Tool call has an empty tool name. Provide a valid tool name.".to_string(),
+                "preflight",
+                None,
+                None,
+            ),
+        );
+        return Ok(ValidationResult::Blocked);
+    }
+
     if let Some(notice) = ctx.harness_state.record_tool_budget_exhaustion_notice() {
         let exhaustion = notice.exhaustion;
         let error_msg = exhaustion.policy_violation_message();
