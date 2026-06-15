@@ -130,13 +130,20 @@ impl AsyncMcpManager {
         }
     }
 
-    /// Start async initialization of MCP client
+    /// Start async initialization of MCP client.
+    ///
+    /// # Priority Guarantee
+    ///
+    /// This method is designed to never block tokio worker threads, ensuring
+    /// that signal handling (Ctrl+C) remains responsive. The initialization
+    /// is spawned as a background task that does not block the caller.
     pub(crate) fn start_initialization(&self) -> Result<()> {
         let config = self.config();
         if !config.enabled {
-            // If MCP is disabled, set status immediately
-            let mut status_guard = self.status.blocking_write();
-            *status_guard = McpInitStatus::Disabled;
+            // MCP is disabled. Status is already set to Disabled in the
+            // constructor (new()), so no additional write is needed.
+            // This avoids blocking a tokio worker thread and ensures
+            // signal handling remains responsive.
             return Ok(());
         }
 

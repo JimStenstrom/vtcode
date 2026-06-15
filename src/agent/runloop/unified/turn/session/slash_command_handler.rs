@@ -32,6 +32,11 @@ pub(crate) async fn handle_input_commands(
 ) -> Result<CommandProcessingResult> {
     match input {
         "" => return Ok(CommandProcessingResult::ContinueLoop),
+        // Exit commands are always the highest priority and cannot be blocked.
+        // They immediately return InteractionOutcome::Exit which is checked
+        // at the top of every interaction loop iteration, ensuring the program
+        // exits without delay. This is a user safety guarantee - users must
+        // always be able to exit the program without being trapped.
         "exit" | "quit" => {
             ctx.renderer.line(MessageStyle::Info, "✓")?;
             return Ok(CommandProcessingResult::Outcome(InteractionOutcome::Exit {

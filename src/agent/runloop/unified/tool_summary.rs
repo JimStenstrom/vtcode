@@ -12,6 +12,7 @@ use vtcode_core::ui::theme;
 use vtcode_core::utils::ansi::{AnsiRenderer, MessageStyle};
 use vtcode_core::utils::style_helpers::{ColorPalette, render_styled};
 
+use crate::agent::runloop::tool_output::render_tree_detail;
 use crate::agent::runloop::unified::tool_summary_helpers::{
     collect_param_details, command_line_for_args, describe_fetch_action, describe_grep_file,
     describe_list_files, describe_path_action, describe_shell_command, highlight_texts_for_summary,
@@ -247,12 +248,7 @@ pub(crate) fn render_tool_call_summary(
 
     // Details in gray if present - these are the call parameters
     for detail in details {
-        let mut styled = String::new();
-        styled.push_str("  ");
-        styled.push_str(&render_styled("└", palette.muted, Some("dim".to_string())));
-        styled.push(' ');
-        styled.push_str(&render_styled(&detail, palette.muted, None));
-        renderer.line(MessageStyle::Info, &styled)?;
+        render_tree_detail(renderer, &detail)?;
     }
 
     Ok(())

@@ -5,6 +5,7 @@ use vtcode_core::config::ToolOutputMode;
 use vtcode_core::config::constants::tools;
 use vtcode_core::utils::ansi::{AnsiRenderer, MessageStyle};
 
+use super::render_tree_detail;
 use super::streams::render_diff_content_block;
 use super::styles::{GitStyles, LsStyles};
 pub(crate) use vtcode_commons::diff_preview::format_numbered_unified_diff as format_diff_content_lines_with_numbers;
@@ -266,7 +267,7 @@ pub(crate) fn render_read_file_output(renderer: &mut AnsiRenderer, val: &Value) 
         if failed > 0 {
             summary.push_str(&format!(", {} failed", failed));
         }
-        renderer.line(MessageStyle::ToolDetail, &summary)?;
+        render_tree_detail(renderer, &summary)?;
 
         for item in items.iter().take(MAX_BATCH_DISPLAY_FILES) {
             if let Some(fp) = item.get("file_path").and_then(Value::as_str) {
@@ -325,7 +326,7 @@ pub(crate) fn render_read_file_output(renderer: &mut AnsiRenderer, val: &Value) 
     } else {
         return Ok(());
     };
-    renderer.line(MessageStyle::ToolDetail, &summary)?;
+    render_tree_detail(renderer, &summary)?;
 
     Ok(())
 }

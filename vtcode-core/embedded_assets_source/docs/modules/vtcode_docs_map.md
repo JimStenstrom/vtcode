@@ -211,6 +211,11 @@ This document serves as an index of all VT Code documentation. When users ask qu
   - **Topics**: Reporting a Vulnerability, Security Best Practices for Users, Supported Versions, Security Features, CI/CD Security Controls
   - **User Questions**: "What can you tell me about Security Policy?", "How does Reporting a Vulnerability work?", "How does Security Best Practices for Users work?"
 
+- **File**: `docs/signal_handling.md`
+  - **Content**: Signal Handling Architecture
+  - **Topics**: Priority Guarantees, Signal Handling Components, Interaction Loop Exit Check, Process Group Management, Emergency Terminal Cleanup
+  - **User Questions**: "What can you tell me about Signal Handling Architecture?", "How does Priority Guarantees work?", "How does Signal Handling Components work?"
+
 - **File**: `docs/user-guide/subagents.md`
   - **Content**: Subagents
   - **Topics**: Built-in primary agents, Built-in subagents, Summary, Facts, Touched Files

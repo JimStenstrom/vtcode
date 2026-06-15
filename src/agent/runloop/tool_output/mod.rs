@@ -22,6 +22,7 @@ use vtcode_core::tools::continuation::{
     NEXT_CONTINUE_PROMPT, NEXT_READ_PROMPT, PtyContinuationArgs, ReadChunkContinuationArgs,
 };
 use vtcode_core::utils::ansi::{AnsiRenderer, MessageStyle};
+use vtcode_core::utils::style_helpers::{ColorPalette, render_styled};
 
 use commands::render_terminal_command_panel;
 use files::{
@@ -40,6 +41,19 @@ pub(crate) fn spooled_output_hint(path: &str) -> String {
         "Large output was spooled to \"{}\". Use unified_file (action='read') or unified_search (action='grep') to inspect details.",
         path
     )
+}
+
+/// Render a detail line with tree prefix styling (└ prefix).
+/// Used to unify output details with the tree structure used by other tools.
+pub(crate) fn render_tree_detail(renderer: &mut AnsiRenderer, detail: &str) -> Result<()> {
+    let palette = ColorPalette::default();
+    let mut styled = String::new();
+    styled.push_str("  ");
+    styled.push_str(&render_styled("└", palette.muted, Some("dim".to_string())));
+    styled.push(' ');
+    styled.push_str(&render_styled(detail, palette.muted, None));
+    renderer.line(MessageStyle::Info, &styled)?;
+    Ok(())
 }
 
 fn tool_recovery_hint(val: &Value) -> Option<&'static str> {

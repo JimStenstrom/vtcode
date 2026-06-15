@@ -526,6 +526,44 @@ impl CtrlCPhase {
     }
 }
 
+/// State machine for handling Ctrl+C signals with priority guarantees.
+///
+/// # Priority Guarantees
+///
+/// This state machine ensures that Ctrl+C (SIGINT) is always the highest priority
+/// and cannot be blocked by any other process. The following guarantees are enforced:
+///
+/// 1. **First Ctrl+C**: Immediately cancels the current operation (Cancel signal)
+/// 2. **Second Ctrl+C (within 1 second)**: Immediately exits the program (Exit signal)
+/// 3. **Emergency exit path**: On double Ctrl+C, the program calls `std::process::exit(130)`
+///    which bypasses all other operations and cleanup routines
+/// 4. **No signal masking**: SIGINT is never blocked or masked anywhere in the codebase
+/// 5. **Atomic operations**: All state transitions use lock-free atomic operations,
+///    ensuring no mutex contention can block signal handling
+///
+/// # Exit Command Priority
+///
+/// The `/exit`, `/quit`, `exit`, and `quit` commands are processed immediately
+/// and cannot be blocked by any other operation. They return
+/// `InteractionOutcome::Exit { reason: SessionEndReason::Exit }` which is checked
+/// at the top of every interaction loop iteration.
+///
+/// # State Machine
+///
+/// The state machine transitions through four phases:
+/// - `Idle` → First Ctrl+C → `CancelRequested` (returns `CtrlCSignal::Cancel`)
+/// - `CancelRequested` → Second Ctrl+C within 200ms → `CancelRequested` (returns `CtrlCSignal::Cancel`, debounced)
+/// - `CancelRequested` → Second Ctrl+C between 200ms and 1s → `ExitRequested` (returns `CtrlCSignal::Exit`)
+/// - `CancelRequested` → Second Ctrl+C after 1s → `CancelRequested` (returns `CtrlCSignal::Cancel`, window expired)
+/// - `ExitArmed` → Second Ctrl+C within 1s → `ExitRequested` (returns `CtrlCSignal::Exit`)
+/// - `ExitRequested` → Any subsequent Ctrl+C → `ExitRequested` (returns `CtrlCSignal::Exit`)
+///
+/// # Debounce Mechanism
+///
+/// A 200ms debounce window prevents rapid repeated signals from prematurely
+/// escalating the state machine. This ensures that accidental double-taps
+/// don't immediately exit the program. Only after 200ms has elapsed since
+/// the first signal will a second signal trigger escalation to exit.
 #[derive(Default)]
 pub(crate) struct CtrlCState {
     phase: AtomicU8,
@@ -547,6 +585,27 @@ impl CtrlCState {
         self.phase.store(phase as u8, Ordering::SeqCst);
     }
 
+    /// Register a Ctrl+C signal and return the appropriate signal type.
+    ///
+    /// # Priority Guarantee
+    ///
+    /// This method is called from the signal handler and is guaranteed to:
+    /// 1. Always process the signal immediately (no blocking)
+    /// 2. Never be blocked by any other operation
+    /// 3. Return `CtrlCSignal::Exit` on double Ctrl+C, which triggers
+    ///    `emergency_terminal_cleanup()` → `std::process::exit(130)`
+    ///
+    /// # Debounce Behavior
+    ///
+    /// Rapid repeated signals (within 200ms) are debounced to prevent
+    /// accidental state escalation. However, if already in `ExitArmed` or
+    /// `ExitRequested` phase, rapid signals immediately escalate to exit.
+    ///
+    /// # Window Behavior
+    ///
+    /// The second Ctrl+C must arrive within 1 second of the first to trigger
+    /// exit. After this window, the state machine resets to `CancelRequested`
+    /// on the next signal.
     pub(crate) fn register_signal(&self) -> CtrlCSignal {
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -621,6 +680,7 @@ impl CtrlCState {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
     use std::thread;
     use std::time::Duration;
 
@@ -938,5 +998,170 @@ mod tests {
 
         assert!(matches!(state.register_signal(), CtrlCSignal::Exit));
         assert!(state.is_exit_requested());
+    }
+
+    #[test]
+    fn ctrl_c_state_escalation_is_priority_guarantee() {
+        // This test verifies the priority guarantee: double Ctrl+C always exits
+        // Note: The 200ms debounce window prevents immediate escalation
+        let state = CtrlCState::new();
+
+        // First Ctrl+C - should always cancel
+        assert!(matches!(state.register_signal(), CtrlCSignal::Cancel));
+        assert!(state.is_cancel_requested());
+        assert!(!state.is_exit_requested());
+
+        // Second Ctrl+C within 1 second (but after 200ms debounce) - should exit
+        thread::sleep(Duration::from_millis(250));
+        assert!(matches!(state.register_signal(), CtrlCSignal::Exit));
+        assert!(!state.is_cancel_requested());
+        assert!(state.is_exit_requested());
+    }
+
+    #[test]
+    fn ctrl_c_state_debounce_prevents_accidental_escalation() {
+        let state = CtrlCState::new();
+
+        // First Ctrl+C
+        assert!(matches!(state.register_signal(), CtrlCSignal::Cancel));
+
+        // Rapid second Ctrl+C (within 200ms debounce window)
+        // Should still cancel, not exit
+        thread::sleep(Duration::from_millis(50));
+        assert!(matches!(state.register_signal(), CtrlCSignal::Cancel));
+        assert!(state.is_cancel_requested());
+        assert!(!state.is_exit_requested());
+    }
+
+    #[test]
+    fn ctrl_c_state_exit_is_always_processed() {
+        // This test verifies that exit signals are always processed
+        let state = CtrlCState::new();
+
+        // Get to exit state
+        assert!(matches!(state.register_signal(), CtrlCSignal::Cancel));
+        thread::sleep(Duration::from_millis(250));
+        assert!(matches!(state.register_signal(), CtrlCSignal::Exit));
+
+        // Subsequent Ctrl+C should always return Exit
+        assert!(matches!(state.register_signal(), CtrlCSignal::Exit));
+        assert!(matches!(state.register_signal(), CtrlCSignal::Exit));
+        assert!(matches!(state.register_signal(), CtrlCSignal::Exit));
+        assert!(state.is_exit_requested());
+    }
+
+    #[test]
+    fn ctrl_c_state_check_cancellation_returns_error_on_exit() {
+        let state = CtrlCState::new();
+
+        // Get to exit state
+        assert!(matches!(state.register_signal(), CtrlCSignal::Cancel));
+        thread::sleep(Duration::from_millis(250));
+        assert!(matches!(state.register_signal(), CtrlCSignal::Exit));
+
+        // check_cancellation should return error
+        assert!(state.check_cancellation().is_err());
+    }
+
+    #[test]
+    fn ctrl_c_state_check_cancellation_returns_error_on_cancel() {
+        let state = CtrlCState::new();
+
+        // Get to cancel state
+        assert!(matches!(state.register_signal(), CtrlCSignal::Cancel));
+
+        // check_cancellation should return error
+        assert!(state.check_cancellation().is_err());
+    }
+
+    #[test]
+    fn ctrl_c_state_check_cancellation_ok_when_idle() {
+        let state = CtrlCState::new();
+
+        // check_cancellation should return Ok when idle
+        assert!(state.check_cancellation().is_ok());
+    }
+
+    #[test]
+    fn ctrl_c_state_mark_cancel_handled_transitions_to_exit_armed() {
+        let state = CtrlCState::new();
+
+        // Get to cancel state
+        assert!(matches!(state.register_signal(), CtrlCSignal::Cancel));
+        assert!(state.is_cancel_requested());
+
+        // Mark cancel handled should transition to ExitArmed
+        state.mark_cancel_handled();
+
+        // Should not be cancel requested anymore
+        assert!(!state.is_cancel_requested());
+
+        // Should not be exit requested yet
+        assert!(!state.is_exit_requested());
+
+        // Next Ctrl+C should exit
+        assert!(matches!(state.register_signal(), CtrlCSignal::Exit));
+        assert!(state.is_exit_requested());
+    }
+
+    #[test]
+    fn ctrl_c_state_window_expires_after_one_second() {
+        let state = CtrlCState::new();
+
+        // First Ctrl+C
+        assert!(matches!(state.register_signal(), CtrlCSignal::Cancel));
+
+        // Wait for window to expire (1.1 seconds)
+        thread::sleep(Duration::from_millis(1100));
+
+        // Second Ctrl+C should cancel again, not exit
+        assert!(matches!(state.register_signal(), CtrlCSignal::Cancel));
+        assert!(state.is_cancel_requested());
+        assert!(!state.is_exit_requested());
+    }
+
+    #[test]
+    fn ctrl_c_state_reset_clears_all_state() {
+        let state = CtrlCState::new();
+
+        // Get to exit state
+        assert!(matches!(state.register_signal(), CtrlCSignal::Cancel));
+        thread::sleep(Duration::from_millis(250));
+        assert!(matches!(state.register_signal(), CtrlCSignal::Exit));
+        assert!(state.is_exit_requested());
+
+        // Reset should clear everything
+        state.reset();
+
+        // Should be back to idle
+        assert!(!state.is_cancel_requested());
+        assert!(!state.is_exit_requested());
+        assert!(state.check_cancellation().is_ok());
+    }
+
+    #[test]
+    fn ctrl_c_state_atomic_operations_are_thread_safe() {
+        // This test verifies that atomic operations work correctly under concurrency
+        let state = Arc::new(CtrlCState::new());
+        let mut handles = vec![];
+
+        // Spawn multiple threads that all try to register signals
+        for _ in 0..10 {
+            let state = Arc::clone(&state);
+            handles.push(thread::spawn(move || {
+                for _ in 0..100 {
+                    let _ = state.register_signal();
+                }
+            }));
+        }
+
+        // Wait for all threads to complete
+        for handle in handles {
+            handle.join().unwrap();
+        }
+
+        // The state should be consistent (either cancel or exit requested)
+        // The exact state depends on timing, but it should be valid
+        assert!(state.is_cancel_requested() || state.is_exit_requested());
     }
 }

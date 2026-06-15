@@ -8,7 +8,7 @@ mod skills_commands_parser;
 mod slash_commands;
 mod telemetry;
 mod text_tools;
-mod tool_output;
+pub(crate) mod tool_output;
 mod ui;
 pub(crate) mod unified;
 mod welcome;

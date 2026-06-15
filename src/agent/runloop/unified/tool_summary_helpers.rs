@@ -349,11 +349,6 @@ fn is_noise_param(key: &str) -> bool {
             | "case_sensitive"
             | "literal"
             | "context_lines"
-            // Pagination / read plumbing
-            | "offset"
-            | "limit"
-            | "head_lines"
-            | "tail_lines"
             // Execution plumbing
             | "shell"
             | "login"
@@ -589,11 +584,16 @@ mod tests {
         assert!(is_noise_param("strictness"));
         assert!(is_noise_param("case_sensitive"));
         assert!(is_noise_param("context_lines"));
-        assert!(is_noise_param("offset"));
-        assert!(is_noise_param("limit"));
         assert!(is_noise_param("shell"));
         assert!(is_noise_param("sandbox_permissions"));
         assert!(is_noise_param("action")); // Redundant with summary headline
+        // Read file params should pass through (not noise)
+        assert!(!is_noise_param("offset"));
+        assert!(!is_noise_param("limit"));
+        assert!(!is_noise_param("head_lines"));
+        assert!(!is_noise_param("tail_lines"));
+        assert!(!is_noise_param("start_line"));
+        assert!(!is_noise_param("end_line"));
         // Meaningful params should pass through
         assert!(!is_noise_param("pattern"));
         assert!(!is_noise_param("path"));

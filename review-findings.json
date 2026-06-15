@@ -1,0 +1,50 @@
+[
+  {
+    "file": "src/agent/runloop/unified/state.rs",
+    "line": 554,
+    "summary": "Documentation diagram omits 200ms debounce sub-window, misleading developers about escalation behavior",
+    "failure_scenario": "Developer reads diagram showing 'CancelRequested -> Second Ctrl+C within 1s -> ExitRequested' and writes test expecting exit after 50ms double-tap. Test fails because debounce returns Cancel, not Exit. Developer wastes hours debugging 'wrong' logic.",
+    "severity": "high",
+    "status": "CONFIRMED"
+  },
+  {
+    "file": "src/agent/runloop/unified/async_mcp_manager.rs",
+    "line": 143,
+    "summary": "Comment says 'spawn_blocking' but code uses 'tokio::spawn'; redundant write to already-Disabled status; dropped JoinHandle",
+    "failure_scenario": "Developer reads comment, assumes spawn_blocking is used, adds blocking I/O inside spawned task thinking it runs on blocking pool. Task actually runs on async runtime, blocking tokio worker thread - exactly the problem the fix was trying to avoid.",
+    "severity": "medium",
+    "status": "PLAUSIBLE"
+  },
+  {
+    "file": "src/agent/runloop/tool_output/files.rs",
+    "line": 15,
+    "summary": "render_tree_detail() duplicates identical pattern from tool_summary.rs lines 249-256",
+    "failure_scenario": "Tree prefix style changes (e.g., '└' to Unicode box-drawing). Two locations must be updated in lockstep. Mismatch produces visually inconsistent output between file-operation and tool-call summaries.",
+    "severity": "medium",
+    "status": "CONFIRMED"
+  },
+  {
+    "file": "src/agent/runloop/unified/stop_requests.rs",
+    "line": 35,
+    "summary": "notify_one() may delay cancellation in batch tool execution - only one of N+1 concurrent waiters is woken",
+    "failure_scenario": "User starts 5 parallel tools, presses Ctrl+C. notify_one wakes tool future #3. Tools #1, #2, #4, #5 continue executing until they complete or timeout. User sees delayed/partial cancellation instead of immediate stop.",
+    "severity": "low",
+    "status": "PLAUSIBLE"
+  },
+  {
+    "file": "src/agent/runloop/unified/state.rs",
+    "line": 1139,
+    "summary": "Thread-safety test assertion is too weak - passes trivially even if no concurrency occurs",
+    "failure_scenario": "Test asserts 'is_cancel_requested() || is_exit_requested()' which is true after first register_signal() call. Test spawns 10 threads x 100 iterations but assertion doesn't verify atomicity or consistency under contention.",
+    "severity": "low",
+    "status": "PLAUSIBLE"
+  },
+  {
+    "file": "src/agent/runloop/unified/tool_summary_helpers.rs",
+    "line": 349,
+    "summary": "Stale '// Pagination / read plumbing' comment remains after entries were removed",
+    "failure_scenario": "Developer sees comment header with no entries beneath it, confused about whether removal was intentional or merge artifact.",
+    "severity": "low",
+    "status": "PLAUSIBLE"
+  }
+]

@@ -26,6 +26,50 @@ impl Drop for SignalHandlerGuard {
     }
 }
 
+/// Spawn a signal handler task that listens for SIGINT and SIGTERM.
+///
+/// # Priority Guarantees
+///
+/// This signal handler is the highest priority component in the system.
+/// It ensures that:
+///
+/// 1. **SIGINT (Ctrl+C) is always processed immediately** - The handler runs
+///    on its own Tokio task and cannot be blocked by other operations.
+///
+/// 2. **First Ctrl+C cancels current operation** - Calls `request_local_stop()`
+///    which transitions `CtrlCState` to `CancelRequested` and notifies waiters.
+///
+/// 3. **Second Ctrl+C exits the program** - If a second Ctrl+C arrives within
+///    1 second, the handler calls `emergency_terminal_cleanup()` which:
+///    - Restores the terminal to a usable state
+///    - Flushes trace logs
+///    - Calls `std::process::exit(130)` to immediately terminate the process
+///
+/// 4. **Emergency exit bypasses all other operations** - The `std::process::exit(130)`
+///    call bypasses Rust's drop logic and async runtime shutdown, ensuring the
+///    program exits immediately even if other tasks are blocked.
+///
+/// 5. **No signal masking** - SIGINT is never blocked or masked, ensuring the
+///    OS can always deliver the signal to this handler.
+///
+/// 6. **MCP shutdown has tight timeout** - On double Ctrl+C, MCP shutdown is
+///    fire-and-forget with a 500ms timeout to prevent blocking the exit.
+///
+/// # Signal Flow
+///
+/// 1. OS delivers SIGINT → Tokio runtime wakes up the signal handler task
+/// 2. Signal handler calls `request_local_stop()` → `CtrlCState::register_signal()`
+/// 3. If `CtrlCSignal::Exit` is returned → fire-and-forget MCP shutdown (500ms timeout)
+/// 4. Call `emergency_terminal_cleanup()` → `restore_tui()` → `std::process::exit(130)`
+///
+/// # Emergency Terminal Cleanup
+///
+/// The `emergency_terminal_cleanup()` function ensures the terminal is left in
+/// a usable state even on emergency exit. It:
+/// - Disables terminal focus tracking
+/// - Restores the TUI to its original state
+/// - Flushes trace logs
+/// - Terminates the process with exit code 130 (standard SIGINT exit code)
 pub(crate) fn spawn_signal_handler(
     ctrl_c_state: Arc<CtrlCState>,
     ctrl_c_notify: Arc<Notify>,

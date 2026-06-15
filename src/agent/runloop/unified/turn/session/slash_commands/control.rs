@@ -262,6 +262,17 @@ pub(crate) async fn handle_copy_latest_assistant_reply(
     Ok(SlashCommandControl::Continue)
 }
 
+/// Handle the /exit slash command.
+///
+/// # Priority Guarantee
+///
+/// The /exit command is always the highest priority and cannot be blocked.
+/// It immediately returns `SlashCommandControl::BreakWithReason(SessionEndReason::Exit)`
+/// which propagates to `InteractionOutcome::Exit` and is checked at the top
+/// of every interaction loop iteration.
+///
+/// This is a user safety guarantee - users must always be able to exit the
+/// program without being trapped in an unresponsive state.
 pub(crate) async fn handle_exit(ctx: SlashCommandContext<'_>) -> Result<SlashCommandControl> {
     ctx.renderer.line(MessageStyle::Info, "✓")?;
     Ok(SlashCommandControl::BreakWithReason(SessionEndReason::Exit))
