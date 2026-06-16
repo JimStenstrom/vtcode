@@ -60,7 +60,7 @@ vtcode update                  # self-update
 - [**Agent Skills**](./docs/skills/SKILLS_GUIDE.md) - Creating, loading, and sharing skills
 - [**MCP Integration**](./docs/guides/mcp-integration.md) - Client and server modes
 - [**Editor guides**](./docs/guides/zed-acp.md) - Zed ACP, VS Code, Claude Code
-- [**Safety**](./docs/safety/SAFETY_ARCHITECTURE.md) - Shell sandbox, security hardening, threat model
+- [**Safety**](./docs/security/SECURITY_MODEL.md) - Shell sandbox, security hardening, threat model
 - [**Protocols**](./docs/protocols/OPEN_RESPONSES.md) - Open Responses, ATIF, A2A, Anthropic Messages API
 
 ## Providers
