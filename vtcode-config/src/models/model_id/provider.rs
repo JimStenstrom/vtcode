@@ -35,6 +35,7 @@ impl ModelId {
             ModelId::HuggingFaceOpenAIGptOss20b
             | ModelId::HuggingFaceOpenAIGptOss120b
             | ModelId::HuggingFaceGlm51ZaiOrg
+            | ModelId::HuggingFaceGlm52Novita
             | ModelId::HuggingFaceKimiK26Novita
             | ModelId::HuggingFaceDeepseekV4FlashNovita
             | ModelId::HuggingFaceDeepseekV4ProTogether
@@ -55,7 +56,7 @@ impl ModelId {
             | ModelId::EvolinkClaudeSonnet46
             | ModelId::EvolinkClaudeOpus48
             | ModelId::EvolinkClaudeHaiku45 => Provider::Evolink,
-            ModelId::ZaiGlm51 => Provider::ZAI,
+            ModelId::ZaiGlm52 | ModelId::ZaiGlm51 => Provider::ZAI,
             ModelId::MoonshotKimiK27Code | ModelId::MoonshotKimiK26 => Provider::Moonshot,
             ModelId::OpenCodeZenGPT54
             | ModelId::OpenCodeZenGPT54Mini
@@ -101,6 +102,7 @@ impl ModelId {
             | ModelId::OpenRouterStepfunStep35FlashFree
             | ModelId::OpenRouterNvidiaNemotron3Super120bA12bFree
             | ModelId::OpenRouterZaiGlm51
+            | ModelId::OpenRouterZaiGlm52
             | ModelId::OpenRouterMoonshotaiKimiK26
             | ModelId::OpenRouterMoonshotaiKimiK27Code
             | ModelId::OpenRouterTencentHy3Preview

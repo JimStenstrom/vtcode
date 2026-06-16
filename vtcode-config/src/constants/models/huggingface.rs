@@ -6,6 +6,7 @@ pub const SUPPORTED_MODELS: &[&str] = &[
     OPENAI_GPT_OSS_20B,
     // Novita inference provider models
     ZAI_GLM_5_1_ZAI_ORG,
+    ZAI_GLM_5_2_NOVITA,
     // Moonshot inference provider models
     KIMI_K2_6_NOVITA,
     // Together inference provider models
@@ -30,6 +31,7 @@ pub const STEP_3_5_FLASH_LEGACY_FASTEST: &str = "stepfun-ai/Step-3.5-Flash:faste
 pub const OPENAI_GPT_OSS_20B: &str = "openai/gpt-oss-20b:huggingface";
 
 pub const ZAI_GLM_5_1_ZAI_ORG: &str = "zai-org/GLM-5.1:zai-org";
+pub const ZAI_GLM_5_2_NOVITA: &str = "zai-org/GLM-5.2:novita";
 pub const KIMI_K2_6_NOVITA: &str = "moonshotai/Kimi-K2.6:novita";
 
 // DeepSeek V4 models via HF router
@@ -52,6 +54,7 @@ pub const REASONING_MODELS: &[&str] = &[
     // Additional reasoning models
     OPENAI_GPT_OSS_20B,
     ZAI_GLM_5_1_ZAI_ORG,
+    ZAI_GLM_5_2_NOVITA,
     ZAI_GLM_5_1_DEEPINFRA,
     MINIMAX_M2_7_NOVITA,
     MINIMAX_M3_NOVITA,

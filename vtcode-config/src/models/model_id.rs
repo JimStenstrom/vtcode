@@ -83,6 +83,8 @@ pub enum ModelId {
     HuggingFaceOpenAIGptOss120b,
     /// Z.AI GLM-5.1 via zai-org provider on Hugging Face router
     HuggingFaceGlm51ZaiOrg,
+    /// Z.AI GLM-5.2 via Novita inference provider on Hugging Face router
+    HuggingFaceGlm52Novita,
     /// Kimi K2.6 via Novita on Hugging Face router
     HuggingFaceKimiK26Novita,
     /// DeepSeek V4 Flash via Novita on Hugging Face router
@@ -128,6 +130,8 @@ pub enum ModelId {
     /// Claude Haiku 4.5 served through the Evolink gateway (Anthropic Messages API)
     EvolinkClaudeHaiku45,
 
+    /// GLM-5.2 - Z.ai flagship model for long-horizon tasks with 1M context
+    ZaiGlm52,
     /// GLM-5.1 - Next-gen Z.ai foundation model with improved reasoning
     ZaiGlm51,
 
@@ -248,6 +252,8 @@ pub enum ModelId {
     OpenRouterNvidiaNemotron3Super120bA12bFree,
     /// GLM-5.1 - Z.AI GLM-5.1 next-gen foundation model via OpenRouter
     OpenRouterZaiGlm51,
+    /// GLM-5.2 - Z.AI GLM-5.2 flagship model for long-horizon tasks via OpenRouter
+    OpenRouterZaiGlm52,
     /// Kimi K2.6 - Moonshot AI's next-generation multimodal model via OpenRouter
     OpenRouterMoonshotaiKimiK26,
     /// Kimi K2.7 Code - Moonshot AI's most capable coding model via OpenRouter

@@ -41,6 +41,7 @@ impl ModelId {
             // Mistral models
             ModelId::MistralLarge3,
             // Z.AI models
+            ModelId::ZaiGlm52,
             ModelId::ZaiGlm51,
             // MiMo models
             ModelId::MiMoV25Pro,
@@ -86,6 +87,7 @@ impl ModelId {
             ModelId::HuggingFaceOpenAIGptOss20b,
             ModelId::HuggingFaceOpenAIGptOss120b,
             ModelId::HuggingFaceGlm51ZaiOrg,
+            ModelId::HuggingFaceGlm52Novita,
             ModelId::HuggingFaceKimiK26Novita,
             ModelId::HuggingFaceDeepseekV4FlashNovita,
             ModelId::HuggingFaceDeepseekV4ProTogether,
@@ -110,6 +112,7 @@ impl ModelId {
             ModelId::OpenRouterMoonshotaiKimiK26,
             ModelId::OpenRouterMoonshotaiKimiK27Code,
             ModelId::OpenRouterZaiGlm51,
+            ModelId::OpenRouterZaiGlm52,
             // Poolside models
             ModelId::PoolsideLagunaM1,
             ModelId::PoolsideLagunaXs2,

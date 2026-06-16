@@ -87,6 +87,9 @@ impl ModelId {
                 "Xiaomi's omni-modal model with full-modal understanding and 1M context"
             }
             // Z.AI models
+            ModelId::ZaiGlm52 => {
+                "Z.ai flagship model for long-horizon tasks with truly usable 1M-token context"
+            }
             ModelId::ZaiGlm51 => {
                 "Z.ai next-gen GLM-5.1 foundation model with improved reasoning and agent capabilities"
             }
@@ -178,6 +181,9 @@ impl ModelId {
             ModelId::HuggingFaceGlm51ZaiOrg => {
                 "Z.ai GLM-5.1 model via zai-org inference provider on HuggingFace router."
             }
+            ModelId::HuggingFaceGlm52Novita => {
+                "Z.ai GLM-5.2 flagship model via Novita inference provider on HuggingFace router. 1M context for long-horizon tasks."
+            }
             ModelId::HuggingFaceKimiK26Novita => {
                 "Kimi K2.6 via Novita inference provider on HuggingFace router."
             }
@@ -256,6 +262,9 @@ impl ModelId {
                 "Kimi K2.7 Code most capable coding model with long-horizon coding breakthrough via OpenRouter"
             }
             ModelId::OpenRouterZaiGlm51 => "Z.AI GLM-5.1 next-gen foundation model via OpenRouter",
+            ModelId::OpenRouterZaiGlm52 => {
+                "Z.AI GLM-5.2 flagship model for long-horizon tasks with 1M context via OpenRouter"
+            }
             ModelId::OpenRouterOpenAIGpt55 => "OpenAI GPT-5.5 model accessed through OpenRouter",
             model => {
                 model

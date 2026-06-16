@@ -288,9 +288,10 @@ impl ModelId {
                 | ModelId::OpenCodeZenClaudeSonnet46
                 | ModelId::OpenCodeZenGlm51
                 | ModelId::OpenCodeGoGlm51
-                | ModelId::OpenCodeGoMinimaxM27
+                |             ModelId::OpenCodeGoMinimaxM27
                 | ModelId::DeepSeekV4Pro
                 | ModelId::EvolinkDeepseekV4Pro
+                | ModelId::ZaiGlm52
                 | ModelId::ZaiGlm51
                 | ModelId::OpenRouterStepfunStep35FlashFree
                 | ModelId::OpenRouterNvidiaNemotron3Super120bA12bFree
@@ -299,6 +300,7 @@ impl ModelId {
                 | ModelId::OllamaNemotron3SuperCloud
                 | ModelId::HuggingFaceDeepseekV4ProTogether
                 | ModelId::HuggingFaceGlm51Deepinfra
+                | ModelId::HuggingFaceGlm52Novita
                 | ModelId::HuggingFaceMinimaxM27Novita
                 | ModelId::HuggingFaceMinimaxM3Novita
                 | ModelId::HuggingFaceDeepseekV4ProNovita
@@ -351,11 +353,13 @@ impl ModelId {
                 | ModelId::OpenCodeGoGlm51
                 | ModelId::OpenCodeGoMinimaxM27
                 | ModelId::DeepSeekV4Pro
+                | ModelId::ZaiGlm52
                 | ModelId::ZaiGlm51
                 | ModelId::OpenRouterStepfunStep35FlashFree
                 | ModelId::HuggingFaceDeepseekV4FlashNovita
                 | ModelId::HuggingFaceDeepseekV4ProTogether
                 | ModelId::HuggingFaceGlm51Deepinfra
+                | ModelId::HuggingFaceGlm52Novita
                 | ModelId::HuggingFaceMinimaxM27Novita
                 | ModelId::HuggingFaceMinimaxM3Novita
                 | ModelId::HuggingFaceDeepseekV4ProNovita
@@ -412,6 +416,7 @@ impl ModelId {
             // DeepSeek generations
             ModelId::DeepSeekV4Pro | ModelId::DeepSeekV4Flash => "4",
             // Z.AI generations
+            ModelId::ZaiGlm52 => "5.2",
             ModelId::ZaiGlm51 => "5.1",
             ModelId::Gemini35Flash => "3.5",
             ModelId::OpenCodeZenGPT54 | ModelId::OpenCodeZenGPT54Mini => "5.4",
@@ -447,6 +452,7 @@ impl ModelId {
             ModelId::HuggingFaceMinimaxM27Novita => "m2.7",
             ModelId::HuggingFaceMinimaxM3Novita => "m3",
             ModelId::HuggingFaceGlm51ZaiOrg => "5.1",
+            ModelId::HuggingFaceGlm52Novita => "5.2",
             ModelId::HuggingFaceGlm51Deepinfra => "5.1",
             ModelId::HuggingFaceKimiK26Novita => "k2.6",
             ModelId::HuggingFaceDeepseekV4FlashNovita => "v4-flash",

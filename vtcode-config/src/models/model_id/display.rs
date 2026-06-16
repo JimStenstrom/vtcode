@@ -39,6 +39,7 @@ impl ModelId {
             ModelId::MiMoV25Pro => "MiMo V2.5 Pro",
             ModelId::MiMoV25 => "MiMo V2.5",
             // Z.AI models
+            ModelId::ZaiGlm52 => "GLM 5.2",
             ModelId::ZaiGlm51 => "GLM 5.1",
             // Qwen models
             ModelId::QwenDeepSeekV4Flash => "DeepSeek V4 Flash (Qwen)",
@@ -66,6 +67,7 @@ impl ModelId {
             ModelId::HuggingFaceOpenAIGptOss20b => "GPT-OSS 20B (HF)",
             ModelId::HuggingFaceOpenAIGptOss120b => "GPT-OSS 120B (HF)",
             ModelId::HuggingFaceGlm51ZaiOrg => "GLM-5.1 (zai-org)",
+            ModelId::HuggingFaceGlm52Novita => "GLM-5.2 (Novita)",
             ModelId::HuggingFaceKimiK26Novita => "Kimi K2.6 (Novita)",
             ModelId::HuggingFaceDeepseekV4FlashNovita => "DeepSeek V4 Flash (Novita)",
             ModelId::HuggingFaceDeepseekV4ProTogether => "DeepSeek V4 Pro (Together)",
@@ -89,6 +91,7 @@ impl ModelId {
             ModelId::OpenRouterMoonshotaiKimiK26 => "Kimi K2.6 (OpenRouter)",
             ModelId::OpenRouterMoonshotaiKimiK27Code => "Kimi K2.7 Code (OpenRouter)",
             ModelId::OpenRouterZaiGlm51 => "GLM-5.1 (OpenRouter)",
+            ModelId::OpenRouterZaiGlm52 => "GLM-5.2 (OpenRouter)",
             ModelId::OpenRouterOpenAIGpt55 => "OpenAI GPT-5.5 (OpenRouter)",
             // MiniMax models
             ModelId::MinimaxM3 => "MiniMax-M3",

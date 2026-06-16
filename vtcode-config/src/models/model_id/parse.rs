@@ -16,6 +16,10 @@ impl FromStr for ModelId {
             return Ok(ModelId::ZaiGlm51);
         }
 
+        if trimmed == models::zai::GLM_5_2 {
+            return Ok(ModelId::ZaiGlm52);
+        }
+
         if let Some(opencode_model) = trimmed
             .strip_prefix("opencode/")
             .or_else(|| trimmed.strip_prefix("opencode-zen/"))
@@ -89,6 +93,7 @@ impl FromStr for ModelId {
             // The Qwen-prefixed variants (QwenDeepSeekV4Flash, etc.) are picker-only entries.
             // Z.AI models
             s if s == models::zai::GLM_5_1 => Ok(ModelId::ZaiGlm51),
+            s if s == models::zai::GLM_5_2 => Ok(ModelId::ZaiGlm52),
             // Moonshot models
             s if s == models::moonshot::KIMI_K2_7_CODE => Ok(ModelId::MoonshotKimiK27Code),
             s if s == models::moonshot::KIMI_K2_6 => Ok(ModelId::MoonshotKimiK26),
@@ -129,6 +134,9 @@ impl FromStr for ModelId {
             }
             s if s == models::huggingface::ZAI_GLM_5_1_ZAI_ORG => {
                 Ok(ModelId::HuggingFaceGlm51ZaiOrg)
+            }
+            s if s == models::huggingface::ZAI_GLM_5_2_NOVITA => {
+                Ok(ModelId::HuggingFaceGlm52Novita)
             }
             s if s == models::huggingface::KIMI_K2_6_NOVITA => {
                 Ok(ModelId::HuggingFaceKimiK26Novita)
@@ -172,6 +180,7 @@ impl FromStr for ModelId {
             "moonshotai/kimi-k2.6" => Ok(ModelId::OpenRouterMoonshotaiKimiK26),
             "moonshotai/kimi-k2.7-code" => Ok(ModelId::OpenRouterMoonshotaiKimiK27Code),
             "z-ai/glm-5.1" => Ok(ModelId::OpenRouterZaiGlm51),
+            "z-ai/glm-5.2" => Ok(ModelId::OpenRouterZaiGlm52),
             _ => {
                 if let Some(model) = Self::parse_openrouter_model(s) {
                     Ok(model)

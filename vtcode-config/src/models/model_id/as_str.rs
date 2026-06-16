@@ -41,6 +41,7 @@ impl ModelId {
             ModelId::MiMoV25Pro => models::mimo::MIMO_V2_5_PRO,
             ModelId::MiMoV25 => models::mimo::MIMO_V2_5,
             // Z.AI models
+            ModelId::ZaiGlm52 => models::zai::GLM_5_2,
             ModelId::ZaiGlm51 => models::zai::GLM_5_1,
             // Moonshot models
             ModelId::MoonshotKimiK26 => models::moonshot::KIMI_K2_6,
@@ -75,6 +76,7 @@ impl ModelId {
             ModelId::HuggingFaceOpenAIGptOss20b => models::huggingface::OPENAI_GPT_OSS_20B,
             ModelId::HuggingFaceOpenAIGptOss120b => models::huggingface::OPENAI_GPT_OSS_120B,
             ModelId::HuggingFaceGlm51ZaiOrg => models::huggingface::ZAI_GLM_5_1_ZAI_ORG,
+            ModelId::HuggingFaceGlm52Novita => models::huggingface::ZAI_GLM_5_2_NOVITA,
             ModelId::HuggingFaceKimiK26Novita => models::huggingface::KIMI_K2_6_NOVITA,
             ModelId::HuggingFaceDeepseekV4FlashNovita => {
                 models::huggingface::DEEPSEEK_V4_FLASH_NOVITA
@@ -116,6 +118,7 @@ impl ModelId {
             ModelId::OpenRouterMoonshotaiKimiK26 => "moonshotai/kimi-k2.6",
             ModelId::OpenRouterMoonshotaiKimiK27Code => "moonshotai/kimi-k2.7-code",
             ModelId::OpenRouterZaiGlm51 => "z-ai/glm-5.1",
+            ModelId::OpenRouterZaiGlm52 => "z-ai/glm-5.2",
             model => {
                 model
                     .openrouter_metadata()

@@ -1227,6 +1227,26 @@
           "structured_output": true
         }
       },
+      "zai-org/GLM-5.2:novita": {
+        "id": "zai-org/GLM-5.2:novita",
+        "name": "GLM-5.2 (Novita)",
+        "description": "Z.AI GLM-5.2 flagship model for long-horizon tasks with 1M context via Novita inference provider on Hugging Face router.",
+        "reasoning": true,
+        "tool_call": true,
+        "modalities": {
+          "input": [
+            "text"
+          ],
+          "output": [
+            "text"
+          ]
+        },
+        "context": 1000000,
+        "max_output_tokens": 128000,
+        "capabilities": {
+          "structured_output": true
+        }
+      },
       "Qwen/Qwen3-4B-Thinking-2507": {
         "id": "Qwen/Qwen3-4B-Thinking-2507",
         "name": "Qwen3 4B Thinking 2507",
@@ -1705,6 +1725,41 @@
     "name": "Z.AI",
     "doc": "https://docs.z.ai/guides/llm/glm-5",
     "models": {
+      "glm-5.2": {
+        "id": "glm-5.2",
+        "name": "GLM-5.2",
+        "description": "Z.ai flagship model for long-horizon tasks with truly usable 1M-token context. Built for project-scale engineering context, delivering more stable long-task execution, more reliable adherence to engineering standards, and higher success rates in development scenarios.",
+        "reasoning": true,
+        "tool_call": true,
+        "modalities": {
+          "input": [
+            "text"
+          ],
+          "output": [
+            "text"
+          ]
+        },
+        "context": 1000000,
+        "max_output_tokens": 128000,
+        "capabilities": {
+          "thinking": true,
+          "streaming": true,
+          "function_calling": true,
+          "context_caching": true,
+          "structured_output": true,
+          "tool_streaming": true
+        },
+        "vtcode": {
+          "variant": "ZaiGlm52",
+          "constant": "Z_AI_GLM_5_2",
+          "display": "GLM-5.2",
+          "description": "Z.ai flagship model for long-horizon tasks with 1M context.",
+          "efficient": false,
+          "top_tier": true,
+          "generation": "5.2",
+          "doc_comment": "GLM-5.2 - Z.ai flagship model for long-horizon tasks"
+        }
+      },
       "glm-5": {
         "id": "glm-5",
         "name": "GLM-5",
@@ -2621,6 +2676,62 @@
           "top_tier": true,
           "generation": "MiMo-V2.5",
           "doc_comment": "MiMo-V2.5 - Xiaomi's omnimodal agentic model for complex software engineering via OpenRouter"
+        }
+      },
+      "z-ai/glm-5.1": {
+        "id": "z-ai/glm-5.1",
+        "name": "Z.AI: GLM-5.1",
+        "description": "Z.AI next-gen GLM-5.1 foundation model with improved reasoning and agent capabilities.",
+        "reasoning": true,
+        "tool_call": true,
+        "modalities": {
+          "input": [
+            "text"
+          ],
+          "output": [
+            "text"
+          ]
+        },
+        "context": 200000,
+        "max_output_tokens": 128000,
+        "vtcode": {
+          "variant": "OpenRouterZaiGlm51",
+          "constant": "ZAI_GLM_5_1",
+          "vendor": "z-ai",
+          "display": "GLM-5.1",
+          "description": "Z.AI GLM-5.1 next-gen foundation model via OpenRouter",
+          "efficient": false,
+          "top_tier": true,
+          "generation": "5.1",
+          "doc_comment": "GLM-5.1 - Z.AI GLM-5.1 next-gen foundation model via OpenRouter"
+        }
+      },
+      "z-ai/glm-5.2": {
+        "id": "z-ai/glm-5.2",
+        "name": "Z.AI: GLM-5.2",
+        "description": "Z.AI flagship model for long-horizon tasks with truly usable 1M-token context. Built for project-scale engineering context, delivering more stable long-task execution and higher success rates in development scenarios.",
+        "reasoning": true,
+        "tool_call": true,
+        "modalities": {
+          "input": [
+            "text"
+          ],
+          "output": [
+            "text"
+          ]
+        },
+        "context": 1000000,
+        "max_output_tokens": 128000,
+        "vtcode": {
+          "variant": "OpenRouterZaiGlm52",
+          "constant": "ZAI_GLM_5_2",
+          "vendor": "z-ai",
+          "display": "GLM-5.2",
+          "description": "Z.AI GLM-5.2 flagship model for long-horizon tasks with 1M context via OpenRouter",
+          "efficient": false,
+          "top_tier": true,
+          "generation": "5.2",
+          "doc_comment": "GLM-5.2 - Z.AI GLM-5.2 flagship model for long-horizon tasks via OpenRouter"
         }
       },
       "poolside/laguna-xs.2:free": {
