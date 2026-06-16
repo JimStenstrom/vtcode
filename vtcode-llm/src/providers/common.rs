@@ -442,7 +442,7 @@ pub fn spawn_openai_compatible_stream(
     response: reqwest::Response,
     provider_name: &'static str,
     model: String,
-    reasoning_field: Option<&'static str>,
+    reasoning_fields: &'static [&'static str],
     delta_order: crate::providers::shared::OpenAiDeltaOrder,
     include_cache_metrics: bool,
 ) -> LLMStream {
@@ -466,7 +466,7 @@ pub fn spawn_openai_compatible_stream(
                     &value,
                     &mut aggregator,
                     &tx,
-                    reasoning_field,
+                    reasoning_fields,
                     delta_order,
                     include_cache_metrics,
                 );

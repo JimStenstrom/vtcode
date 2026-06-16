@@ -633,12 +633,18 @@ fn emit_reasoning_delta(
     aggregator: &mut StreamAggregator,
     tx: &tokio::sync::mpsc::UnboundedSender<Result<LLMStreamEvent, LLMError>>,
     delta: &Value,
-    reasoning_field: Option<&'static str>,
+    reasoning_fields: &[&'static str],
 ) {
-    let Some(reasoning_field) = reasoning_field else {
-        return;
-    };
-    let Some(reasoning) = delta.get(reasoning_field).and_then(Value::as_str) else {
+    // Pick the first non-empty reasoning field, allowing providers to declare a
+    // fallback order (e.g. `["reasoning", "reasoning_content"]`).
+    // Empty strings are skipped so that a present-but-empty primary field
+    // does not block fallback to the next candidate.
+    let Some(reasoning) = reasoning_fields.iter().find_map(|field| {
+        delta
+            .get(*field)
+            .and_then(Value::as_str)
+            .filter(|s| !s.is_empty())
+    }) else {
         return;
     };
     let Some(delta) = aggregator.handle_reasoning(reasoning) else {
@@ -664,7 +670,7 @@ pub fn handle_openai_compatible_chunk(
     value: &Value,
     aggregator: &mut StreamAggregator,
     tx: &tokio::sync::mpsc::UnboundedSender<Result<LLMStreamEvent, LLMError>>,
-    reasoning_field: Option<&'static str>,
+    reasoning_fields: &[&'static str],
     delta_order: OpenAiDeltaOrder,
     include_cache_metrics: bool,
 ) {
@@ -674,12 +680,12 @@ pub fn handle_openai_compatible_chunk(
         if let Some(delta) = choice.get("delta") {
             match delta_order {
                 OpenAiDeltaOrder::ReasoningFirst => {
-                    emit_reasoning_delta(aggregator, tx, delta, reasoning_field);
+                    emit_reasoning_delta(aggregator, tx, delta, reasoning_fields);
                     emit_content_delta(aggregator, tx, delta);
                 }
                 OpenAiDeltaOrder::ContentFirst => {
                     emit_content_delta(aggregator, tx, delta);
-                    emit_reasoning_delta(aggregator, tx, delta, reasoning_field);
+                    emit_reasoning_delta(aggregator, tx, delta, reasoning_fields);
                 }
             }
 
