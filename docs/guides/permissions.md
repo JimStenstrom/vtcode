@@ -33,9 +33,9 @@ The top-level `[permissions]` table in `vtcode.toml` defines workspace-wide rule
 
 ```toml
 [permissions]
-ask = ["unified_exec(git commit *)", "write_file(/docs/**)"]
-allow = ["read_file", "list_files", "unified_search", "mcp__context7__*"]
-deny = ["unified_exec(rm -rf *)", "edit_file(/.git/**)"]
+ask = ["unified_exec(git commit *)", "unified_file(/docs/**)"]
+allow = ["unified_file", "unified_search", "mcp__context7__*"]
+deny = ["unified_exec(rm -rf *)", "unified_file(/.git/**)"]
 ```
 
 Global rules do not define a default decision. The active primary agent or active subagent supplies `permissions.default` after global deny and ask checks.

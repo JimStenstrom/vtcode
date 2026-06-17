@@ -174,9 +174,10 @@ Hook scripts receive JSON data via stdin containing session information and even
     "cwd": "/current/working/directory",
     "hook_event_name": "PreToolUse",
     "permission_decision": "ask",
-    "tool_name": "Write",
+    "tool_name": "unified_file",
     "tool_input": {
-        "file_path": "/path/to/file.txt",
+        "action": "write",
+        "path": "/path/to/file.txt",
         "content": "file content"
     }
 }

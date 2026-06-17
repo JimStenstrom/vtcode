@@ -162,7 +162,7 @@ Return findings in priority order with file references.
 model = "gpt-5.4-mini"
 model_reasoning_effort = "low"
 maxTurns = 6
-permissions = { default = "deny", allow = ["read_file", "list_files", "unified_search"], ask = [], auto = [], deny = ["unified_exec", "edit_file", "write_file", "apply_patch"] }
+permissions = { default = "deny", allow = ["unified_file", "unified_search"], ask = [], auto = [], deny = ["unified_exec", "apply_patch"] }
 ```
 
 VT Code reads `developer_instructions` and also accepts `instructions` for compatibility.

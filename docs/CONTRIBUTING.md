@@ -65,12 +65,25 @@ export OPENAI_API_KEY="sk-..."  # Replace with your actual API key
 
 ## Project Structure
 
-The project is organized into two main components:
+Cargo workspace with ~30 crates. Rust stable, MSRV 1.88, edition 2024.
 
-- **`vtcode-core/`**: Reusable library code (LLM providers, tools, config, MCP integration)
-- **`src/`**: CLI executable (Ratatui TUI, PTY execution, slash commands)
-- **`vtcode-acp/`**: Agent Client Protocol client for editor integration
-- **`vtcode-commons/`, `vtcode-config/`**: Modular crates for shared utilities
+- **`src/`** (root): Binary crate — CLI, session bootstrap
+- **`vtcode-core/`**: Agent loop, tools, prompts, LLM orchestration, UI
+- **`vtcode-ui/`**: Unified UI — design system, theme registry, TUI framework
+- **`vtcode-config/`**: Config loading and schema
+- **`vtcode-bash-runner/`**: Shell execution sandbox
+- **`vtcode-acp/`**: Agent Client Protocol (Zed)
+- **`vtcode-auth/`**: OAuth and credential storage
+- **`vtcode-indexer/`**: Code indexing and search
+- **`vtcode-exec-events/`**: `ThreadEvent` contract and ATIF export
+- **`vtcode-commons/`**: Shared utilities
+- **`vtcode-macros/`**: Procedural macros
+- **`vtcode-llm/`**: LLM provider abstraction and streaming
+- **`vtcode-skills/`**: Skill discovery, loading, and validation
+- **`vtcode-safety/`**: Command safety detection and sandboxing
+- **`vtcode-a2a/`**: Agent2Agent protocol client and server
+- **`vtcode-mcp/`**: Model Context Protocol client and tool discovery
+- **`xtask/`**: Release packaging automation
 
 ### Key Directories
 
@@ -125,37 +138,38 @@ let x = calculate_something(a, b, c);
 ### Running Tests
 
 ```bash
-# Run all tests
-cargo test
+# Run all tests (preferred — parallel, fast)
+cargo nextest run
 
 # Run specific test
-cargo test test_name -- --nocapture
+cargo nextest run test_name
 
-# Run tests with debug output
-cargo test -- --nocapture
+# Run single crate
+cargo nextest run -p vtcode-core
+
+# Fallback if nextest is not installed
+cargo test --workspace
 ```
 
 ### Test Structure
 
 - Unit tests: Inline with the code they test, in `#[cfg(test)]` modules
-- Integration tests: In the `tests/` directory
+- Integration tests: In the `tests/` directory at workspace root
+- Harness regressions: `cargo test -p vtcode-core --test pty_tests`
 - Follow the Arrange-Act-Assert pattern
 - Use descriptive test names that explain what is being tested
 
 ### Code Quality Checks
 
 ```bash
-# Linting
-cargo clippy
+# Fast quality gate (10-30s, recommended for iteration)
+./scripts/check-dev.sh
 
-# Formatting
-cargo fmt
+# Full quality gate (2-5m, for PRs)
+./scripts/check.sh
 
-# Check build
-cargo check
-
-# Run all checks (recommended before committing)
-cargo clippy && cargo fmt --check && cargo check && cargo test
+# Narrow checks
+cargo clippy && cargo fmt --check && cargo check
 ```
 
 ## Submitting Changes

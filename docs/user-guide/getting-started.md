@@ -207,15 +207,13 @@ VT Code uses a comprehensive TOML configuration system. The `init` command creat
 ```toml
 # Agent settings
 [agent]
-model = "gemini-3-flash-preview"  # Your preferred model
-max_conversation_turns = 1000
-verbose_logging = false
+provider = "openai"  # or anthropic, google, deepseek, etc.
+default_model = "gpt-5.4"  # Your preferred model
+max_conversation_turns = 150
 
 # Security settings
-[security]
-human_in_the_loop = true
-confirm_destructive_actions = true
-max_file_size_mb = 50
+[features]
+human_in_the_loop = true   # enable human-in-the-loop tool approval
 
 # Tool policies
 [tools]

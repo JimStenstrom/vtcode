@@ -28,7 +28,7 @@ VT Code routes searches through the `unified_search` tool (with `grep_file` as a
 
 ```
 Ask: Search for TODO|FIXME across the repo with 2 lines of context in .rs files
-(Agent uses grep_file with)
+(Agent uses unified_search with)
 {
   "pattern": "TODO|FIXME",
   "path": ".",
@@ -327,7 +327,7 @@ vtcode pods logs --name llama
 ## Tips
 
 -   The agent respects `.vtcodegitignore` to exclude files from search and I/O.
--   Prefer `grep_file` for fast, focused searches with glob filters and context.
+-   Prefer `unified_search` for fast, focused searches with glob filters and context.
 -   Ask for “N lines of context” when searching to understand usage in-place.
 -   Shell commands are filtered by allow/deny lists and can be extended via `VTCODE_<AGENT>_COMMANDS_*` environment variables.
 -   Use `vtcode update --check` regularly to stay informed about new features and security updates.

@@ -145,8 +145,8 @@ let json = serde_json::to_string_pretty(&trajectory)?;
       "tool_calls": [
         {
           "tool_call_id": "tc_0",
-          "function_name": "read_file",
-          "arguments": { "path": "src/main.rs" }
+          "function_name": "unified_file",
+          "arguments": { "action": "read", "path": "src/main.rs" }
         }
       ],
       "observation": {

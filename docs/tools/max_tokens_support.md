@@ -7,14 +7,14 @@ All tools that return large outputs now support a `max_tokens` parameter for per
 ## Supported Tools
 
 ### File I/O Tools
-- **read_file**: `max_tokens` parameter controls maximum tokens in file output
-- **grep_file**: `max_tokens` parameter limits search result output
-- **list_files**: `max_tokens` parameter caps directory listing output
+- **unified_file** (`read` action): `max_tokens` parameter controls maximum tokens in file output
+- **unified_search** (`grep` action): `max_tokens` parameter limits search result output
+- **unified_search** (`list` action): `max_tokens` parameter caps directory listing output
 
 ### Terminal/PTY Tools
 - **send_pty_input**: `max_tokens` parameter limits captured output from PTY session
 - **read_pty_session**: `max_tokens` parameter restricts session output (screen + scrollback)
-- **run_command**: `max_tokens` parameter caps stdout/stderr output from terminal commands
+- **unified_exec** (`run` action): `max_tokens` parameter caps stdout/stderr output from terminal commands
 
 ### Network Tools
 - **web_fetch**: Implicit token limiting through content processing
@@ -28,8 +28,9 @@ Read a large file but only include the first N tokens of output:
 ```json
 {
   "tool_use": {
-    "name": "read_file",
+    "name": "unified_file",
     "input": {
+      "action": "read",
       "path": "large_log_file.txt",
       "max_tokens": 5000
     }
@@ -80,8 +81,9 @@ Execute a command but limit the output tokens:
 ```json
 {
   "tool_use": {
-    "name": "run_command",
+    "name": "unified_exec",
     "input": {
+      "action": "run",
       "command": ["find", "/large_directory", "-name", "*.log"],
       "max_tokens": 5000
     }
@@ -131,7 +133,7 @@ For file/PTY tools:
 }
 ```
 
-For run_command tool:
+For unified_exec tool:
 ```json
 {
   "success": true,
@@ -203,8 +205,9 @@ result = read_file({
     "max_tokens": 3000  # Just the beginning
 })
 
-# If needed, read a specific section
-result = grep_file({
+# If needed, search for a specific section
+result = unified_search({
+    "action": "grep",
     "pattern": "database_config",
     "path": "/etc/large_config.yaml", 
     "max_tokens": 5000

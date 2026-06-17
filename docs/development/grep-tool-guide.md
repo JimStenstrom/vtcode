@@ -1,8 +1,10 @@
 # grep_file Tool Guide
 
+> **Note:** `grep_file` is now an internal implementation detail. The canonical public tool is `unified_search` with `action="grep"`. This guide documents the underlying search engine behavior.
+
 ## Overview
 
-The `grep_file` tool is VT Code's primary code search mechanism, powered by **ripgrep** for fast, efficient pattern matching across codebases. It replaces the previous AST-grep tool and provides comprehensive regex-based and literal string searching with support for file filtering, context lines, and language-specific searches.
+The `grep_file` module powers VT Code's primary code search mechanism via the `unified_search` tool's `grep` action, backed by **ripgrep** for fast, efficient pattern matching across codebases. It provides comprehensive regex-based and literal string searching with support for file filtering, context lines, and language-specific searches.
 
 ## Architecture
 

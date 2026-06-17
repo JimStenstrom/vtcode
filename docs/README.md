@@ -159,7 +159,7 @@ VT Code implements a **multi-layered security model** to protect against prompt 
 
 1. **[Installation](../README.md#installation)** - Get VT Code running in minutes
 2. **[Basic Configuration](./config/config.md)** - Set up your environment
-3. **[First Chat Session](../README.md#basic-usage)** - Try interactive coding assistance
+3. **[First Chat Session](../README.md#quick-start)** - Try interactive coding assistance
 
 ### For Developers
 

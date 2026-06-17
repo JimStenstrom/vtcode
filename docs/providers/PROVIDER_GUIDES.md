@@ -4,7 +4,7 @@ This index collects provider-specific guides for configuring VT Code with differ
 
 ## Google Gemini
 
--   Configuration details are covered in the main [Getting Started guide](../user-guide/getting-started.md#configure-your-llm-provider).
+-   Configuration details are covered in the main [Getting Started guide](../user-guide/getting-started.md#api-requirements).
 -   Models and constants are defined in [`vtcode-core/src/config/constants.rs`](../../vtcode-core/src/config/constants.rs).
 
 ## OpenAI GPT
@@ -12,7 +12,7 @@ This index collects provider-specific guides for configuring VT Code with differ
 -   **Official docs:**
     -   [API reference index](https://developers.openai.com/api/reference/llms.txt)
     -   [Models catalog](https://developers.openai.com/api/docs/models)
--   Follow the [Getting Started guide](../user-guide/getting-started.md#configure-your-llm-provider) for API key setup.
+- Follow the [Getting Started guide](../user-guide/getting-started.md#api-requirements) for API key setup.
 -   See [`vtcode-core/src/config/constants.rs`](../../vtcode-core/src/config/constants.rs) for the latest supported models.
 -   GPT-5.2 reference: See OpenAI documentation for latest models
 -   VT Code's default OpenAI profile is `gpt-5.4` with `reasoning_effort = "none"` and `verbosity = "medium"`; raise reasoning only when the task shape justifies the extra latency.
@@ -34,7 +34,7 @@ This index collects provider-specific guides for configuring VT Code with differ
 
 ## Anthropic Claude
 
--   Key management and defaults mirror the Gemini/OpenAI flow in [Getting Started](../user-guide/getting-started.md#configure-your-llm-provider).
+-   Key management and defaults mirror the Gemini/OpenAI flow in [Getting Started](../user-guide/getting-started.md#api-requirements).
 -   Supported model IDs live in [`vtcode-core/src/config/constants.rs`](../../vtcode-core/src/config/constants.rs).
 
 ## GitHub Copilot

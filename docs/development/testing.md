@@ -211,10 +211,11 @@ async fn test_list_files_tool() {
     let mut registry = ToolRegistry::new();
 
     let args = json!({
+        "action": "list",
         "path": "."
     });
 
-    let result = registry.execute("list_files", args).await;
+    let result = registry.execute("unified_search", args).await;
     assert!(result.is_ok());
 }
 ```
@@ -240,7 +241,7 @@ Test regex-based search:
 
 ```rust
 #[tokio::test]
-async fn test_grep_file_tool() {
+async fn test_unified_search_grep() {
     let env = TestEnv::new();
     let content = "fn main() { println!(\"test\"); }";
     env.create_test_file("test.rs", content);
@@ -248,11 +249,12 @@ async fn test_grep_file_tool() {
     let mut registry = ToolRegistry::new();
 
     let args = json!({
+        "action": "grep",
         "pattern": "fn main",
         "path": "."
     });
 
-    let result = registry.execute("grep_file", args).await;
+    let result = registry.execute("unified_search", args).await;
     assert!(result.is_ok());
 }
 ```

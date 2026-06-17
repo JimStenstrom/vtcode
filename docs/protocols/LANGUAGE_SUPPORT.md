@@ -8,7 +8,7 @@ VT Code relies on the inherent ability of Large Language Models (LLMs) to unders
 
 - **Rust**, **Python**, **JavaScript**, **TypeScript**, **Go**, **Java**, **C/C++**, **Swift**, **Ruby**, **PHP**, and many others.
 
-The agent uses tools like `grep_file` and `read_file` to explore these codebases, and its internal reasoning provides "LSP-like" capabilities (goto-definition, find-references) without the need for local AST-level parsing or grammar libraries for each language.
+The agent uses tools like `unified_search` and `unified_file` to explore these codebases, and its internal reasoning provides "LSP-like" capabilities (goto-definition, find-references) without the need for local AST-level parsing or grammar libraries for each language.
 
 ## Tree-sitter Security Parsing (Bash)
 

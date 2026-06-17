@@ -87,11 +87,10 @@ pub struct JustificationExtractor;
 
 **Default Justifications:**
 
--   `run_command` - Execute system operations or build/test
--   `write_file` - Implement code changes
--   `grep_file` - Search codebase structure
--   `delete_file` - Cleanup generated files
--   `apply_patch` - Apply code fixes/features
+-   `unified_exec` - Execute system operations or build/test
+-   `unified_file` / `apply_patch` - Implement code changes
+-   `unified_search` - Search codebase structure
+-   `unified_file` (`delete` action) - Cleanup generated files
 
 ## Data Flow
 
@@ -134,15 +133,15 @@ Stored in `~/.vtcode/cache/approval_patterns.json`:
 
 ```json
 {
-    "read_file": {
-        "tool_name": "read_file",
+    "unified_file": {
+        "tool_name": "unified_file",
         "approve_count": 8,
         "deny_count": 2,
         "last_decision": true,
         "recent_reason": null
     },
-    "run_command": {
-        "tool_name": "run_command",
+    "unified_exec": {
+        "tool_name": "unified_exec",
         "approve_count": 12,
         "deny_count": 1,
         "last_decision": true,
@@ -199,7 +198,7 @@ User requests: "Run the build and check for errors"
 4. Approval dialog shows:
 
     Tool Permission Required
-    Tool: run_command
+    Tool: unified_exec
     Action: Execute build
       command: cargo build
 
@@ -222,7 +221,7 @@ User requests: "Run the build and check for errors"
 
 5. User selects "Always Allow"
 6. Decision recorded:
-   - run_command: approve_count = 4, deny_count = 0
+   - unified_exec: approve_count = 4, deny_count = 0
 7. Pattern saved to disk
 ```
 

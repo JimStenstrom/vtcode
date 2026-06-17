@@ -45,10 +45,9 @@ enabled = true
 require_profile_ack = true
 profile_path = "automation/full_auto_profile.toml"
 allowed_tools = [
-    "read_file",
-    "list_files",
-    "grep_file",
-    "run_pty_cmd",
+    "unified_file",
+    "unified_search",
+    "unified_exec",
 ]
 ```
 

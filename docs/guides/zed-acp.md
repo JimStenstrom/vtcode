@@ -188,25 +188,25 @@ VT_ACP_ENABLED = "1"
 VT_ACP_ZED_ENABLED = "1"
 
 [agent_servers.vtcode.targets.darwin-aarch64]
-archive = "https://github.com/vtcode-org/vtcode/releases/download/v1.2.0/vtcode-darwin-aarch64.tar.gz"
+archive = "https://github.com/vinhnx/vtcode/releases/download/0.132.0/vtcode-darwin-aarch64.tar.gz"
 cmd = "./vtcode"
 args = ["acp"]
 sha256 = "replace-with-real-sha256"
 
 [agent_servers.vtcode.targets.darwin-x86_64]
-archive = "https://github.com/vtcode-org/vtcode/releases/download/v1.2.0/vtcode-darwin-x86_64.tar.gz"
+archive = "https://github.com/vinhnx/vtcode/releases/download/0.132.0/vtcode-darwin-x86_64.tar.gz"
 cmd = "./vtcode"
 args = ["acp"]
 sha256 = "replace-with-real-sha256"
 
 [agent_servers.vtcode.targets.linux-x86_64]
-archive = "https://github.com/vtcode-org/vtcode/releases/download/v1.2.0/vtcode-linux-x86_64.tar.gz"
+archive = "https://github.com/vinhnx/vtcode/releases/download/0.132.0/vtcode-linux-x86_64.tar.gz"
 cmd = "./vtcode"
 args = ["acp"]
 sha256 = "replace-with-real-sha256"
 
 [agent_servers.vtcode.targets.windows-x86_64]
-archive = "https://github.com/vtcode-org/vtcode/releases/download/v1.2.0/vtcode-windows-x86_64.zip"
+archive = "https://github.com/vinhnx/vtcode/releases/download/0.132.0/vtcode-windows-x86_64.zip"
 cmd = "./vtcode.exe"
 args = ["acp"]
 sha256 = "replace-with-real-sha256"
@@ -298,7 +298,7 @@ Common cases:
   invocation. Paths supplied by tools are normalised against the trusted workspace so relative
   segments stay inside the project before the request reaches the client.
 - **Tool policy compatibility** – VT Code still advertises its core tool suite (for example
-  `run_pty_cmd`, `bash`, `grep_file`, `write_file`) through ACP when the model supports
+  `unified_exec`, `unified_search`, `unified_file`) through ACP when the model supports
   function calling. The bridge evaluates each request against the workspace's tool-policy settings
   before executing commands locally, ensuring shell access and editing tools behave the same as in
   the native CLI. Policy defaults and overrides defined under `[tools]` in `vtcode.toml` apply to

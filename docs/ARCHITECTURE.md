@@ -127,14 +127,18 @@ vtcode-ui/src/tui/core_tui/runner/
 
 ```
 tools/
- mod.rs           # Module coordination & exports
- traits.rs        # Core composability traits
- types.rs         # Common types & structures
- cache.rs         # Enhanced caching system
- grep_file.rs     # Ripgrep-backed search manager
- file_ops.rs      # File operations tool (async + cached)
- command.rs       # Command execution tool (3 modes)
- registry.rs      # Tool coordination & function declarations
+ mod.rs              # Module coordination & exports
+ traits.rs           # Core composability traits
+ types.rs            # Common types & structures
+ cache.rs            # Enhanced caching system
+ grep_file.rs        # Ripgrep-backed search manager (internal)
+ file_ops.rs         # File operations (internal)
+ command.rs          # Command execution (internal)
+ structural_search.rs# AST-grep structural search
+ registry/
+   builtins.rs       # Tool registration and declarations
+   executors.rs      # Unified tool executors (unified_search, unified_file, unified_exec)
+   tool_intent.rs    # Argument normalization and action inference
 ```
 
 ### Core Traits
@@ -162,28 +166,25 @@ pub trait CacheableTool: Tool {
 
 ## Tool Implementations
 
-### GrepSearchManager (`tools::grep_file`)
+### Unified Search (`unified_search`)
 
+- Canonical public tool for read-only discovery and lookup
+- Actions: `grep` (ripgrep-backed), `list` (file discovery), `structural` (ast-grep), `tools`, `errors`, `agent`, `web`, `skill`
+- Internal `GrepSearchManager` (`tools::grep_file`) handles the `grep` action
 - Debounce and cancellation pipeline for responsive searches
-- Ripgrep (`rg`) backend for all grep operations
-- Supports glob filters, hidden file handling, and context lines
-- Enforces workspace boundaries with robust path validation
+- Workspace boundary enforcement with robust path validation
 
-### Search Stack Consolidation
+### Unified File (`unified_file`)
 
-- `grep_file.rs` is the single source of truth for content search
-- Higher-level helpers were removed; use `ToolRegistry::grep_file_executor`
-- `list_files` remains a discovery/metadata tool; defer all content scanning to `grep_file`
-
-### FileOpsTool
-
-- Workspace-scoped file listing, metadata inspection, and traversal
+- Canonical public tool for file reads and workspace-local edits
+- Actions: `read`, `write`, `edit`, `patch`, `delete`, `move`, `copy`
+- Byte-range reading for large files with offset and page size parameters
 - Async directory walking with cache integration for large trees
-- Path policy enforcement shared with the command subsystem
 
-### CommandTool
+### Unified Exec (`unified_exec`)
 
-- Standard command execution with exit-code and output capture
+- Canonical public tool for command execution and session control
+- Actions: `run`, `write`, `poll`, `continue`, `inspect`, `list`, `close`, `code`
 - PTY session management for interactive commands
 - Streaming support for long-lived shell tasks with cancellation
 

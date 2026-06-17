@@ -510,7 +510,7 @@ full_auto = false
 [automation.full_auto]
 enabled = false
 # List of tools that are allowed in full automation mode
-allowed_tools = ["read_file", "web_search", "shell_exec"]
+allowed_tools = ["unified_file", "unified_search", "unified_exec"]
 
 [automation.scheduled_tasks]
 enabled = false

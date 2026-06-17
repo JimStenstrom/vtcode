@@ -152,15 +152,15 @@ This document serves as an index of all VT Code documentation. When users ask qu
   - **Topics**: Summary, Auto-Allowed Commands, Tool Policies, Key Safety Features, Dangerous Operations (Blocked)
   - **User Questions**: "What can you tell me about VT Code Execution Policy?", "How does Summary work?", "How does Auto-Allowed Commands work?"
 
-- **File**: `docs/development/grep-quick-reference.md`
-  - **Content**: grep_file Quick Reference Card
-  - **Topics**: Essential Parameters, Common Search Patterns, Smart Patterns by Language, Performance Tips, Output Example
-  - **User Questions**: "What can you tell me about grep_file Quick Reference Card?", "How does Essential Parameters work?", "How does Common Search Patterns work?"
-
 - **File**: `docs/development/grep-tool-guide.md`
   - **Content**: grep_file Tool Guide
   - **Topics**: Overview, Architecture, Basic Usage, Parameter Reference, Common Patterns
   - **User Questions**: "What can you tell me about grep_file Tool Guide?", "How does Overview work?", "How does Architecture work?"
+
+- **File**: `docs/development/grep-quick-reference.md`
+  - **Content**: unified_search (grep action) Quick Reference Card
+  - **Topics**: Essential Parameters, Common Search Patterns, Smart Patterns by Language, Performance Tips, Output Example
+  - **User Questions**: "What can you tell me about unified_search (grep action) Quick Reference Card?", "How does Essential Parameters work?", "How does Common Search Patterns work?"
 
 - **File**: `docs/development/vtcode-crate-audit.md`
   - **Content**: vtcode-* Crate Audit Report

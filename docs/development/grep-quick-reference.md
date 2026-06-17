@@ -1,4 +1,6 @@
-# grep_file Quick Reference Card
+# unified_search (grep action) Quick Reference Card
+
+> **Note:** `grep_file` is now an internal implementation. Use `unified_search` with `action="grep"` as the canonical tool.
 
 ## Essential Parameters
 

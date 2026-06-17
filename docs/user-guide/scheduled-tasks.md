@@ -14,7 +14,7 @@ Session scheduling is attached to the active interactive session only.
 - `/loop [interval] <prompt>` schedules a prompt repeatedly
 - `/loop <prompt> every <interval>` is also supported
 - If no interval is provided, VT Code defaults to every 10 minutes
-- Natural-language one-shot reminders are intentionally narrow in v1:
+- Natural-language one-shot reminders are intentionally narrow:
   - `remind me at 3pm to push the release branch`
   - `in 45 minutes, check whether the integration tests passed`
   - `what scheduled tasks do I have?`
@@ -83,7 +83,7 @@ Behavior:
 - Reminder tasks surface a local VT Code notification without invoking the model
 - macOS uses a user LaunchAgent
 - Linux uses a `systemd --user` service
-- Windows durable scheduler service management is not supported in v1
+- Windows durable scheduler service management is not yet supported
 
 One-shot durable tasks keep their run state after firing so `vtcode schedule list` can still show the last outcome.
 

@@ -115,8 +115,8 @@ let message = OutputItem::message(
 // Create a function call
 let function_call = OutputItem::function_call(
     "fc_1",
-    "read_file",
-    serde_json::json!({"path": "/etc/passwd"}),
+    "unified_file",
+    serde_json::json!({"action": "read", "path": "/etc/passwd"}),
 );
 ```
 

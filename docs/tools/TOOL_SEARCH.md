@@ -62,9 +62,9 @@ let deferred_tool = ToolDefinition::function(
 
 // Create a non-deferred tool (always available)
 let core_tool = ToolDefinition::function(
-    "read_file".to_string(),
-    "Read a file from disk".to_string(),
-    json!({"type": "object", "properties": {"path": {"type": "string"}}, "required": ["path"]}),
+    "unified_file".to_string(),
+    "Read, write, or edit a file".to_string(),
+    json!({"type": "object", "properties": {"action": {"type": "string"}, "path": {"type": "string"}}, "required": ["action", "path"]}),
 );
 ```
 

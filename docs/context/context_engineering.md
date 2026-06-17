@@ -114,7 +114,7 @@ Example from our default prompt:
 Instead of pre-loading everything, we use lightweight references:
 
 -   **File Paths as Metadata**: List files first, read content only when relevant
--   **Search Before Read**: Use `grep_file` to identify relevant files
+-   **Search Before Read**: Use `unified_search` to identify relevant files
 -   **Chunked Reading**: Auto-truncate large files (>2000 lines) to first/last portions
 -   **Pagination**: Tools support `per_page` and `page` parameters for large results
 
@@ -162,8 +162,8 @@ let mut tracker = DecisionTracker::new();
 let decision_id = tracker.record_decision(
     "Reading config file to understand project structure".to_string(),
     Action::ToolCall {
-        name: "read_file".to_string(),
-        args: json!({"path": "vtcode.toml"}),
+        name: "unified_file".to_string(),
+        args: json!({"action": "read", "path": "vtcode.toml"}),
         expected_outcome: "Configuration loaded".to_string(),
     },
     Some(0.9), // confidence score
@@ -198,8 +198,8 @@ Our tools are designed with context efficiency in mind:
 
 #### Search Tools
 
--   **grep_file**: Fast pattern matching with `max_results` limits
--   **grep_file**: Syntax-aware search with `max_results` and `context_lines`
+-   **unified_search**: Fast pattern matching with `max_results` limits
+-   **unified_search**: Syntax-aware search with `max_results` and `context_lines`
 -   Return metadata first (file paths, line numbers) before content
 
 #### File Operations
