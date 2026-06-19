@@ -107,6 +107,62 @@ impl LoopTracker {
     }
 }
 
+/// Check if an identical tool call (same name + same args) was already executed
+/// recently in the working history. Returns the call_id and output of the most
+/// recent matching tool response if found.
+///
+/// This catches cross-turn duplicates that the per-turn `LoopTracker` misses
+/// because it is reset at the start of each turn. Scans the last
+/// `MAX_HISTORY_SCAN` messages to keep the check bounded.
+pub(crate) fn find_duplicate_in_history(
+    history: &[uni::Message],
+    tool_name: &str,
+    args: &serde_json::Value,
+) -> Option<String> {
+    const MAX_HISTORY_SCAN: usize = 60;
+    let target_signature = signature_key_for(tool_name, args);
+
+    // Walk backwards through history looking for an assistant tool_call with
+    // matching signature, then find its corresponding tool response.
+    let mut pending_match_call_id: Option<String> = None;
+    for (scanned, msg) in history.iter().rev().enumerate() {
+        if scanned >= MAX_HISTORY_SCAN {
+            break;
+        }
+
+        match msg.role {
+            uni::MessageRole::Tool => {
+                // If we already found a matching tool_call, this tool response
+                // is its output.
+                if let Some(ref call_id) = pending_match_call_id
+                    && msg.tool_call_id.as_deref() == Some(call_id.as_str())
+                {
+                    return Some(msg.content.as_text().to_string());
+                }
+            }
+            uni::MessageRole::Assistant => {
+                if let Some(ref tool_calls) = msg.tool_calls {
+                    for tc in tool_calls {
+                        if let Some(ref func) = tc.function {
+                            let tc_args: serde_json::Value =
+                                serde_json::from_str(&func.arguments)
+                                    .unwrap_or(serde_json::Value::Object(serde_json::Map::new()));
+                            let tc_signature = signature_key_for(&func.name, &tc_args);
+                            if tc_signature == target_signature {
+                                pending_match_call_id = Some(tc.id.clone());
+                                // Don't break — the next Tool message in reverse
+                                // order should be the matching response.
+                            }
+                        }
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
 fn output_has_empty_search_matches(output: &serde_json::Value) -> bool {
     output
         .get("matches")

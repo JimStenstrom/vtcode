@@ -139,13 +139,30 @@ impl<'a> TurnProcessingContext<'a> {
         let tool_free_recovery_pass = recovery_pass_response && self.recovery_is_tool_free();
         let final_text = text.clone();
         let continuation_decision = if tool_free_recovery_pass {
-            InterimTextContinuationDecision {
-                should_continue: false,
-                reason: "recovery_pass",
-                is_interim_progress: false,
-                last_user_follow_up: false,
-                recent_tool_activity: false,
-                last_user_requested_progressive_work: false,
+            // During tool-free recovery (LLM follow-up failed after tool execution),
+            // evaluate whether the recovery text expresses continuation intent.
+            // If so, let the turn loop continue — tools will be re-enabled on the
+            // next iteration since `finish_recovery_pass()` clears the recovery state.
+            // This prevents premature turn endings when the model wants to keep working
+            // but was forced into text-only mode by a transient LLM failure.
+            let decision = evaluate_interim_text_continuation(
+                self.full_auto,
+                self.is_planning_active(),
+                self.working_history,
+                &text,
+            );
+            if decision.should_continue {
+                decision
+            } else {
+                InterimTextContinuationDecision {
+                    should_continue: false,
+                    reason: "recovery_pass",
+                    is_interim_progress: decision.is_interim_progress,
+                    last_user_follow_up: decision.last_user_follow_up,
+                    recent_tool_activity: decision.recent_tool_activity,
+                    last_user_requested_progressive_work:
+                        decision.last_user_requested_progressive_work,
+                }
             }
         } else {
             evaluate_interim_text_continuation(

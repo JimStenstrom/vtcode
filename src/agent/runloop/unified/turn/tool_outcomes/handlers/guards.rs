@@ -9,7 +9,9 @@ use vtcode_core::tools::registry::labels::tool_action_label;
 use crate::agent::runloop::unified::turn::context::{
     TurnHandlerOutcome, TurnLoopResult, TurnProcessingContext,
 };
-use crate::agent::runloop::unified::turn::tool_outcomes::helpers::signature_key_for;
+use crate::agent::runloop::unified::turn::tool_outcomes::helpers::{
+    find_duplicate_in_history, signature_key_for,
+};
 
 use super::looping::{
     low_signal_family_key, shell_run_signature, spool_chunk_read_path,
@@ -198,9 +200,7 @@ pub(super) fn enforce_read_after_write_guard(
         return None;
     }
 
-    let Some(path) = extract_read_path(effective_args) else {
-        return None;
-    };
+    let path = extract_read_path(effective_args)?;
 
     if !ctx.harness_state.was_recently_written(&path) {
         return None;
@@ -271,23 +271,42 @@ pub(super) fn enforce_repeated_read_only_call_guard(
     }
 
     let signature = signature_key_for(canonical_tool_name, effective_args);
-    if !ctx
+    if ctx
         .harness_state
         .has_successful_readonly_signature(signature.as_str())
     {
-        return None;
+        // Same-turn duplicate: use the registry's cached output (has TTL)
+        if let Some(mut reused_value) = ctx.tool_registry.find_recent_successful_output(
+            canonical_tool_name,
+            effective_args,
+            ctx.harness_state.max_tool_wall_clock,
+        ) {
+            if let Some(obj) = reused_value.as_object_mut() {
+                super::apply_reused_read_only_loop_metadata(obj);
+            }
+            ctx.push_tool_response(tool_call_id, reused_value.to_string());
+            return Some(ValidationResult::Handled);
+        }
     }
 
-    let mut reused_value = ctx.tool_registry.find_recent_successful_output(
-        canonical_tool_name,
-        effective_args,
-        ctx.harness_state.max_tool_wall_clock,
-    )?;
-    let obj = reused_value.as_object_mut()?;
-    super::apply_reused_read_only_loop_metadata(obj);
-    ctx.push_tool_response(tool_call_id, reused_value.to_string());
+    // Cross-turn duplicate: scan working history for an identical readonly call
+    // from a previous turn. Produces the same structured reused_recent_result
+    // payload so the model recognizes the signal to stop retrying.
+    if let Some(raw_output) =
+        find_duplicate_in_history(ctx.working_history, canonical_tool_name, effective_args)
+    {
+        if let Ok(mut parsed) = serde_json::from_str::<Value>(&raw_output) {
+            if let Some(obj) = parsed.as_object_mut() {
+                super::apply_reused_read_only_loop_metadata(obj);
+            }
+            ctx.push_tool_response(tool_call_id, parsed.to_string());
+        } else {
+            ctx.push_tool_response(tool_call_id, raw_output);
+        }
+        return Some(ValidationResult::Handled);
+    }
 
-    Some(ValidationResult::Handled)
+    None
 }
 
 pub(super) fn enforce_repeated_shell_run_guard(

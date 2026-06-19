@@ -14,9 +14,9 @@ use std::time::Instant;
 // Separate limits for different operation types to reduce false positives
 const MAX_READONLY_TOOL_CALLS: usize = 10; // read_file, grep_file, list_files
 const MAX_WRITE_TOOL_CALLS: usize = 3; // write_file, edit_file, apply_patch
-const MAX_COMMAND_TOOL_CALLS: usize = 5; // shell, unified_exec
+const MAX_COMMAND_TOOL_CALLS: usize = 8; // shell, unified_exec (raised: verification commands are legitimate)
 const MAX_OTHER_TOOL_CALLS: usize = 3; // Other tools (default)
-const DETECTION_WINDOW: usize = 10;
+const DETECTION_WINDOW: usize = 20; // Raised from 10 to catch cross-batch duplicates
 const HARD_LIMIT_MULTIPLIER: usize = 2; // Hard stop at 2x soft limit
 const MAX_SIMILAR_READ_TARGET_CALLS: usize = 4;
 const MAX_SIMILAR_READ_TARGET_VARIANTS: usize = 3;
