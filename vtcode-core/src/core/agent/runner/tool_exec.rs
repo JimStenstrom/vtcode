@@ -641,29 +641,15 @@ impl AgentRunner {
                     );
                 }
                 Err(e) => {
-                    // Try fallback first before declaring failure
-                    let mut fallback_succeeded = false;
-                    let mut fallback_result = None;
-                    let mut fallback_tool_name = None;
-                    let mut fallback_args = None;
-
-                    if let Some(fallback) = fallback_map.get(&call_id)
-                        && let Some((res, f_name, f_args)) = self
-                            .try_execute_fallback(fallback, runtime, agent_prefix, &name)
+                    // Try fallback first before declaring failure.
+                    let fallback_outcome = if let Some(fallback) = fallback_map.get(&call_id) {
+                        self.try_execute_fallback(fallback, runtime, agent_prefix, &name)
                             .await
-                    {
-                        fallback_succeeded = true;
-                        fallback_result = Some(res);
-                        fallback_tool_name = Some(f_name);
-                        fallback_args = Some(f_args);
-                    }
+                    } else {
+                        None
+                    };
 
-                    if let (true, Some(res), Some(f_name), Some(f_args)) = (
-                        fallback_succeeded,
-                        fallback_result,
-                        fallback_tool_name,
-                        fallback_args,
-                    ) {
+                    if let Some((res, f_name, f_args)) = fallback_outcome {
                         self.apply_fallback_success(
                             runtime,
                             event_recorder,
@@ -765,29 +751,16 @@ impl AgentRunner {
                 Ok(false)
             }
             Err(e) => {
-                // Try fallback first before declaring failure
-                let mut fallback_succeeded = false;
-                let mut fallback_result = None;
-                let mut fallback_tool_name = None;
-                let mut fallback_args = None;
+                // Try fallback first before declaring failure.
+                let fallback_outcome =
+                    if let Some(fallback) = &call.prepared.fallback_recommendation {
+                        self.try_execute_fallback(fallback, runtime, agent_prefix, &name)
+                            .await
+                    } else {
+                        None
+                    };
 
-                if let Some(fallback) = &call.prepared.fallback_recommendation
-                    && let Some((res, f_name, f_args)) = self
-                        .try_execute_fallback(fallback, runtime, agent_prefix, &name)
-                        .await
-                {
-                    fallback_succeeded = true;
-                    fallback_result = Some(res);
-                    fallback_tool_name = Some(f_name);
-                    fallback_args = Some(f_args);
-                }
-
-                if let (true, Some(res), Some(f_name), Some(f_args)) = (
-                    fallback_succeeded,
-                    fallback_result,
-                    fallback_tool_name,
-                    fallback_args,
-                ) {
+                if let Some((res, f_name, f_args)) = fallback_outcome {
                     guard.mark_completed();
                     record_circuit_transition(
                         self,

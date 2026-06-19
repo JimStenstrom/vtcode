@@ -144,9 +144,8 @@ pub(crate) fn find_duplicate_in_history(
                 if let Some(ref tool_calls) = msg.tool_calls {
                     for tc in tool_calls {
                         if let Some(ref func) = tc.function {
-                            let tc_args: serde_json::Value =
-                                serde_json::from_str(&func.arguments)
-                                    .unwrap_or(serde_json::Value::Object(serde_json::Map::new()));
+                            let tc_args: serde_json::Value = serde_json::from_str(&func.arguments)
+                                .unwrap_or(serde_json::Value::Object(serde_json::Map::new()));
                             let tc_signature = signature_key_for(&func.name, &tc_args);
                             if tc_signature == target_signature {
                                 pending_match_call_id = Some(tc.id.clone());

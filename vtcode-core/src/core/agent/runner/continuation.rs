@@ -378,8 +378,10 @@ fn continuation_skip_reason(
         ContinuationPolicy::ExecOnly if !full_auto_active => {
             "Continuation policy only applies to exec/full-auto runs.".to_string()
         }
+        // Dead arm: `continuation_enabled()` returns true for these
+        // policies, so this function is never called with them.
         ContinuationPolicy::ExecOnly | ContinuationPolicy::All => {
-            "Continuation accepted.".to_string()
+            "Continuation disabled.".to_string()
         }
     }
 }

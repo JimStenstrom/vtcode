@@ -160,8 +160,8 @@ impl<'a> TurnProcessingContext<'a> {
                     is_interim_progress: decision.is_interim_progress,
                     last_user_follow_up: decision.last_user_follow_up,
                     recent_tool_activity: decision.recent_tool_activity,
-                    last_user_requested_progressive_work:
-                        decision.last_user_requested_progressive_work,
+                    last_user_requested_progressive_work: decision
+                        .last_user_requested_progressive_work,
                 }
             }
         } else {

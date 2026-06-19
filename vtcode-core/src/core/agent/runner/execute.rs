@@ -142,14 +142,22 @@ fn estimate_session_cost_usd(
     model: &str,
     usage: &vtcode_exec_events::Usage,
 ) -> Option<f64> {
+    // Map harness-level usage into the LLM pricing model.  Cache-aware fields
+    // (`cached_prompt_tokens`, `cache_read_tokens`) are intentionally left as
+    // `None` here because `vtcode_exec_events::Usage` conflates "total cached
+    // input" with "cache reads" into a single `cached_input_tokens` field.
+    // Setting both would double-count cached tokens in `estimate_cost` (once
+    // via `prompt_tokens * input_cost` and again via `cache_read_cost`).
+    // Budget enforcement only needs a conservative upper bound, which the base
+    // `prompt_tokens * input_cost` already provides.
     let usage = crate::llm::provider::Usage {
         prompt_tokens: u32::try_from(usage.input_tokens).unwrap_or(u32::MAX),
         completion_tokens: u32::try_from(usage.output_tokens).unwrap_or(u32::MAX),
         total_tokens: u32::try_from(usage.input_tokens.saturating_add(usage.output_tokens))
             .unwrap_or(u32::MAX),
-        cached_prompt_tokens: Some(u32::try_from(usage.cached_input_tokens).unwrap_or(u32::MAX)),
+        cached_prompt_tokens: None,
         cache_creation_tokens: Some(u32::try_from(usage.cache_creation_tokens).unwrap_or(u32::MAX)),
-        cache_read_tokens: Some(u32::try_from(usage.cached_input_tokens).unwrap_or(u32::MAX)),
+        cache_read_tokens: None,
         iterations: None,
     };
     let resolved = ModelResolver::resolve(Some(provider), model, &[], None)?;
