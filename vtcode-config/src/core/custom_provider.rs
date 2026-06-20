@@ -365,6 +365,7 @@ mod tests {
                 "deepseek-ai/deepseek-v4-pro".to_string(),
                 "deepseek-ai/DeepSeek-V3-0324".to_string(),
                 "qwen/qwen3.6-35b-a3b".to_string(),
+                "moonshotai/kimi-k2.7-code".to_string(),
                 "moonshotai/kimi-k2.6".to_string(),
             ],
         };
@@ -376,6 +377,7 @@ mod tests {
                 "deepseek-ai/deepseek-v4-pro".to_string(),
                 "deepseek-ai/DeepSeek-V3-0324".to_string(),
                 "qwen/qwen3.6-35b-a3b".to_string(),
+                "moonshotai/kimi-k2.7-code".to_string(),
                 "moonshotai/kimi-k2.6".to_string(),
             ]
         );

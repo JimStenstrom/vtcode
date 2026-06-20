@@ -103,6 +103,10 @@ Pricing: [Pay-as-you-go](https://platform.xiaomimimo.com/docs/en-US/price/pay-as
 
 > **Z.ai GLM** — full support for Claude Code, Cline, and 20+ top coding tools, starting at $18/month. [Join now with invite code **KPHRHRAVLL**](https://z.ai/subscribe?ic=KPHRHRAVLL). _(Limited-time pricing)_
 
+### Atlas Cloud
+
+> **Atlas Cloud** — a powerful OpenAI-compatible gateway to 300+ models spanning LLM, image, video, audio, and 3D. Configure as a `[[custom_providers]]` endpoint in `vtcode.toml` with `base_url = "https://api.atlascloud.ai/v1"`. See the [integration guide](./docs/providers/atlascloud.md) for setup and validated model pool.
+
 ## Development
 
 ```shell

@@ -36,12 +36,15 @@ model = "deepseek-ai/DeepSeek-V3-0324"
 # models = [
 #     "deepseek-ai/DeepSeek-V3-0324",
 #     "deepseek-ai/deepseek-r1-0528",
+#     "moonshotai/kimi-k2.7-code",
 #     "moonshotai/Kimi-K2-Instruct",
 #     "Qwen/Qwen3-Coder",
 #     "google/gemini-2.5-flash",
 #     "openai/gpt-5.2-chat",
 #     "anthropic/claude-opus-4.5-20251101",
+#     "zai-org/glm-5.2",
 #     "zai-org/glm-4.7",
+#     "minimaxai/minimax-m3",
 #     "minimaxai/minimax-m2.1",
 #     "xai/grok-4-0709",
 # ]
@@ -80,8 +83,8 @@ The following examples mirror the validated Atlas chat pool used across recent
 Atlas provider rollouts:
 
 - `deepseek-ai/DeepSeek-V3-0324`, `deepseek-ai/deepseek-r1-0528`, `moonshotai/Kimi-K2-Instruct`, `Qwen/Qwen3-Coder`, `Qwen/Qwen3-235B-A22B-Instruct-2507`
-- `deepseek-ai/DeepSeek-V3.1`, `moonshotai/Kimi-K2-Instruct-0905`, `Qwen/Qwen3-Next-80B-A3B-Instruct`, `Qwen/Qwen3-Next-80B-A3B-Thinking`, `Qwen/Qwen3-30B-A3B-Instruct-2507`
-- `deepseek-ai/DeepSeek-V3.1-Terminus`, `deepseek-ai/DeepSeek-V3.2-Exp`, `zai-org/GLM-4.6`, `MiniMaxAI/MiniMax-M2`, `Qwen/Qwen3-VL-235B-A22B-Instruct`
+- `deepseek-ai/DeepSeek-V3.1`, `moonshotai/kimi-k2.7-code`, `moonshotai/Kimi-K2-Instruct-0905`, `Qwen/Qwen3-Next-80B-A3B-Instruct`, `Qwen/Qwen3-Next-80B-A3B-Thinking`, `Qwen/Qwen3-30B-A3B-Instruct-2507`
+- `deepseek-ai/DeepSeek-V3.1-Terminus`, `deepseek-ai/DeepSeek-V3.2-Exp`, `zai-org/GLM-4.6`, `zai-org/glm-5.2`, `MiniMaxAI/MiniMax-M2`, `minimaxai/minimax-m3`, `Qwen/Qwen3-VL-235B-A22B-Instruct`
 - `moonshotai/Kimi-K2-Thinking`, `google/gemini-2.5-flash`, `google/gemini-2.5-flash-lite`, `openai/gpt-5.1`, `openai/gpt-5.1-chat`
 - `openai/gpt-4o`, `openai/gpt-4o-mini`, `openai/gpt-4.1`, `openai/gpt-4.1-mini`, `openai/gpt-4.1-nano`
 - `openai/o1`, `openai/o3`, `openai/o3-mini`, `openai/o4-mini`, `anthropic/claude-sonnet-4.5-20250929`
