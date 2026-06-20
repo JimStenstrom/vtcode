@@ -35,6 +35,13 @@ pub struct PermissionEvent {
 
     /// Tool or component that made the request
     pub requested_by: String,
+
+    /// Name of the agent that triggered this permission check, if known
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub agent_name: Option<String>,
+
+    /// Whether the requesting agent is a subagent (false for primary agent)
+    pub is_subagent: bool,
 }
 
 /// Type of file access permission
@@ -134,6 +141,8 @@ impl PermissionAuditLog {
         decision: PermissionDecision,
         reason: &str,
         resolved_path: Option<PathBuf>,
+        agent_name: Option<&str>,
+        is_subagent: bool,
     ) -> Result<()> {
         let event = PermissionEvent {
             timestamp: Local::now(),
@@ -143,6 +152,8 @@ impl PermissionAuditLog {
             reason: reason.to_owned(),
             resolved_path,
             requested_by: "CommandPolicyEvaluator".into(),
+            agent_name: agent_name.map(String::from),
+            is_subagent,
         };
 
         self.record(event)
@@ -206,6 +217,8 @@ mod tests {
             PermissionDecision::Allowed,
             "Allow list match",
             Some(PathBuf::from("/usr/local/cargo")),
+            Some("coder"),
+            false,
         )?;
 
         assert_eq!(log.event_count(), 1);

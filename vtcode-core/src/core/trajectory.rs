@@ -100,7 +100,15 @@ impl TrajectoryLogger {
         self.log(&rec);
     }
 
-    pub fn log_tool_call(&self, turn: usize, name: &str, args: &serde_json::Value, ok: bool) {
+    pub fn log_tool_call(
+        &self,
+        turn: usize,
+        name: &str,
+        args: &serde_json::Value,
+        ok: bool,
+        agent_name: Option<&str>,
+        is_subagent: bool,
+    ) {
         #[derive(Serialize)]
         struct ToolRec<'a> {
             kind: &'static str,
@@ -108,6 +116,8 @@ impl TrajectoryLogger {
             name: &'a str,
             args: serde_json::Value,
             ok: bool,
+            agent_name: Option<&'a str>,
+            is_subagent: bool,
             ts: i64,
         }
         let rec = ToolRec {
@@ -116,6 +126,8 @@ impl TrajectoryLogger {
             name,
             args: args.clone(),
             ok,
+            agent_name,
+            is_subagent,
             ts: chrono::Utc::now().timestamp(),
         };
         self.log(&rec);

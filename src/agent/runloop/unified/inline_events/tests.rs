@@ -658,7 +658,7 @@ async fn plan_confirmation_events_map_to_expected_actions() {
 }
 
 #[tokio::test]
-async fn interrupt_event_never_returns_exit_from_tui() {
+async fn single_ctrl_c_returns_continue_from_tui() {
     let (handle, mut renderer) = renderer_with_handle();
     let (ctrl_c_state, ctrl_c_notify) = ctrl_c_handles();
     let interrupts = InlineInterruptCoordinator::new(ctrl_c_state.as_ref());
@@ -691,19 +691,63 @@ async fn interrupt_event_never_returns_exit_from_tui() {
     let mut prefer_latest_once = false;
     let mut queue = InlineQueueState::new(&handle, &mut queued_inputs, &mut prefer_latest_once);
 
-    // Simulate double Ctrl+C registering signals on the CtrlCState.
-    let _ = ctrl_c_state.register_signal();
-    std::thread::sleep(Duration::from_millis(250));
-    let _ = ctrl_c_state.register_signal();
-
-    // Even with CtrlCState in ExitRequested, the TUI interrupt handler
-    // must never return Exit.  Program exit is reserved for the OS signal
-    // handler (SIGINT) which manages CtrlCState escalation directly.
+    // Single Ctrl+C: request_local_stop() sets CancelRequested.
+    // handle_interrupt() returns Continue (cancel, not exit).
     let action = context
         .process_event(InlineEvent::Interrupt, &mut queue)
         .await
         .expect("process interrupt");
     assert!(matches!(action, InlineLoopAction::Continue));
+    assert!(ctrl_c_state.is_cancel_requested());
+}
+
+#[tokio::test]
+async fn double_ctrl_c_returns_exit_from_tui() {
+    let (handle, mut renderer) = renderer_with_handle();
+    let (ctrl_c_state, ctrl_c_notify) = ctrl_c_handles();
+    let interrupts = InlineInterruptCoordinator::new(ctrl_c_state.as_ref());
+    let mut ctrl_c_notice_displayed = false;
+    let mut model_picker_state: Option<ModelPickerState> = None;
+    let mut palette_state: Option<ActivePalette> = None;
+    let mut config = runtime_config();
+    let mut vt_cfg = None;
+    let mut provider_client: Box<dyn uni::LLMProvider> = Box::new(DummyProvider);
+    let session_bootstrap = SessionBootstrap::default();
+    let mut header_context = vtcode_ui::tui::app::InlineHeaderContext::default();
+    let mut context = InlineEventContext::new(
+        &mut renderer,
+        &handle,
+        interrupts,
+        &mut ctrl_c_notice_displayed,
+        &mut header_context,
+        &mut model_picker_state,
+        &mut palette_state,
+        &mut config,
+        &mut vt_cfg,
+        &mut provider_client,
+        &ctrl_c_state,
+        &ctrl_c_notify,
+        &session_bootstrap,
+        false,
+        0,
+    );
+    let mut queued_inputs = VecDeque::new();
+    let mut prefer_latest_once = false;
+    let mut queue = InlineQueueState::new(&handle, &mut queued_inputs, &mut prefer_latest_once);
+
+    // First Ctrl+C: sets CancelRequested.
+    let _ = ctrl_c_state.register_signal();
+    // Simulate the turn loop handling the cancel (CancelRequested -> ExitArmed).
+    ctrl_c_state.mark_cancel_handled();
+    std::thread::sleep(Duration::from_millis(250));
+
+    // Second Ctrl+C: register_signal() escalates to ExitRequested.
+    // handle_interrupt() detects is_exit_requested() and returns Exit.
+    let action = context
+        .process_event(InlineEvent::Interrupt, &mut queue)
+        .await
+        .expect("process interrupt");
+    assert!(matches!(action, InlineLoopAction::Exit(_)));
 }
 
 #[tokio::test]

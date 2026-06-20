@@ -572,6 +572,10 @@ pub(crate) struct RunLoopContext<'a> {
     pub harness_emitter: Option<&'a HarnessEventEmitter>,
     pub auto_permission: Option<AutoPermissionRuntimeContext<'a>>,
     pub active_agent_permissions: Option<&'a AgentPermissionsConfig>,
+    /// Name of the currently active agent, if known
+    pub agent_name: Option<String>,
+    /// Whether the current agent is a subagent
+    pub is_subagent: bool,
 }
 
 pub(crate) struct AutoPermissionRuntimeContext<'a> {
@@ -664,6 +668,8 @@ impl<'a> RunLoopContext<'a> {
             harness_emitter,
             auto_permission,
             active_agent_permissions: None,
+            agent_name: None,
+            is_subagent: false,
         }
     }
 }

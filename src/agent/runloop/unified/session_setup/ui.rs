@@ -163,10 +163,11 @@ pub(crate) async fn initialize_session_ui(
         let steering_sender = steering_sender.clone();
         Arc::new(move |event: &InlineEvent| match event {
             InlineEvent::Interrupt => {
-                // Esc / Ctrl+C from the TUI should cancel but never exit.
-                // Reset the state first so `register_signal()` always starts
-                // from Idle and cannot escalate through the exit window.
-                state.reset();
+                // Esc / Ctrl+C from the TUI cancels the current turn via
+                // `request_local_stop()`.  Do NOT call `state.reset()` first;
+                // `register_signal()` manages the Idle -> CancelRequested ->
+                // ExitArmed -> ExitRequested progression and the 200ms debounce
+                // prevents accidental double-tap escalation.
                 let _ = request_local_stop(&state, &notify);
             }
             InlineEvent::Pause => {

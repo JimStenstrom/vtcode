@@ -617,8 +617,14 @@ async fn apply_post_execution_side_effects(
             };
 
         if keep_changes {
-            ctx.traj
-                .log_tool_call(turn_index, name, args_val, pipeline_outcome.command_success);
+            ctx.traj.log_tool_call(
+                turn_index,
+                name,
+                args_val,
+                pipeline_outcome.command_success,
+                ctx.agent_name.as_deref(),
+                ctx.is_subagent,
+            );
             if pipeline_outcome.command_success {
                 let mut cache = ctx.tool_result_cache.write().await;
                 cache.invalidate_for_paths(pipeline_outcome.modified_files().iter());
@@ -630,8 +636,14 @@ async fn apply_post_execution_side_effects(
             pipeline_outcome.set_command_success(false);
         }
     } else {
-        ctx.traj
-            .log_tool_call(turn_index, name, args_val, pipeline_outcome.command_success);
+        ctx.traj.log_tool_call(
+            turn_index,
+            name,
+            args_val,
+            pipeline_outcome.command_success,
+            ctx.agent_name.as_deref(),
+            ctx.is_subagent,
+        );
     }
 
     Ok(())

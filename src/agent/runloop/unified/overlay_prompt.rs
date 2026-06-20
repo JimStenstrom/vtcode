@@ -68,13 +68,13 @@ where
 
         match event {
             InlineEvent::Interrupt => {
-                // Esc / Ctrl+C from the TUI should cancel the overlay but
-                // never exit the program.  Program exit is reserved for the
-                // OS signal handler (SIGINT) which directly manages the
-                // CtrlCState escalation.  Calling `request_local_stop()`
-                // here would let a TUI keypress advance the CtrlCState
-                // through the exit window and terminate the session.
-                ctrl_c_state.reset();
+                // Esc / Ctrl+C from the TUI.  `request_local_stop()` sets
+                // CancelRequested so the turn loop detects the interruption.
+                // Single Ctrl+C closes the overlay; double Ctrl+C exits.
+                crate::agent::runloop::unified::stop_requests::request_local_stop(
+                    ctrl_c_state,
+                    ctrl_c_notify,
+                );
                 close_overlay(handle).await;
                 return Ok(OverlayWaitOutcome::Interrupted);
             }

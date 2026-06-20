@@ -26,6 +26,8 @@ use super::state::InlineEventState;
 pub(crate) struct InlineEventContext<'a> {
     state: InlineEventState<'a>,
     modal: InlineModalProcessor<'a>,
+    ctrl_c_state: &'a Arc<crate::agent::runloop::unified::state::CtrlCState>,
+    ctrl_c_notify: &'a Arc<Notify>,
 }
 
 impl<'a> InlineEventContext<'a> {
@@ -63,7 +65,12 @@ impl<'a> InlineEventContext<'a> {
             conversation_history_len,
         );
 
-        Self { state, modal }
+        Self {
+            state,
+            modal,
+            ctrl_c_state,
+            ctrl_c_notify,
+        }
     }
 
     pub(crate) async fn process_event(
@@ -212,12 +219,23 @@ impl<'a> InlineEventContext<'a> {
 
     fn handle_interrupt(&mut self) -> InlineLoopAction {
         let _ = self.modal.handle_cancel(self.state.renderer());
-        // Esc / Ctrl+C from the TUI should cancel the running task but never
-        // exit the program.  Program exit is reserved for the OS signal handler
-        // (SIGINT) which directly calls `register_signal()` on the CtrlCState
-        // and handles the `Exit` result itself.  Delegating to
-        // `action_for_interrupt()` here would let a TUI keypress escalate
-        // through the CtrlCState exit window and terminate the session.
+        // Esc / Ctrl+C from the TUI.  In raw mode crossterm clears ISIG so
+        // Ctrl+C is a key event, not SIGINT -- the OS signal handler never
+        // fires.  We must call `request_local_stop()` so the turn loop
+        // detects the interruption.
+        //
+        // Single Ctrl+C -> CancelRequested -> cancel the current turn.
+        // Double Ctrl+C -> ExitRequested  -> exit the program.
+        //
+        // `register_signal()` applies a 200ms debounce so an accidental
+        // double-tap cannot escalate past CancelRequested.
+        crate::agent::runloop::unified::stop_requests::request_local_stop(
+            self.ctrl_c_state,
+            self.ctrl_c_notify,
+        );
+        if self.ctrl_c_state.is_exit_requested() {
+            return InlineLoopAction::Exit(vtcode_core::hooks::SessionEndReason::Exit);
+        }
         InlineLoopAction::Continue
     }
 

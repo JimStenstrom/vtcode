@@ -87,6 +87,8 @@ mod integration_tests {
             PermissionDecision::Allowed,
             "allow_glob match: cargo *",
             Some(PathBuf::from("/usr/local/bin/cargo")),
+            Some("coder"),
+            false,
         )?;
 
         assert_eq!(log.event_count(), 1);
@@ -139,6 +141,8 @@ mod integration_tests {
             },
             "allow_glob match: cargo *",
             resolution.resolved_path.clone(),
+            Some("coder"),
+            false,
         )?;
 
         // Verify results
