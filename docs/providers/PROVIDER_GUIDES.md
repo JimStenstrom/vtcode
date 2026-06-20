@@ -7,7 +7,7 @@ This index collects provider-specific guides for configuring VT Code with differ
 -   Configuration details are covered in the main [Getting Started guide](../user-guide/getting-started.md#api-requirements).
 -   Models and constants are defined in [`vtcode-core/src/config/constants.rs`](../../vtcode-core/src/config/constants.rs).
 
-## OpenAI GPT
+## OpenAI
 
 -   **Official docs:**
     -   [API reference index](https://developers.openai.com/api/reference/llms.txt)
@@ -32,7 +32,7 @@ This index collects provider-specific guides for configuring VT Code with differ
 -   For large corpora, prefer File Search/Retrieval instead of sending full files inline.
 -   For spreadsheet-heavy analysis, use Hosted Shell workflows instead of large inline sheet prompts.
 
-## Anthropic Claude
+## Anthropic
 
 -   Key management and defaults mirror the Gemini/OpenAI flow in [Getting Started](../user-guide/getting-started.md#api-requirements).
 -   Supported model IDs live in [`vtcode-core/src/config/constants.rs`](../../vtcode-core/src/config/constants.rs).
