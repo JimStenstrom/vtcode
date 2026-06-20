@@ -447,8 +447,8 @@ This document serves as an index of all VT Code documentation. When users ask qu
 
 - **File**: `docs/providers/PROVIDER_GUIDES.md`
   - **Content**: Provider Guides
-  - **Topics**: Google Gemini, OpenAI GPT, Anthropic Claude, GitHub Copilot, OpenRouter Marketplace
-  - **User Questions**: "What can you tell me about Provider Guides?", "How does Google Gemini work?", "How does OpenAI GPT work?"
+  - **Topics**: Google Gemini, OpenAI, Anthropic, GitHub Copilot, OpenRouter Marketplace
+  - **User Questions**: "What can you tell me about Provider Guides?", "How does Google Gemini work?", "How does OpenAI work?"
 
 - **File**: `docs/providers/llamacpp.md`
   - **Content**: llama.cpp Provider Guide
