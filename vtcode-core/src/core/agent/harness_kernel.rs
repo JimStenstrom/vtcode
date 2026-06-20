@@ -423,24 +423,32 @@ pub fn filter_tool_definitions_for_mode(
     request_user_input_enabled: bool,
 ) -> Option<Arc<Vec<ToolDefinition>>> {
     let tools = tools?;
-    let all_exposed = tools
-        .iter()
-        .all(|tool| should_expose_tool_in_mode(tool, planning_active, request_user_input_enabled));
+    if !planning_active {
+        // No action masking needed; only filter whole tools.
+        if tools
+            .iter()
+            .all(|tool| should_expose_tool_in_mode(tool, false, request_user_input_enabled))
+        {
+            return Some(tools);
+        }
+        let filtered: Vec<ToolDefinition> = tools
+            .iter()
+            .filter(|tool| should_expose_tool_in_mode(tool, false, request_user_input_enabled))
+            .cloned()
+            .collect();
+        return if filtered.is_empty() {
+            None
+        } else {
+            Some(Arc::new(filtered))
+        };
+    }
 
-    let filtered: Vec<ToolDefinition> = if all_exposed {
-        tools
-            .iter()
-            .map(|tool| mask_tool_actions_for_mode(tool, planning_active))
-            .collect()
-    } else {
-        tools
-            .iter()
-            .filter(|tool| {
-                should_expose_tool_in_mode(tool, planning_active, request_user_input_enabled)
-            })
-            .map(|tool| mask_tool_actions_for_mode(tool, planning_active))
-            .collect()
-    };
+    // Planning active: filter whole tools and mask action enums.
+    let filtered: Vec<ToolDefinition> = tools
+        .iter()
+        .filter(|tool| should_expose_tool_in_mode(tool, true, request_user_input_enabled))
+        .map(|tool| mask_tool_actions_for_mode(tool, true))
+        .collect();
     if filtered.is_empty() {
         None
     } else {

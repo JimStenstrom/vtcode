@@ -114,6 +114,7 @@ pub fn planning_allowed_actions(tool_name: &str) -> Option<&'static [&'static st
     match canonical {
         tools::UNIFIED_FILE => Some(&["read"]),
         tools::UNIFIED_EXEC => Some(&["run", "poll", "list", "inspect", "continue"]),
+        // `code`, `write`, and `close` are always mutating and excluded.
         _ => None,
     }
 }
