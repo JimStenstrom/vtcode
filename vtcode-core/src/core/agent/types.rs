@@ -57,6 +57,15 @@ impl AgentType {
         matches!(self, Self::Explore | Self::Plan)
     }
 
+    /// Returns `true` when this agent type implies planning workflow is active.
+    ///
+    /// `AgentType::Plan` is the research specialist for the planning workflow;
+    /// when it is the active agent type, planning workflow read-only enforcement
+    /// should be enabled.
+    pub fn implies_planning_workflow(&self) -> bool {
+        matches!(self, Self::Plan)
+    }
+
     /// Get the recommended model tier for this agent type
     pub fn model_tier(&self) -> &'static str {
         match self {

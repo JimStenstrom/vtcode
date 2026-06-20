@@ -76,6 +76,10 @@ pub(crate) fn render_file_operation_indicator(
         .or_else(|| args.get("filename"))
         .and_then(Value::as_str)
         .map(|p| truncate_path_middle(p, 60))
+        .or_else(|| {
+            // For apply_patch, extract the first file path from patch content
+            extract_first_patch_file_path(args).map(|p| truncate_path_middle(&p, 60))
+        })
         .unwrap_or_else(|| "file".to_string());
 
     let mut line = String::new();
@@ -651,13 +655,16 @@ pub(crate) fn describe_tool_action(tool_name: &str, args: &Value) -> (String, Ha
                     )
                 })
         }
-        actual_name if actual_name == tool_names::APPLY_PATCH => (
-            format!(
-                "{}Apply workspace patch",
-                if is_mcp_tool { "MCP " } else { "" }
-            ),
-            HashSet::new(),
-        ),
+        actual_name if actual_name == tool_names::APPLY_PATCH => {
+            let prefix = if is_mcp_tool { "MCP " } else { "" };
+            match extract_first_patch_file_path(args) {
+                Some(path) => (
+                    format!("{}Apply patch to {}", prefix, path),
+                    HashSet::from(["path".to_string()]),
+                ),
+                None => (format!("{}Apply workspace patch", prefix), HashSet::new()),
+            }
+        }
         "fetch" | tool_names::WEB_FETCH => {
             let (desc, used) = describe_fetch_action(args);
             (
@@ -678,6 +685,31 @@ pub(crate) fn describe_tool_action(tool_name: &str, args: &Value) -> (String, Ha
 
 pub(crate) fn humanize_tool_name(name: &str) -> String {
     crate::agent::runloop::unified::tool_summary_helpers::humanize_tool_name(name)
+}
+
+/// Extract the first file path from a patch's content.
+///
+/// Patch format uses lines like `*** Update File: path`, `*** Add File: path`,
+/// or `*** Delete File: path`. This function parses the patch text from `input`
+/// or `patch` args and returns the first file path found.
+fn extract_first_patch_file_path(args: &Value) -> Option<String> {
+    let patch_text = args
+        .get("input")
+        .or_else(|| args.get("patch"))
+        .and_then(Value::as_str)?;
+
+    for line in patch_text.lines() {
+        let trimmed = line.trim();
+        for prefix in &["*** Update File: ", "*** Add File: ", "*** Delete File: "] {
+            if let Some(path) = trimmed.strip_prefix(prefix) {
+                let path = path.trim();
+                if !path.is_empty() {
+                    return Some(path.to_string());
+                }
+            }
+        }
+    }
+    None
 }
 
 #[cfg(test)]
@@ -758,5 +790,75 @@ mod tests {
         assert_eq!(wrapped.len(), 2);
         assert_eq!(wrapped[0], "cargo test -p vtcode run_command_preview_");
         assert_eq!(wrapped[1], "build_tool_summary_formats_run_command_as_ran");
+    }
+
+    #[test]
+    fn extract_first_patch_file_path_from_update() {
+        let args = json!({
+            "input": "*** Begin Patch\n*** Update File: src/main.rs\n@@ -1,3 +1,4 @@\n+use std::io;\n*** End Patch"
+        });
+        assert_eq!(
+            super::extract_first_patch_file_path(&args),
+            Some("src/main.rs".to_string())
+        );
+    }
+
+    #[test]
+    fn extract_first_patch_file_path_from_add() {
+        let args = json!({
+            "patch": "*** Begin Patch\n*** Add File: new_file.txt\n+Hello\n*** End Patch"
+        });
+        assert_eq!(
+            super::extract_first_patch_file_path(&args),
+            Some("new_file.txt".to_string())
+        );
+    }
+
+    #[test]
+    fn extract_first_patch_file_path_from_delete() {
+        let args = json!({
+            "input": "*** Begin Patch\n*** Delete File: old.txt\n*** End Patch"
+        });
+        assert_eq!(
+            super::extract_first_patch_file_path(&args),
+            Some("old.txt".to_string())
+        );
+    }
+
+    #[test]
+    fn extract_first_patch_file_path_returns_first_of_multiple() {
+        let args = json!({
+            "input": "*** Begin Patch\n*** Update File: a.rs\n+line\n*** Update File: b.rs\n+line\n*** End Patch"
+        });
+        assert_eq!(
+            super::extract_first_patch_file_path(&args),
+            Some("a.rs".to_string())
+        );
+    }
+
+    #[test]
+    fn extract_first_patch_file_path_returns_none_for_missing() {
+        let args = json!({"input": "not a valid patch"});
+        assert_eq!(super::extract_first_patch_file_path(&args), None);
+    }
+
+    #[test]
+    fn describe_tool_action_apply_patch_shows_file_path() {
+        let (description, used_keys) = describe_tool_action(
+            tool_names::APPLY_PATCH,
+            &json!({
+                "input": "*** Begin Patch\n*** Update File: src/lib.rs\n+line\n*** End Patch"
+            }),
+        );
+        assert_eq!(description, "Apply patch to src/lib.rs");
+        assert!(used_keys.contains("path"));
+    }
+
+    #[test]
+    fn describe_tool_action_apply_patch_falls_back_without_path() {
+        let (description, used_keys) =
+            describe_tool_action(tool_names::APPLY_PATCH, &json!({"input": "not a patch"}));
+        assert_eq!(description, "Apply workspace patch");
+        assert!(used_keys.is_empty());
     }
 }

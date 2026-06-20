@@ -13,6 +13,7 @@
 //! - User confirmation is required before transitioning to execution (HITL)
 
 use crate::config::constants::tools;
+use crate::core::agent::types::AgentType;
 use crate::utils::file_utils::{
     ensure_dir_exists, read_file_with_context, write_file_with_context,
 };
@@ -160,6 +161,19 @@ impl PlanningWorkflowState {
 
     pub fn set_phase(&self, phase: PlanLifecyclePhase) {
         self.lifecycle_phase.store(phase as u8, Ordering::Relaxed);
+    }
+
+    /// Returns the agent type that corresponds to an active planning workflow.
+    ///
+    /// When planning workflow is active, the effective agent type is `AgentType::Plan`
+    /// (the read-only research specialist).  When inactive, returns `None` to signal
+    /// the caller should use its own default agent type.
+    pub fn effective_agent_type(&self) -> Option<AgentType> {
+        if self.is_active() {
+            Some(AgentType::Plan)
+        } else {
+            None
+        }
     }
 
     /// Get the workspace root path
