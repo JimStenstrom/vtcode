@@ -63,6 +63,7 @@ use futures::future::select_all;
 use std::collections::VecDeque;
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use tokio::sync::{Notify, RwLock};
 
 use crate::config::VTCodeConfig;
@@ -108,6 +109,7 @@ pub struct SubagentController {
     parent_session_id: Arc<RwLock<String>>,
     lifecycle_hooks: Option<LifecycleHookEngine>,
     state: Arc<RwLock<ControllerState>>,
+    shutdown_requested: Arc<AtomicBool>,
 }
 
 impl SubagentController {
@@ -135,6 +137,7 @@ impl SubagentController {
                 children: std::collections::BTreeMap::new(),
                 background_children,
             })),
+            shutdown_requested: Arc::new(AtomicBool::new(false)),
         })
     }
 
@@ -342,13 +345,16 @@ impl SubagentController {
                 .collect::<Vec<_>>()
         };
 
+        let mut changed = false;
         for record_id in record_ids {
-            let snapshot_target = {
+            let (snapshot_target, before_status, before_error) = {
                 let state = self.state.read().await;
-                state
-                    .background_children
-                    .get(&record_id)
-                    .map(|record| record.exec_session_id.clone())
+                let record = state.background_children.get(&record_id);
+                (
+                    record.map(|r| r.exec_session_id.clone()),
+                    record.map(|r| r.status.clone()),
+                    record.and_then(|r| r.error.clone()),
+                )
             };
 
             let snapshot = if let Some(exec_session_id) = snapshot_target.as_ref()
@@ -377,10 +383,21 @@ impl SubagentController {
                 .await?;
             }
 
+            let changed_this_record = {
+                let state = self.state.read().await;
+                state.background_children.get(&record_id).is_some_and(|r| {
+                    r.status != before_status.unwrap_or(BackgroundSubprocessStatus::Starting)
+                        || r.error != before_error
+                })
+            };
+            changed |= changed_this_record;
+
             self.refresh_background_archive_metadata(&record_id).await?;
         }
 
-        self.save_background_state().await?;
+        if changed {
+            self.save_background_state().await?;
+        }
         Ok(self.background_status_entries().await)
     }
 
@@ -1262,7 +1279,16 @@ impl SubagentController {
         Ok(())
     }
 
+    /// Signal that the program is shutting down. Subsequent calls to
+    /// `save_background_state` will be skipped.
+    pub fn signal_shutdown(&self) {
+        self.shutdown_requested.store(true, Ordering::Relaxed);
+    }
+
     async fn save_background_state(&self) -> Result<()> {
+        if self.shutdown_requested.load(Ordering::Relaxed) {
+            return Ok(());
+        }
         let records = {
             let state = self.state.read().await;
             state

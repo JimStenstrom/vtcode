@@ -1315,6 +1315,9 @@ pub(super) async fn run_single_agent_loop_unified_impl(
             resume_identifier,
             budget_limit: session_stats.budget_limit(),
         });
+        if let Some(controller) = tool_registry.subagent_controller() {
+            controller.signal_shutdown();
+        }
         if matches!(session_end_reason, SessionEndReason::Error) {
             return Err(anyhow::anyhow!(
                 "{}",
