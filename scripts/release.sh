@@ -870,7 +870,7 @@ main() {
             current_user=$(gh api user --jq '.login' 2>/dev/null || true)
 
             print_info "Switching to GitHub account vinhnx..."
-            if gh auth switch -u vinhnx >/dev/null 2>&1; then
+            if unset GITHUB_TOKEN && gh auth switch -u vinhnx >/dev/null 2>&1; then
                 print_success "Switched to GitHub account vinhnx"
             elif [[ "$dry_run" == 'true' ]]; then
                 print_info "Dry run - continuing without switching GitHub account"
