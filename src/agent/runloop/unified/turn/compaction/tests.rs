@@ -4,7 +4,7 @@ use super::{
     build_summarized_fork_history, compact_history_for_recovery_in_place,
     compact_history_from_index_in_place, compact_history_in_place,
     compact_history_in_place_with_events, inject_latest_memory_envelope,
-    latest_memory_envelope_path_for_session, manual_openai_compact_history_in_place,
+    latest_memory_envelope_path_for_session, manual_compact_history_in_place,
     maybe_auto_compact_history, resolve_compaction_threshold,
 };
 use crate::agent::runloop::unified::context_manager::ContextManager;
@@ -18,6 +18,7 @@ use std::sync::Arc;
 use tempfile::tempdir;
 use tokio::sync::RwLock;
 use vtcode_commons::llm::Usage;
+use vtcode_core::compaction::ManualCompactionOptions;
 use vtcode_core::config::constants::tools as tool_names;
 use vtcode_core::config::loader::VTCodeConfig;
 use vtcode_core::llm::provider::{
@@ -32,6 +33,12 @@ struct ProviderCompactionProvider;
 struct NoOpProviderCompactionProvider;
 
 struct FailingProviderCompactionProvider;
+
+/// Inline-dispatched provider (Anthropic-shaped) that rejects the
+/// `compact_20260112` inline edit but serves plain summary requests. Models a
+/// provider where NativeInline cannot fire; the recovery path must fall back to
+/// Local summarization rather than aborting.
+struct InlineRejectingRecoveryProvider;
 
 struct RecordingProviderCompactionProvider {
     seen_history: Arc<RwLock<Vec<Message>>>,
@@ -97,7 +104,7 @@ impl LLMProvider for ProviderCompactionProvider {
         true
     }
 
-    fn supports_manual_openai_compaction(&self, _model: &str) -> bool {
+    fn supports_manual_compaction(&self, _model: &str) -> bool {
         true
     }
 
@@ -145,7 +152,7 @@ impl LLMProvider for NoOpProviderCompactionProvider {
         true
     }
 
-    fn supports_manual_openai_compaction(&self, _model: &str) -> bool {
+    fn supports_manual_compaction(&self, _model: &str) -> bool {
         true
     }
 
@@ -169,7 +176,15 @@ impl LLMProvider for FailingProviderCompactionProvider {
     }
 
     async fn generate(&self, _request: LLMRequest) -> Result<LLMResponse, LLMError> {
-        Ok(LLMResponse::new("stub-model", "summary"))
+        // Simulate a true infrastructure failure: the provider cannot produce any
+        // response. Under the unified dispatch this provider routes to NativeInline
+        // (it does not override `supports_manual_compaction`), so `generate` is the
+        // only call path; failing it here makes Local fallback impossible, so the
+        // compaction propagates `Err` and the existing history is preserved.
+        Err(LLMError::Provider {
+            message: "provider unreachable".to_string(),
+            metadata: None,
+        })
     }
 
     async fn compact_history(
@@ -232,12 +247,53 @@ impl LLMProvider for RecordingProviderCompactionProvider {
         true
     }
 
+    fn supports_manual_compaction(&self, _model: &str) -> bool {
+        // Routes to NativeStandalone (uses `compact_history_with_options`) so the
+        // recorded history reflects the provider-native compaction input.
+        true
+    }
+
     fn supported_models(&self) -> Vec<String> {
         vec!["stub-model".to_string()]
     }
 
     fn validate_request(&self, _request: &LLMRequest) -> Result<(), LLMError> {
         Ok(())
+    }
+
+    fn effective_context_size(&self, _model: &str) -> usize {
+        1_000
+    }
+}
+
+#[async_trait]
+impl LLMProvider for InlineRejectingRecoveryProvider {
+    fn name(&self) -> &str {
+        "inline-rejecting-recovery"
+    }
+
+    async fn generate(&self, request: LLMRequest) -> Result<LLMResponse, LLMError> {
+        // Reject the inline compaction request (carries `context_management`);
+        // serve the Local summary request (no `context_management`).
+        if request.context_management.is_some() {
+            return Err(LLMError::Provider {
+                message: "provider rejected inline compact edit".to_string(),
+                metadata: None,
+            });
+        }
+        Ok(LLMResponse::new("stub-model", "summary"))
+    }
+
+    fn supported_models(&self) -> Vec<String> {
+        vec!["stub-model".to_string()]
+    }
+
+    fn validate_request(&self, _request: &LLMRequest) -> Result<(), LLMError> {
+        Ok(())
+    }
+
+    fn supports_responses_compaction(&self, _model: &str) -> bool {
+        true
     }
 
     fn effective_context_size(&self, _model: &str) -> usize {
@@ -457,7 +513,7 @@ async fn provider_compaction_emits_provider_boundary_event() {
 }
 
 #[tokio::test]
-async fn manual_openai_compaction_clears_previous_response_chain() {
+async fn manual_compaction_clears_previous_response_chain() {
     let temp = tempdir().expect("tempdir");
     let provider = ProviderCompactionProvider;
     let mut history = test_history();
@@ -465,7 +521,7 @@ async fn manual_openai_compaction_clears_previous_response_chain() {
     session_stats.set_previous_response_chain("provider-stub", "stub-model", Some("resp_123"), &[]);
     let mut context_manager = test_context_manager();
 
-    let outcome = manual_openai_compact_history_in_place(
+    let outcome = manual_compact_history_in_place(
         CompactionContext::new(
             &provider,
             "stub-model",
@@ -477,7 +533,8 @@ async fn manual_openai_compaction_clears_previous_response_chain() {
             None,
         ),
         CompactionState::new(&mut history, &mut session_stats, &mut context_manager),
-        &ResponsesCompactionOptions::default(),
+        &ManualCompactionOptions::default(),
+        false,
     )
     .await
     .expect("manual OpenAI compaction succeeds")
@@ -494,7 +551,7 @@ async fn manual_openai_compaction_clears_previous_response_chain() {
 }
 
 #[tokio::test]
-async fn manual_openai_compaction_rejects_unsupported_provider_without_local_fallback() {
+async fn manual_compaction_native_only_rejects_provider_without_standalone_compaction() {
     let temp = tempdir().expect("tempdir");
     let provider = LocalCompactionProvider;
     let mut history = test_history();
@@ -502,7 +559,7 @@ async fn manual_openai_compaction_rejects_unsupported_provider_without_local_fal
     let mut session_stats = SessionStats::default();
     let mut context_manager = test_context_manager();
 
-    let err = manual_openai_compact_history_in_place(
+    let err = manual_compact_history_in_place(
         CompactionContext::new(
             &provider,
             "stub-model",
@@ -514,19 +571,58 @@ async fn manual_openai_compaction_rejects_unsupported_provider_without_local_fal
             None,
         ),
         CompactionState::new(&mut history, &mut session_stats, &mut context_manager),
-        &ResponsesCompactionOptions::default(),
+        &ManualCompactionOptions::default(),
+        true,
     )
     .await
-    .expect_err("unsupported provider should fail");
+    .expect_err("native-only should reject a non-standalone provider");
 
     assert!(err.to_string().contains(
-        "Manual `/compact` is available only for the native OpenAI provider on api.openai.com"
+        "`--native-only` `/compact` requires a provider that exposes a native server-side compaction endpoint"
     ));
+    assert!(
+        err.to_string()
+            .contains("Run `/compact` without `--native-only`")
+    );
     assert_eq!(history, original_history);
 }
 
 #[tokio::test]
-async fn manual_openai_compaction_noop_preserves_existing_history() {
+async fn manual_compaction_compacts_locally_for_non_native_provider() {
+    let temp = tempdir().expect("tempdir");
+    let provider = LocalCompactionProvider;
+    let mut history = test_history();
+    let mut session_stats = SessionStats::default();
+    let mut context_manager = test_context_manager();
+
+    let outcome = manual_compact_history_in_place(
+        CompactionContext::new(
+            &provider,
+            "stub-model",
+            "session-alpha",
+            "thread-alpha",
+            temp.path(),
+            Some(&VTCodeConfig::default()),
+            None,
+            None,
+        ),
+        CompactionState::new(&mut history, &mut session_stats, &mut context_manager),
+        &ManualCompactionOptions::default(),
+        false,
+    )
+    .await
+    .expect("local compaction succeeds")
+    .expect("history should compact");
+
+    assert_eq!(
+        outcome.mode,
+        vtcode_core::exec::events::CompactionMode::Local
+    );
+    assert!(history.len() < test_history().len());
+}
+
+#[tokio::test]
+async fn manual_compaction_noop_preserves_existing_history() {
     let temp = tempdir().expect("tempdir");
     let provider = NoOpProviderCompactionProvider;
     let mut history = test_history_with_memory_envelope();
@@ -534,7 +630,7 @@ async fn manual_openai_compaction_noop_preserves_existing_history() {
     let mut session_stats = SessionStats::default();
     let mut context_manager = test_context_manager();
 
-    let outcome = manual_openai_compact_history_in_place(
+    let outcome = manual_compact_history_in_place(
         CompactionContext::new(
             &provider,
             "stub-model",
@@ -546,7 +642,8 @@ async fn manual_openai_compaction_noop_preserves_existing_history() {
             None,
         ),
         CompactionState::new(&mut history, &mut session_stats, &mut context_manager),
-        &ResponsesCompactionOptions::default(),
+        &ManualCompactionOptions::default(),
+        false,
     )
     .await
     .expect("noop compaction succeeds");
@@ -1171,6 +1268,43 @@ async fn provider_compaction_error_preserves_existing_history() {
 
     assert!(!err.to_string().is_empty());
     assert_eq!(history, original_history);
+}
+
+#[tokio::test]
+async fn recovery_compaction_falls_back_to_local_when_inline_request_errors() {
+    let temp = tempdir().expect("tempdir");
+    let provider = InlineRejectingRecoveryProvider;
+    let mut history = test_history();
+    let original_len = history.len();
+    let mut session_stats = SessionStats::default();
+    let mut context_manager = test_context_manager();
+
+    // A near-exhausted-budget recovery on a NativeInline-dispatched provider that
+    // rejects the inline compact edit must not abort; it falls back to Local
+    // summarization and compacts the earlier history.
+    let outcome = compact_history_for_recovery_in_place(
+        CompactionContext::new(
+            &provider,
+            "stub-model",
+            "session-alpha",
+            "thread-alpha",
+            temp.path(),
+            Some(&VTCodeConfig::default()),
+            None,
+            None,
+        ),
+        CompactionState::new(&mut history, &mut session_stats, &mut context_manager),
+        original_len,
+    )
+    .await
+    .expect("recovery compaction should fall back to local")
+    .expect("history should compact");
+
+    assert_eq!(
+        outcome.mode,
+        vtcode_core::exec::events::CompactionMode::Local
+    );
+    assert!(history.len() < original_len);
 }
 
 #[tokio::test]

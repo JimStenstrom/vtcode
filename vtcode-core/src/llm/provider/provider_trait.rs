@@ -218,14 +218,19 @@ pub trait LLMProvider: Send + Sync {
     ///
     /// This is narrower than general Responses compaction support and may exclude
     /// compatible endpoints that do not match VT Code's native OpenAI UX contract.
-    fn supports_manual_openai_compaction(&self, _model: &str) -> bool {
+    fn supports_manual_compaction(&self, _model: &str) -> bool {
         false
     }
 
-    /// Explain why the interactive manual `/compact` command path is unavailable.
-    fn manual_openai_compaction_unavailable_message(&self, model: &str) -> String {
+    /// Explain why the `--native-only` manual `/compact` path is unavailable.
+    ///
+    /// This message only surfaces when the user explicitly passes `--native-only`
+    /// and the provider does not expose a native server-side compaction endpoint.
+    /// The plain `/compact` command is provider-agnostic and always falls back to
+    /// local summarization, so it is never refused on capability grounds.
+    fn manual_compaction_unavailable_message(&self, model: &str) -> String {
         format!(
-            "Manual `/compact` is available only for the native OpenAI provider on api.openai.com with a Responses-compatible OpenAI model. Active provider/backend/model: {} / provider does not expose native OpenAI manual compaction / {}.",
+            "`--native-only` `/compact` requires a provider that exposes a native server-side compaction endpoint, which this provider does not. Active provider/model: {} / {}. Run `/compact` without `--native-only` to compact via the universal local summarization fallback.",
             self.name(),
             model,
         )

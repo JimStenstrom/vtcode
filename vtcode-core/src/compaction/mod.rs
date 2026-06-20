@@ -1,9 +1,15 @@
 use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
+use serde_json::{Value, json};
 use std::fmt::Write;
+use vtcode_commons::llm::FinishReason;
 use vtcode_config::constants::context::DEFAULT_COMPACTION_TRIGGER_RATIO;
 
-use crate::llm::provider::{LLMProvider, LLMRequest, Message, MessageRole};
+use crate::config::types::{ReasoningEffortLevel, VerbosityLevel};
+use crate::exec::events::CompactionMode;
+use crate::llm::provider::{
+    LLMProvider, LLMRequest, Message, MessageRole, ResponsesCompactionOptions,
+};
 use crate::llm::utils::truncate_to_token_limit;
 
 pub mod summarizer;
@@ -74,6 +80,247 @@ pub async fn compact_history(
     let request = LLMRequest {
         messages: vec![Message::user(summary_prompt)],
         model: model.to_string(),
+        ..Default::default()
+    };
+
+    let response = provider
+        .generate(request)
+        .await
+        .context("Failed to generate compaction summary")?;
+
+    let summary = response.content.unwrap_or_default().trim().to_string();
+    Ok(build_local_compacted_history(
+        history,
+        &summary,
+        config.retained_user_message_tokens,
+        config.retained_user_messages,
+    ))
+}
+
+/// How the manual `/compact` command compacts for a given provider/model.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CompactionStrategy {
+    /// Provider exposes a standalone on-demand compaction endpoint
+    /// (OpenAI `/responses/compact`). Delegates to `LLMProvider::compact_history_with_options`.
+    NativeStandalone,
+    /// Provider compacts inline via request fields, threshold-triggered
+    /// (Anthropic `compact_20260112`). Invoked through `LLMProvider::generate`
+    /// with `context_management` set and `pause_after_compaction`.
+    NativeInline,
+    /// Universal fallback: summarize history via `LLMProvider::generate` and
+    /// rebuild as a summary message plus retained recent user messages.
+    /// Works for every provider.
+    Local,
+}
+
+/// Select the manual-compaction strategy for a provider/model.
+///
+/// `NativeStandalone` when the provider opts in via `supports_manual_compaction`
+/// (e.g. OpenAI `/responses/compact`), `NativeInline` when the provider reports
+/// inline compaction support via `supports_responses_compaction` (e.g. Anthropic
+/// `compact_20260112`), otherwise `Local`.
+pub fn manual_compaction_strategy(provider: &dyn LLMProvider, model: &str) -> CompactionStrategy {
+    if provider.supports_manual_compaction(model) {
+        CompactionStrategy::NativeStandalone
+    } else if provider.supports_responses_compaction(model) {
+        CompactionStrategy::NativeInline
+    } else {
+        CompactionStrategy::Local
+    }
+}
+
+/// Universally meaningful manual-compaction options.
+///
+/// Provider-specific extras (OpenAI `service_tier` / `prompt_cache_key` / `store` /
+/// `include`) are intentionally absent: the manual `/compact` command exposes only
+/// the options that apply across every provider.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ManualCompactionOptions {
+    /// Overrides the default summary/compaction prompt when set.
+    pub instructions: Option<String>,
+    /// Caps the summary/compaction output length on every provider.
+    pub max_output_tokens: Option<u32>,
+    /// Optional reasoning effort override for the compaction pass.
+    pub reasoning_effort: Option<ReasoningEffortLevel>,
+    /// Optional verbosity override for the compaction output.
+    pub verbosity: Option<VerbosityLevel>,
+}
+
+impl From<ManualCompactionOptions> for ResponsesCompactionOptions {
+    fn from(options: ManualCompactionOptions) -> Self {
+        Self {
+            instructions: options.instructions,
+            max_output_tokens: options.max_output_tokens,
+            reasoning_effort: options.reasoning_effort,
+            verbosity: options.verbosity,
+            responses_include: None,
+            response_store: None,
+            service_tier: None,
+            prompt_cache_key: None,
+        }
+    }
+}
+
+impl CompactionConfig {
+    /// Return a config with the manual options' instructions applied as the
+    /// summary prompt override. The remaining option fields
+    /// (`max_output_tokens`, `reasoning_effort`, `verbosity`) are applied to the
+    /// summary `LLMRequest` directly by `summarize_locally`, not stored here.
+    fn with_manual_overrides(self, options: &ManualCompactionOptions) -> Self {
+        let summary_prompt = options
+            .instructions
+            .clone()
+            .map(|instructions| instructions.trim().to_string())
+            .filter(|instructions| !instructions.is_empty())
+            .unwrap_or(self.summary_prompt);
+        Self {
+            summary_prompt,
+            ..self
+        }
+    }
+}
+
+/// Compact history for the manual `/compact` command using provider-native
+/// compaction when available, falling back to local summarization otherwise.
+///
+/// Returns the compacted messages and the `CompactionMode` that produced them
+/// (`Provider` for native compaction, `Local` for client-side summarization).
+pub async fn compact_history_manual(
+    provider: &dyn LLMProvider,
+    model: &str,
+    history: &[Message],
+    config: &CompactionConfig,
+    options: &ManualCompactionOptions,
+) -> Result<(Vec<Message>, CompactionMode)> {
+    if history.is_empty() {
+        return Ok((Vec::new(), CompactionMode::Local));
+    }
+    match manual_compaction_strategy(provider, model) {
+        CompactionStrategy::NativeStandalone => {
+            let responses_options: ResponsesCompactionOptions = options.clone().into();
+            let compacted = provider
+                .compact_history_with_options(model, history, &responses_options)
+                .await
+                .context("Failed to compact history via provider-native compaction")?;
+            Ok((compacted, CompactionMode::Provider))
+        }
+        CompactionStrategy::NativeInline => {
+            compact_history_native_inline(provider, model, history, config, options).await
+        }
+        CompactionStrategy::Local => {
+            let compacted = summarize_locally(provider, model, history, config, options).await?;
+            Ok((compacted, CompactionMode::Local))
+        }
+    }
+}
+
+/// Native inline compaction (Anthropic `compact_20260112`).
+///
+/// Forces a compaction pass by setting the minimum trigger threshold with
+/// `pause_after_compaction: true`, so the response contains only the compaction
+/// block. If compaction does not fire (history below the provider's minimum
+/// trigger, currently 50k tokens for Anthropic), transparently falls back to
+/// local summarization so the manual command always succeeds.
+async fn compact_history_native_inline(
+    provider: &dyn LLMProvider,
+    model: &str,
+    history: &[Message],
+    config: &CompactionConfig,
+    options: &ManualCompactionOptions,
+) -> Result<(Vec<Message>, CompactionMode)> {
+    const ANTHROPIC_COMPACT_TRIGGER_FLOOR: u64 = 50_000;
+
+    let mut compact_edit = serde_json::Map::new();
+    compact_edit.insert("type".to_string(), json!("compact_20260112"));
+    compact_edit.insert(
+        "trigger".to_string(),
+        json!({ "type": "input_tokens", "value": ANTHROPIC_COMPACT_TRIGGER_FLOOR }),
+    );
+    compact_edit.insert("pause_after_compaction".to_string(), json!(true));
+    if let Some(instructions) = options
+        .instructions
+        .as_ref()
+        .map(|instructions| instructions.trim())
+        .filter(|instructions| !instructions.is_empty())
+    {
+        compact_edit.insert("instructions".to_string(), json!(instructions));
+    }
+
+    let request = LLMRequest {
+        messages: history.to_vec(),
+        model: model.to_string(),
+        context_management: Some(json!({ "edits": [Value::Object(compact_edit)] })),
+        max_tokens: options.max_output_tokens,
+        reasoning_effort: options.reasoning_effort,
+        verbosity: options.verbosity,
+        ..Default::default()
+    };
+
+    // The inline compaction request is Anthropic-specific (`compact_20260112`).
+    // If the provider does not actually support inline compaction (e.g. it was
+    // selected because it exposes a different standalone Responses compact
+    // endpoint) the request may be rejected. Per the manual `/compact` contract
+    // ("always succeeds"), swallow the inline error and fall back to local
+    // summarization rather than aborting the whole command.
+    let response = match provider.generate(request).await {
+        Ok(response) => response,
+        Err(error) => {
+            tracing::warn!(
+                error = %error,
+                "provider-native inline compaction request failed; \
+                 falling back to local summarization"
+            );
+            let compacted = summarize_locally(provider, model, history, config, options).await?;
+            return Ok((compacted, CompactionMode::Local));
+        }
+    };
+
+    if response.finish_reason == FinishReason::Pause {
+        if let Some(summary) = response
+            .compaction
+            .as_ref()
+            .map(|summary| summary.trim())
+            .filter(|summary| !summary.is_empty())
+        {
+            let retained_users = collect_retained_user_messages(
+                history,
+                config.retained_user_message_tokens,
+                config.retained_user_messages,
+            );
+            let mut compacted = Vec::with_capacity(retained_users.len().saturating_add(1));
+            compacted.push(Message::system(format!("{SUMMARY_PREFIX}{}", summary)));
+            compacted.extend(retained_users);
+            return Ok((compacted, CompactionMode::Provider));
+        }
+    }
+
+    // Compaction did not fire (e.g. history below the minimum trigger threshold);
+    // fall back to local summarization so the manual command always succeeds.
+    let compacted = summarize_locally(provider, model, history, config, options).await?;
+    Ok((compacted, CompactionMode::Local))
+}
+
+/// Local (provider-agnostic) summarization compaction.
+///
+/// Builds a summary prompt from the history, asks the provider to summarize via
+/// `generate`, and rebuilds the history as a summary system message plus the
+/// retained recent user messages. Applies the manual options to the summary
+/// request.
+async fn summarize_locally(
+    provider: &dyn LLMProvider,
+    model: &str,
+    history: &[Message],
+    config: &CompactionConfig,
+    options: &ManualCompactionOptions,
+) -> Result<Vec<Message>> {
+    let effective_config = config.clone().with_manual_overrides(options);
+    let summary_prompt = build_summary_prompt(history, &effective_config.summary_prompt);
+    let request = LLMRequest {
+        messages: vec![Message::user(summary_prompt)],
+        model: model.to_string(),
+        max_tokens: options.max_output_tokens,
+        reasoning_effort: options.reasoning_effort,
+        verbosity: options.verbosity,
         ..Default::default()
     };
 
@@ -197,15 +444,48 @@ fn truncate_user_message(message: &Message, token_budget: usize) -> Option<Messa
 
 #[cfg(test)]
 mod tests {
-    use super::{CompactionConfig, compact_history};
+    use super::{
+        CompactionConfig, ManualCompactionOptions, compact_history, compact_history_manual,
+        manual_compaction_strategy,
+    };
+    use crate::config::types::{ReasoningEffortLevel, VerbosityLevel};
+    use crate::exec::events::CompactionMode;
     use crate::llm::provider::{
         LLMError, LLMProvider, LLMRequest, LLMResponse, Message, MessageRole,
+        ResponsesCompactionOptions,
     };
     use async_trait::async_trait;
+    use std::sync::Mutex;
+    use vtcode_commons::llm::FinishReason;
 
     struct StubProvider;
 
     struct NativeCompactionProvider;
+
+    /// Provider that opts into the standalone manual-compaction path
+    /// (`supports_manual_compaction -> true`), e.g. OpenAI `/responses/compact`.
+    struct ManualStandaloneProvider {
+        last_options: Mutex<Option<ResponsesCompactionOptions>>,
+    }
+
+    /// Inline-compaction-capable provider (`supports_responses_compaction -> true`,
+    /// `supports_manual_compaction -> false`), e.g. Anthropic `compact_20260112`.
+    /// Returns a `Pause` finish with a compaction block so the inline path succeeds.
+    struct InlinePauseProvider {
+        last_request: Mutex<Option<LLMRequest>>,
+    }
+
+    /// Capturing provider with no native support; used to assert the Local summary
+    /// request carries the manual options.
+    struct CapturingProvider {
+        last_request: Mutex<Option<LLMRequest>>,
+    }
+
+    /// Inline-dispatched provider whose inline `generate` rejects the Anthropic
+    /// `compact_20260112` edit. Models providers that report
+    /// `supports_responses_compaction` but are not Anthropic-style inline
+    /// compactors; the dispatch must fall back to Local rather than aborting.
+    struct InlineRejectingProvider;
 
     #[async_trait]
     impl LLMProvider for StubProvider {
@@ -255,6 +535,439 @@ mod tests {
         ) -> Result<Vec<Message>, LLMError> {
             Ok(vec![Message::system("provider compacted".to_string())])
         }
+    }
+
+    #[async_trait]
+    impl LLMProvider for ManualStandaloneProvider {
+        fn name(&self) -> &str {
+            "manual-standalone"
+        }
+
+        async fn generate(&self, _request: LLMRequest) -> Result<LLMResponse, LLMError> {
+            Ok(LLMResponse::new("stub-model", "summary"))
+        }
+
+        fn supported_models(&self) -> Vec<String> {
+            vec!["stub-model".to_string()]
+        }
+
+        fn validate_request(&self, _request: &LLMRequest) -> Result<(), LLMError> {
+            Ok(())
+        }
+
+        fn supports_manual_compaction(&self, _model: &str) -> bool {
+            true
+        }
+
+        async fn compact_history_with_options(
+            &self,
+            _model: &str,
+            _history: &[Message],
+            options: &ResponsesCompactionOptions,
+        ) -> Result<Vec<Message>, LLMError> {
+            *self.last_options.lock().unwrap() = Some(options.clone());
+            Ok(vec![Message::system(
+                "provider standalone compacted".to_string(),
+            )])
+        }
+    }
+
+    #[async_trait]
+    impl LLMProvider for InlinePauseProvider {
+        fn name(&self) -> &str {
+            "inline-pause"
+        }
+
+        async fn generate(&self, request: LLMRequest) -> Result<LLMResponse, LLMError> {
+            *self.last_request.lock().unwrap() = Some(request);
+            let mut response = LLMResponse::new("stub-model", "compacted by provider");
+            response.finish_reason = FinishReason::Pause;
+            response.compaction = Some("provider compaction summary".to_string());
+            Ok(response)
+        }
+
+        fn supported_models(&self) -> Vec<String> {
+            vec!["stub-model".to_string()]
+        }
+
+        fn validate_request(&self, _request: &LLMRequest) -> Result<(), LLMError> {
+            Ok(())
+        }
+
+        fn supports_responses_compaction(&self, _model: &str) -> bool {
+            true
+        }
+    }
+
+    #[async_trait]
+    impl LLMProvider for CapturingProvider {
+        fn name(&self) -> &str {
+            "capturing"
+        }
+
+        async fn generate(&self, request: LLMRequest) -> Result<LLMResponse, LLMError> {
+            *self.last_request.lock().unwrap() = Some(request);
+            Ok(LLMResponse::new("stub-model", "summary"))
+        }
+
+        fn supported_models(&self) -> Vec<String> {
+            vec!["stub-model".to_string()]
+        }
+
+        fn validate_request(&self, _request: &LLMRequest) -> Result<(), LLMError> {
+            Ok(())
+        }
+    }
+
+    #[async_trait]
+    impl LLMProvider for InlineRejectingProvider {
+        fn name(&self) -> &str {
+            "inline-rejecting"
+        }
+
+        async fn generate(&self, request: LLMRequest) -> Result<LLMResponse, LLMError> {
+            // Reject only the inline compaction request (carries the Anthropic
+            // `compact_20260112` edit); the Local summary request must succeed.
+            if request.context_management.is_some() {
+                return Err(LLMError::Provider {
+                    message: "provider rejected inline compact edit".to_string(),
+                    metadata: None,
+                });
+            }
+            Ok(LLMResponse::new("stub-model", "summary"))
+        }
+
+        fn supported_models(&self) -> Vec<String> {
+            vec!["stub-model".to_string()]
+        }
+
+        fn validate_request(&self, _request: &LLMRequest) -> Result<(), LLMError> {
+            Ok(())
+        }
+
+        fn supports_responses_compaction(&self, _model: &str) -> bool {
+            true
+        }
+    }
+
+    fn sample_history() -> Vec<Message> {
+        vec![
+            Message::assistant("setup".to_string()),
+            Message::user("first request".to_string()),
+            Message::assistant("working".to_string()),
+            Message::user("second request".to_string()),
+        ]
+    }
+
+    #[tokio::test]
+    async fn manual_compaction_strategy_picks_local_for_plain_provider() {
+        assert_eq!(
+            manual_compaction_strategy(&StubProvider, "stub-model"),
+            super::CompactionStrategy::Local
+        );
+    }
+
+    #[tokio::test]
+    async fn manual_compaction_strategy_picks_native_standalone_for_manual_provider() {
+        let provider = ManualStandaloneProvider {
+            last_options: Mutex::new(None),
+        };
+        assert_eq!(
+            manual_compaction_strategy(&provider, "stub-model"),
+            super::CompactionStrategy::NativeStandalone
+        );
+    }
+
+    #[tokio::test]
+    async fn manual_compaction_strategy_picks_native_inline_for_responses_capable_provider() {
+        let provider = InlinePauseProvider {
+            last_request: Mutex::new(None),
+        };
+        assert_eq!(
+            manual_compaction_strategy(&provider, "stub-model"),
+            super::CompactionStrategy::NativeInline
+        );
+    }
+
+    #[tokio::test]
+    async fn compact_history_manual_uses_local_summary_for_plain_provider() {
+        let history = sample_history();
+        let config = CompactionConfig {
+            always_summarize: true,
+            ..CompactionConfig::default()
+        };
+
+        let (compacted, mode) = compact_history_manual(
+            &StubProvider,
+            "stub-model",
+            &history,
+            &config,
+            &ManualCompactionOptions::default(),
+        )
+        .await
+        .expect("manual compaction");
+
+        assert_eq!(mode, CompactionMode::Local);
+        assert_eq!(compacted.len(), 3);
+        assert_eq!(
+            compacted[0].content.as_text(),
+            "Previous conversation summary:\nsummary"
+        );
+        assert_eq!(compacted[1].content.as_text(), "first request");
+        assert_eq!(compacted[2].content.as_text(), "second request");
+    }
+
+    #[tokio::test]
+    async fn compact_history_manual_uses_native_standalone_for_manual_provider() {
+        let history = sample_history();
+        let config = CompactionConfig::default();
+        let provider = ManualStandaloneProvider {
+            last_options: Mutex::new(None),
+        };
+
+        let (compacted, mode) = compact_history_manual(
+            &provider,
+            "stub-model",
+            &history,
+            &config,
+            &ManualCompactionOptions::default(),
+        )
+        .await
+        .expect("manual compaction");
+
+        assert_eq!(mode, CompactionMode::Provider);
+        assert_eq!(compacted.len(), 1);
+        assert_eq!(
+            compacted[0].content.as_text(),
+            "provider standalone compacted"
+        );
+    }
+
+    #[tokio::test]
+    async fn compact_history_manual_passes_options_to_native_standalone() {
+        let history = sample_history();
+        let config = CompactionConfig::default();
+        let provider = ManualStandaloneProvider {
+            last_options: Mutex::new(None),
+        };
+        let options = ManualCompactionOptions {
+            instructions: Some("keep only decisions".to_string()),
+            max_output_tokens: Some(256),
+            reasoning_effort: Some(ReasoningEffortLevel::Minimal),
+            verbosity: Some(VerbosityLevel::High),
+        };
+
+        let (_compacted, mode) =
+            compact_history_manual(&provider, "stub-model", &history, &config, &options)
+                .await
+                .expect("manual compaction");
+
+        assert_eq!(mode, CompactionMode::Provider);
+        let captured = provider
+            .last_options
+            .lock()
+            .unwrap()
+            .clone()
+            .expect("captured options");
+        assert_eq!(
+            captured.instructions.as_deref(),
+            Some("keep only decisions")
+        );
+        assert_eq!(captured.max_output_tokens, Some(256));
+        assert_eq!(
+            captured.reasoning_effort,
+            Some(ReasoningEffortLevel::Minimal)
+        );
+        assert_eq!(captured.verbosity, Some(VerbosityLevel::High));
+    }
+
+    #[tokio::test]
+    async fn compact_history_manual_uses_native_inline_when_pause_and_compaction_present() {
+        let history = sample_history();
+        let config = CompactionConfig::default();
+        let provider = InlinePauseProvider {
+            last_request: Mutex::new(None),
+        };
+
+        let (compacted, mode) = compact_history_manual(
+            &provider,
+            "stub-model",
+            &history,
+            &config,
+            &ManualCompactionOptions::default(),
+        )
+        .await
+        .expect("manual compaction");
+
+        assert_eq!(mode, CompactionMode::Provider);
+        assert_eq!(compacted.len(), 3);
+        assert_eq!(
+            compacted[0].content.as_text(),
+            "Previous conversation summary:\nprovider compaction summary"
+        );
+        assert_eq!(compacted[1].content.as_text(), "first request");
+        assert_eq!(compacted[2].content.as_text(), "second request");
+
+        // The inline request must carry the `compact_20260112` edit with a forced
+        // pause so the provider actually performs compaction on demand.
+        let captured = provider
+            .last_request
+            .lock()
+            .unwrap()
+            .clone()
+            .expect("captured inline request");
+        let context_management = captured
+            .context_management
+            .as_ref()
+            .expect("context_management set on inline compaction request");
+        let edit = &context_management["edits"][0];
+        assert_eq!(edit["type"].as_str(), Some("compact_20260112"));
+        assert_eq!(edit["pause_after_compaction"].as_bool(), Some(true));
+        assert_eq!(edit["trigger"]["value"].as_u64(), Some(50_000));
+    }
+
+    #[tokio::test]
+    async fn compact_history_manual_inline_request_carries_instructions_when_provided() {
+        let history = sample_history();
+        let config = CompactionConfig::default();
+        let provider = InlinePauseProvider {
+            last_request: Mutex::new(None),
+        };
+        let options = ManualCompactionOptions {
+            instructions: Some("  keep only decisions  ".to_string()),
+            ..ManualCompactionOptions::default()
+        };
+
+        let (_compacted, _mode) =
+            compact_history_manual(&provider, "stub-model", &history, &config, &options)
+                .await
+                .expect("manual compaction");
+
+        let captured = provider
+            .last_request
+            .lock()
+            .unwrap()
+            .clone()
+            .expect("captured inline request");
+        let edit = &captured
+            .context_management
+            .as_ref()
+            .expect("context_management")["edits"][0];
+        assert_eq!(edit["instructions"].as_str(), Some("keep only decisions"));
+    }
+
+    #[tokio::test]
+    async fn compact_history_manual_falls_back_to_local_when_inline_compaction_not_fired() {
+        let history = sample_history();
+        let config = CompactionConfig::default();
+
+        // NativeCompactionProvider is inline-capable but its `generate` returns a
+        // normal `Stop` with no compaction block, so the inline attempt cannot
+        // fire and the dispatch must transparently fall back to Local.
+        let (compacted, mode) = compact_history_manual(
+            &NativeCompactionProvider,
+            "stub-model",
+            &history,
+            &config,
+            &ManualCompactionOptions::default(),
+        )
+        .await
+        .expect("manual compaction");
+
+        assert_eq!(mode, CompactionMode::Local);
+        assert_eq!(compacted.len(), 3);
+        assert_eq!(
+            compacted[0].content.as_text(),
+            "Previous conversation summary:\nsummary"
+        );
+    }
+
+    #[tokio::test]
+    async fn compact_history_manual_falls_back_to_local_when_inline_request_errors() {
+        let history = sample_history();
+        let config = CompactionConfig::default();
+
+        // A provider dispatched to NativeInline that rejects the Anthropic
+        // `compact_20260112` edit must not abort the whole command; the dispatch
+        // falls back to Local summarization (the manual `/compact` contract:
+        // always succeeds).
+        let (compacted, mode) = compact_history_manual(
+            &InlineRejectingProvider,
+            "stub-model",
+            &history,
+            &config,
+            &ManualCompactionOptions::default(),
+        )
+        .await
+        .expect("manual compaction should fall back to local");
+
+        assert_eq!(mode, CompactionMode::Local);
+        assert_eq!(compacted.len(), 3);
+        assert_eq!(
+            compacted[0].content.as_text(),
+            "Previous conversation summary:\nsummary"
+        );
+    }
+
+    #[tokio::test]
+    async fn compact_history_manual_applies_options_to_local_summary_request() {
+        let history = sample_history();
+        let config = CompactionConfig {
+            always_summarize: true,
+            ..CompactionConfig::default()
+        };
+        let provider = CapturingProvider {
+            last_request: Mutex::new(None),
+        };
+        let options = ManualCompactionOptions {
+            instructions: Some("KEEP DECISIONS ONLY".to_string()),
+            max_output_tokens: Some(128),
+            reasoning_effort: Some(ReasoningEffortLevel::Minimal),
+            verbosity: Some(VerbosityLevel::High),
+        };
+
+        let (compacted, mode) =
+            compact_history_manual(&provider, "stub-model", &history, &config, &options)
+                .await
+                .expect("manual compaction");
+
+        assert_eq!(mode, CompactionMode::Local);
+        let captured = provider
+            .last_request
+            .lock()
+            .unwrap()
+            .clone()
+            .expect("captured summary request");
+        assert_eq!(captured.max_tokens, Some(128));
+        assert_eq!(
+            captured.reasoning_effort,
+            Some(ReasoningEffortLevel::Minimal)
+        );
+        assert_eq!(captured.verbosity, Some(VerbosityLevel::High));
+        // The custom instructions override the default summary prompt.
+        let prompt = captured.messages[0].content.as_text();
+        assert!(prompt.contains("KEEP DECISIONS ONLY"));
+        assert!(!prompt.contains("acceptance criteria"));
+        assert_eq!(
+            compacted[0].content.as_text(),
+            "Previous conversation summary:\nsummary"
+        );
+    }
+
+    #[tokio::test]
+    async fn compact_history_manual_returns_empty_for_empty_history() {
+        let (compacted, mode) = compact_history_manual(
+            &StubProvider,
+            "stub-model",
+            &[],
+            &CompactionConfig::default(),
+            &ManualCompactionOptions::default(),
+        )
+        .await
+        .expect("manual compaction");
+
+        assert!(compacted.is_empty());
+        assert_eq!(mode, CompactionMode::Local);
     }
 
     #[tokio::test]

@@ -85,17 +85,17 @@ impl provider::LLMProvider for OpenAIProvider {
         )
     }
 
-    fn supports_manual_openai_compaction(&self, model: &str) -> bool {
+    fn supports_manual_compaction(&self, model: &str) -> bool {
         let requested = if model.trim().is_empty() {
             self.model.as_ref()
         } else {
             model
         };
-        self.supports_manual_openai_compaction_for_model(requested)
+        self.supports_manual_compaction_for_model(requested)
     }
 
-    fn manual_openai_compaction_unavailable_message(&self, model: &str) -> String {
-        self.manual_openai_compaction_unavailable_message_for_model(model)
+    fn manual_compaction_unavailable_message(&self, model: &str) -> String {
+        self.manual_compaction_unavailable_message_for_model(model)
     }
 
     async fn stream(
@@ -146,9 +146,9 @@ impl provider::LLMProvider for OpenAIProvider {
         } else {
             model
         };
-        if !self.supports_manual_openai_compaction_for_model(requested) {
+        if !self.supports_manual_compaction_for_model(requested) {
             return Err(provider::LLMError::Provider {
-                message: self.manual_openai_compaction_unavailable_message_for_model(requested),
+                message: self.manual_compaction_unavailable_message_for_model(requested),
                 metadata: None,
             });
         }

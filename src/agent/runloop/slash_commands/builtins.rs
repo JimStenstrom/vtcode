@@ -129,7 +129,7 @@ pub(in crate::agent::runloop::slash_commands) async fn execute_built_in_command_
                 renderer.line(MessageStyle::Error, &err)?;
                 renderer.line(
                     MessageStyle::Info,
-                    "Usage: /compact [--instructions <text>] [--max-output-tokens <n>] [--reasoning-effort <none|minimal|low|medium|high|xhigh>] [--verbosity <low|medium|high>] [--include <selector> ...] [--store|--no-store] [--service-tier <flex|priority>] [--prompt-cache-key <key>]",
+                    "Usage: /compact [--instructions <text>] [--max-output-tokens <n>] [--reasoning-effort <none|minimal|low|medium|high|xhigh>] [--verbosity <low|medium|high>] [--native-only]",
                 )?;
                 renderer.line(
                     MessageStyle::Info,

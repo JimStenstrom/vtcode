@@ -2806,12 +2806,12 @@ fn supports_responses_compaction_tracks_responses_api_availability() {
 }
 
 #[test]
-fn supports_manual_openai_compaction_is_native_only() {
+fn supports_manual_compaction_is_native_only() {
     let openai = native_openai_provider(models::openai::GPT_5);
-    assert!(openai.supports_manual_openai_compaction(models::openai::GPT_5));
+    assert!(openai.supports_manual_compaction(models::openai::GPT_5));
     assert!(
         !compatible_endpoint_provider(models::openai::GPT_5, "https://compat.example/v1")
-            .supports_manual_openai_compaction(models::openai::GPT_5)
+            .supports_manual_compaction(models::openai::GPT_5)
     );
     assert!(
         !OpenAIProvider::from_custom_config(
@@ -2827,26 +2827,26 @@ fn supports_manual_openai_compaction_is_native_only() {
             None,
             None,
         )
-        .supports_manual_openai_compaction(models::openai::GPT_5)
+        .supports_manual_compaction(models::openai::GPT_5)
     );
     assert!(
         !chatgpt_backend_provider(models::openai::GPT_5)
-            .supports_manual_openai_compaction(models::openai::GPT_5)
+            .supports_manual_compaction(models::openai::GPT_5)
     );
-    assert!(!openai.supports_manual_openai_compaction("gpt-4.1"));
+    assert!(!openai.supports_manual_compaction("gpt-4.1"));
 }
 
 #[test]
-fn manual_openai_compaction_unavailable_message_mentions_backend() {
+fn manual_compaction_unavailable_message_mentions_backend() {
     let chatgpt = chatgpt_backend_provider(models::openai::GPT_5);
-    let msg = chatgpt.manual_openai_compaction_unavailable_message(models::openai::GPT_5);
+    let msg = chatgpt.manual_compaction_unavailable_message(models::openai::GPT_5);
     assert!(msg.contains("ChatGPT subscription auth via chatgpt.com backend"));
     let compatible =
         compatible_endpoint_provider(models::openai::GPT_5, "https://compat.example/v1");
-    let msg2 = compatible.manual_openai_compaction_unavailable_message(models::openai::GPT_5);
+    let msg2 = compatible.manual_compaction_unavailable_message(models::openai::GPT_5);
     assert!(msg2.contains("configured OpenAI-compatible endpoint (https://compat.example/v1)"));
     let openai = native_openai_provider(models::openai::GPT_5);
-    let msg3 = openai.manual_openai_compaction_unavailable_message("gpt-4.1");
+    let msg3 = openai.manual_compaction_unavailable_message("gpt-4.1");
     assert!(msg3.contains("native OpenAI API (api.openai.com)"));
     assert!(msg3.contains("openai / native OpenAI API (api.openai.com) / gpt-4.1"));
 }

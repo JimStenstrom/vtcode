@@ -3,9 +3,7 @@ use std::fs;
 use anyhow::{Context, Result};
 use tempfile::Builder as TempFileBuilder;
 use toml::Value as TomlValue;
-use vtcode_core::config::build_openai_prompt_cache_key;
 use vtcode_core::config::loader::ConfigManager;
-use vtcode_core::llm::provider::ResponsesCompactionOptions;
 use vtcode_core::tools::terminal_app::{EditorLaunchConfig, TerminalAppLauncher};
 use vtcode_core::utils::ansi::MessageStyle;
 
@@ -23,11 +21,14 @@ pub(crate) async fn handle_compact_conversation(
     command: CompactConversationCommand,
 ) -> Result<SlashCommandControl> {
     match command {
-        CompactConversationCommand::Run { options } => {
-            if !manual_openai_compaction_available(&mut ctx)? {
+        CompactConversationCommand::Run {
+            options,
+            native_only,
+        } => {
+            if native_only && !manual_compaction_available(&mut ctx)? {
                 return Ok(SlashCommandControl::Continue);
             }
-            execute_manual_compaction(&mut ctx, options).await
+            execute_manual_compaction(&mut ctx, options, native_only).await
         }
         CompactConversationCommand::EditDefaultPrompt => {
             edit_default_prompt(&mut ctx).await?;
@@ -125,7 +126,8 @@ async fn persist_default_prompt(
 
 async fn execute_manual_compaction(
     ctx: &mut SlashCommandContext<'_>,
-    options: ResponsesCompactionOptions,
+    options: vtcode_core::compaction::ManualCompactionOptions,
+    native_only: bool,
 ) -> Result<SlashCommandControl> {
     if ctx.conversation_history.is_empty() {
         ctx.renderer
@@ -136,7 +138,7 @@ async fn execute_manual_compaction(
     let resolved_options = resolve_manual_compaction_options(ctx, options);
     let harness_snapshot = ctx.tool_registry.harness_context_snapshot();
     let outcome =
-        crate::agent::runloop::unified::turn::compaction::manual_openai_compact_history_in_place(
+        crate::agent::runloop::unified::turn::compaction::manual_compact_history_in_place(
             crate::agent::runloop::unified::turn::compaction::CompactionContext::new(
                 ctx.provider_client.as_ref(),
                 &ctx.config.model,
@@ -153,6 +155,7 @@ async fn execute_manual_compaction(
                 ctx.context_manager,
             ),
             &resolved_options,
+            native_only,
         )
         .await;
 
@@ -174,8 +177,10 @@ async fn execute_manual_compaction(
     ctx.renderer.line(
         MessageStyle::Info,
         &format!(
-            "Compacted conversation history ({} -> {} messages).",
-            outcome.original_len, outcome.compacted_len
+            "Compacted conversation history ({} -> {} messages, {} compaction).",
+            outcome.original_len,
+            outcome.compacted_len,
+            outcome.mode.as_str()
         ),
     )?;
     Ok(SlashCommandControl::Continue)
@@ -183,15 +188,10 @@ async fn execute_manual_compaction(
 
 fn resolve_manual_compaction_options(
     ctx: &SlashCommandContext<'_>,
-    options: ResponsesCompactionOptions,
-) -> ResponsesCompactionOptions {
+    options: vtcode_core::compaction::ManualCompactionOptions,
+) -> vtcode_core::compaction::ManualCompactionOptions {
     let default_prompt = current_default_prompt(ctx);
-    let prompt_cache_key = options
-        .prompt_cache_key
-        .clone()
-        .or_else(|| default_openai_prompt_cache_key(ctx));
-
-    ResponsesCompactionOptions {
+    vtcode_core::compaction::ManualCompactionOptions {
         instructions: options
             .instructions
             .and_then(trimmed_optional)
@@ -199,28 +199,7 @@ fn resolve_manual_compaction_options(
         max_output_tokens: options.max_output_tokens,
         reasoning_effort: options.reasoning_effort,
         verbosity: options.verbosity,
-        responses_include: options
-            .responses_include
-            .map(|values| {
-                values
-                    .into_iter()
-                    .filter_map(trimmed_optional)
-                    .collect::<Vec<_>>()
-            })
-            .filter(|values| !values.is_empty()),
-        response_store: options.response_store,
-        service_tier: options.service_tier.and_then(trimmed_optional),
-        prompt_cache_key,
     }
-}
-
-fn default_openai_prompt_cache_key(ctx: &SlashCommandContext<'_>) -> Option<String> {
-    let prompt_cache = &ctx.config.prompt_cache;
-    build_openai_prompt_cache_key(
-        prompt_cache.enabled && prompt_cache.providers.openai.enabled,
-        &prompt_cache.providers.openai.prompt_cache_key_mode,
-        ctx.session_stats.prompt_cache_lineage_id(),
-    )
 }
 
 fn current_default_prompt(ctx: &SlashCommandContext<'_>) -> Option<String> {
@@ -230,17 +209,17 @@ fn current_default_prompt(ctx: &SlashCommandContext<'_>) -> Option<String> {
         .and_then(trimmed_optional)
 }
 
-fn manual_openai_compaction_available(ctx: &mut SlashCommandContext<'_>) -> Result<bool> {
+fn manual_compaction_available(ctx: &mut SlashCommandContext<'_>) -> Result<bool> {
     if ctx
         .provider_client
-        .supports_manual_openai_compaction(&ctx.config.model)
+        .supports_manual_compaction(&ctx.config.model)
     {
         return Ok(true);
     }
 
     let message = ctx
         .provider_client
-        .manual_openai_compaction_unavailable_message(&ctx.config.model);
+        .manual_compaction_unavailable_message(&ctx.config.model);
     ctx.renderer.line(MessageStyle::Error, &message)?;
     Ok(false)
 }

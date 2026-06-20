@@ -1,7 +1,6 @@
 use super::{CompactConversationCommand, SessionLogExportFormat};
-use vtcode_config::OpenAIServiceTier;
+use vtcode_core::compaction::ManualCompactionOptions;
 use vtcode_core::config::{ReasoningEffortLevel, VerbosityLevel};
-use vtcode_core::llm::provider::ResponsesCompactionOptions;
 use vtcode_core::review::{ReviewSpec, build_review_spec};
 
 /// Iterate over whitespace-separated tokens in `args`, normalising each to
@@ -43,7 +42,8 @@ pub(super) fn parse_compact_command(args: &str) -> Result<CompactConversationCom
     let trimmed = args.trim();
     if trimmed.is_empty() {
         return Ok(CompactConversationCommand::Run {
-            options: ResponsesCompactionOptions::default(),
+            options: ManualCompactionOptions::default(),
+            native_only: false,
         });
     }
 
@@ -57,7 +57,8 @@ pub(super) fn parse_compact_command(args: &str) -> Result<CompactConversationCom
         }
     }
 
-    let mut options = ResponsesCompactionOptions::default();
+    let mut options = ManualCompactionOptions::default();
+    let mut native_only = false;
     let mut index = 0;
 
     while index < tokens.len() {
@@ -95,38 +96,22 @@ pub(super) fn parse_compact_command(args: &str) -> Result<CompactConversationCom
                         .ok_or_else(|| format!("Invalid value for --verbosity: {}", value))?,
                 );
             }
-            "--include" => {
-                let value = next_value("--include", &mut index)?;
-                options
-                    .responses_include
-                    .get_or_insert_with(Vec::new)
-                    .push(value);
-            }
-            "--store" => {
-                if matches!(options.response_store, Some(false)) {
-                    return Err("Use either --store or --no-store, not both.".to_string());
-                }
-                options.response_store = Some(true);
+            "--native-only" => {
+                native_only = true;
                 index += 1;
             }
-            "--no-store" => {
-                if matches!(options.response_store, Some(true)) {
-                    return Err("Use either --store or --no-store, not both.".to_string());
-                }
-                options.response_store = Some(false);
-                index += 1;
-            }
-            "--service-tier" => {
-                let value = next_value("--service-tier", &mut index)?;
-                options.service_tier = Some(
-                    OpenAIServiceTier::parse(&value)
-                        .ok_or_else(|| format!("Invalid value for --service-tier: {}", value))?
-                        .as_str()
-                        .to_string(),
-                );
-            }
-            "--prompt-cache-key" => {
-                options.prompt_cache_key = Some(next_value("--prompt-cache-key", &mut index)?);
+            // Dropped OpenAI-only flags. `/compact` is now provider-agnostic; these
+            // Responses-specific options no longer apply and are rejected with a
+            // pointer to the supported flags.
+            "--include" | "--store" | "--no-store" | "--service-tier" | "--prompt-cache-key" => {
+                return Err(format!(
+                    "`{}` is no longer supported by the unified `/compact` command. \
+                     `/compact` now works across all providers using only --instructions, \
+                     --max-output-tokens, --reasoning-effort, --verbosity, and --native-only. \
+                     OpenAI-native server-side options are applied automatically when compacting \
+                     against the native OpenAI API.",
+                    token
+                ));
             }
             _ => {
                 if let Some(value) = token.strip_prefix("--instructions=") {
@@ -149,23 +134,6 @@ pub(super) fn parse_compact_command(args: &str) -> Result<CompactConversationCom
                             .ok_or_else(|| format!("Invalid value for --verbosity: {}", value))?,
                     );
                     index += 1;
-                } else if let Some(value) = token.strip_prefix("--include=") {
-                    options
-                        .responses_include
-                        .get_or_insert_with(Vec::new)
-                        .push(value.to_string());
-                    index += 1;
-                } else if let Some(value) = token.strip_prefix("--service-tier=") {
-                    options.service_tier = Some(
-                        OpenAIServiceTier::parse(value)
-                            .ok_or_else(|| format!("Invalid value for --service-tier: {}", value))?
-                            .as_str()
-                            .to_string(),
-                    );
-                    index += 1;
-                } else if let Some(value) = token.strip_prefix("--prompt-cache-key=") {
-                    options.prompt_cache_key = Some(value.to_string());
-                    index += 1;
                 } else if token.starts_with('-') {
                     return Err(format!("Unknown option: {}", token));
                 } else {
@@ -175,7 +143,10 @@ pub(super) fn parse_compact_command(args: &str) -> Result<CompactConversationCom
         }
     }
 
-    Ok(CompactConversationCommand::Run { options })
+    Ok(CompactConversationCommand::Run {
+        options,
+        native_only,
+    })
 }
 
 pub(super) fn parse_session_log_export_format(
@@ -314,6 +285,7 @@ mod tests {
         CompactConversationCommand, SessionLogExportFormat, parse_analyze_scope,
         parse_compact_command, parse_review_spec, parse_session_log_export_format,
     };
+    use vtcode_core::compaction::ManualCompactionOptions;
     use vtcode_core::config::{ReasoningEffortLevel, VerbosityLevel};
     use vtcode_core::review::ReviewTarget;
 
@@ -323,6 +295,7 @@ mod tests {
             parse_compact_command("").expect("compact command"),
             CompactConversationCommand::Run {
                 options: Default::default(),
+                native_only: false,
             }
         );
     }
@@ -342,26 +315,41 @@ mod tests {
     #[test]
     fn compact_parses_direct_flags() {
         let parsed = parse_compact_command(
-            "--instructions \"keep only decisions\" --max-output-tokens 128 --reasoning-effort minimal --verbosity high --include reasoning.encrypted_content --include output_text.logprobs --store --service-tier priority --prompt-cache-key lineage-1",
+            "--instructions \"keep only decisions\" --max-output-tokens 128 --reasoning-effort minimal --verbosity high --native-only",
         )
         .expect("compact flags should parse");
 
         assert_eq!(
             parsed,
             CompactConversationCommand::Run {
-                options: vtcode_core::llm::provider::ResponsesCompactionOptions {
+                options: ManualCompactionOptions {
                     instructions: Some("keep only decisions".to_string()),
                     max_output_tokens: Some(128),
                     reasoning_effort: Some(ReasoningEffortLevel::Minimal),
                     verbosity: Some(VerbosityLevel::High),
-                    responses_include: Some(vec![
-                        "reasoning.encrypted_content".to_string(),
-                        "output_text.logprobs".to_string(),
-                    ]),
-                    response_store: Some(true),
-                    service_tier: Some("priority".to_string()),
-                    prompt_cache_key: Some("lineage-1".to_string()),
-                }
+                },
+                native_only: true,
+            }
+        );
+    }
+
+    #[test]
+    fn compact_parses_equals_form_flags() {
+        let parsed = parse_compact_command(
+            "--instructions=keep-decisions --max-output-tokens=64 --reasoning-effort=minimal --verbosity=high",
+        )
+        .expect("compact equals-form flags should parse");
+
+        assert_eq!(
+            parsed,
+            CompactConversationCommand::Run {
+                options: ManualCompactionOptions {
+                    instructions: Some("keep-decisions".to_string()),
+                    max_output_tokens: Some(64),
+                    reasoning_effort: Some(ReasoningEffortLevel::Minimal),
+                    verbosity: Some(VerbosityLevel::High),
+                },
+                native_only: false,
             }
         );
     }
@@ -371,8 +359,24 @@ mod tests {
         parse_compact_command("--max-output-tokens nope").unwrap_err();
         parse_compact_command("--reasoning-effort absurd").unwrap_err();
         parse_compact_command("--verbosity louder").unwrap_err();
-        parse_compact_command("--service-tier turbo").unwrap_err();
-        parse_compact_command("--store --no-store").unwrap_err();
+        parse_compact_command("--bogus-flag").unwrap_err();
+    }
+
+    #[test]
+    fn compact_rejects_dropped_openai_only_flags() {
+        for dropped in [
+            "--include reasoning.encrypted_content",
+            "--store",
+            "--no-store",
+            "--service-tier priority",
+            "--prompt-cache-key lineage-1",
+        ] {
+            let err = parse_compact_command(dropped).unwrap_err();
+            assert!(
+                err.contains("no longer supported"),
+                "expected deprecation message for `{dropped}`, got: {err}"
+            );
+        }
     }
 
     #[test]

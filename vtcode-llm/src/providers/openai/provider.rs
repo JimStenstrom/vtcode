@@ -378,13 +378,13 @@ impl OpenAIProvider {
         } else if self.provider_key_override.is_some() {
             (
                 format!("custom OpenAI-compatible provider endpoint ({})", self.base_url),
-                "custom OpenAI-compatible providers are intentionally excluded from the manual `/compact` UX"
+                "custom OpenAI-compatible provider endpoints do not expose the standalone `/responses/compact` endpoint"
                     .to_string(),
             )
         } else if !self.base_url.contains("api.openai.com") {
             (
                 format!("configured OpenAI-compatible endpoint ({})", self.base_url),
-                "manual `/compact` is restricted to the native OpenAI API host".to_string(),
+                "the standalone `/responses/compact` endpoint is only served by the native OpenAI API host".to_string(),
             )
         } else {
             (
@@ -394,7 +394,7 @@ impl OpenAIProvider {
         };
 
         format!(
-            "Manual `/compact` is available only for the native OpenAI provider on api.openai.com with a Responses-compatible OpenAI model. Active provider/backend/model: {} / {} / {}. Reason: {}.",
+            "`--native-only` `/compact` requires a native server-side compaction endpoint, which is unavailable for this configuration. Active provider/backend/model: {} / {} / {}. Reason: {}. Run `/compact` without `--native-only` to compact via the local summarization fallback.",
             self.name(),
             backend,
             requested,

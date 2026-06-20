@@ -3,8 +3,8 @@ use super::{
     AgentManagerAction, CompactConversationCommand, ScheduleCommandAction, SessionLogExportFormat,
     SlashCommandOutcome, SubprocessManagerAction, handle_slash_command,
 };
+use vtcode_core::compaction::ManualCompactionOptions;
 use vtcode_core::config::types::ReasoningEffortLevel;
-use vtcode_core::llm::provider::ResponsesCompactionOptions;
 use vtcode_core::skills::command_skill_specs;
 use vtcode_core::utils::ansi::AnsiRenderer;
 use vtcode_ui::tui::app::InlineHandle;
@@ -666,8 +666,11 @@ async fn compact_commands_parse_to_automatic_and_direct_outcomes() {
     assert!(matches!(
         automatic,
         SlashCommandOutcome::CompactConversation {
-            command: CompactConversationCommand::Run { ref options }
-        } if *options == ResponsesCompactionOptions::default()
+            command: CompactConversationCommand::Run {
+                ref options,
+                native_only: false,
+            }
+        } if *options == ManualCompactionOptions::default()
     ));
 
     let edit_prompt = handle_slash_command("compact edit-prompt", &mut renderer, &workspace)
@@ -690,8 +693,19 @@ async fn compact_commands_parse_to_automatic_and_direct_outcomes() {
         }
     ));
 
-    let direct = handle_slash_command(
+    // Dropped OpenAI-only flags (`--include`, `--store`) are now rejected with a
+    // deprecation message instead of being parsed into provider-specific options.
+    let rejected = handle_slash_command(
         "compact --instructions \"keep decisions\" --include reasoning.encrypted_content --store",
+        &mut renderer,
+        &workspace,
+    )
+    .await
+    .expect("rejected compact should still produce an outcome");
+    assert!(matches!(rejected, SlashCommandOutcome::Handled));
+
+    let direct = handle_slash_command(
+        "compact --instructions \"keep decisions\" --max-output-tokens 128 --reasoning-effort minimal --verbosity high --native-only",
         &mut renderer,
         &workspace,
     )
@@ -700,11 +714,14 @@ async fn compact_commands_parse_to_automatic_and_direct_outcomes() {
     assert!(matches!(
         direct,
         SlashCommandOutcome::CompactConversation {
-            command: CompactConversationCommand::Run { ref options }
+            command: CompactConversationCommand::Run {
+                ref options,
+                native_only: true,
+            }
         } if options.instructions.as_deref() == Some("keep decisions")
-            && options.responses_include.as_deref()
-                == Some(&["reasoning.encrypted_content".to_string()][..])
-            && options.response_store == Some(true)
+            && options.max_output_tokens == Some(128)
+            && options.reasoning_effort == Some(ReasoningEffortLevel::Minimal)
+            && options.verbosity == Some(vtcode_core::config::types::VerbosityLevel::High)
     ));
 }
 

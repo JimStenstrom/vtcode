@@ -1,5 +1,4 @@
 use vtcode_core::config::types::ReasoningEffortLevel;
-use vtcode_core::llm::provider::ResponsesCompactionOptions;
 use vtcode_core::scheduler::{LoopCommand, ScheduleCreateInput};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -95,7 +94,10 @@ pub(crate) enum LocalServerAction {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum CompactConversationCommand {
-    Run { options: ResponsesCompactionOptions },
+    Run {
+        options: vtcode_core::compaction::ManualCompactionOptions,
+        native_only: bool,
+    },
     EditDefaultPrompt,
     ResetDefaultPrompt,
 }

@@ -32,7 +32,7 @@ use vtcode_core::core::agent::harness_artifacts::{
     current_task_path, read_evaluation_summary, read_spec_summary,
 };
 use vtcode_core::hooks::LifecycleHookEngine;
-use vtcode_core::llm::provider::{LLMProvider, Message, MessageRole, ResponsesCompactionOptions};
+use vtcode_core::llm::provider::{LLMProvider, Message, MessageRole};
 use vtcode_core::llm::utils::truncate_to_token_limit;
 use vtcode_core::persistent_memory::{
     GroundedFactRecord, dedup_latest_facts, normalize_whitespace, truncate_for_fact,
@@ -368,10 +368,11 @@ pub(crate) async fn compact_history_in_place_with_events(
     .await
 }
 
-pub(crate) async fn manual_openai_compact_history_in_place(
+pub(crate) async fn manual_compact_history_in_place(
     context: CompactionContext<'_>,
     state: CompactionState<'_>,
-    options: &ResponsesCompactionOptions,
+    options: &vtcode_core::compaction::ManualCompactionOptions,
+    native_only: bool,
 ) -> Result<Option<CompactionOutcome>> {
     let CompactionContext {
         provider,
@@ -389,8 +390,12 @@ pub(crate) async fn manual_openai_compact_history_in_place(
         context_manager,
     } = state;
 
-    if !provider.supports_manual_openai_compaction(model) {
-        anyhow::bail!(provider.manual_openai_compaction_unavailable_message(model));
+    // `--native-only` preserves the legacy strict behavior: refuse unless the
+    // provider exposes a real standalone compaction endpoint (OpenAI
+    // `/responses/compact`). Without the flag, every provider proceeds via the
+    // strategy dispatch (native standalone, native inline, or local summary).
+    if native_only && !provider.supports_manual_compaction(model) {
+        anyhow::bail!(provider.manual_compaction_unavailable_message(model));
     }
 
     let previous_response_chain_present = session_stats
@@ -399,9 +404,14 @@ pub(crate) async fn manual_openai_compact_history_in_place(
     let mut compaction_input = history.clone();
     strip_existing_memory_envelope(&mut compaction_input);
     let original_history = compaction_input.clone();
-    let compacted = provider
-        .compact_history_with_options(model, &compaction_input, options)
-        .await?;
+    let (compacted, compaction_mode) = vtcode_core::compaction::compact_history_manual(
+        provider,
+        model,
+        &compaction_input,
+        &local_compaction_config(vt_cfg, true),
+        options,
+    )
+    .await?;
     if compacted == compaction_input {
         return Ok(None);
     }
@@ -428,7 +438,7 @@ pub(crate) async fn manual_openai_compact_history_in_place(
         original_history,
         previous_response_chain_present,
         compacted,
-        vtcode_core::exec::events::CompactionMode::Provider,
+        compaction_mode,
     )
     .await
     .map(Some)
@@ -481,16 +491,32 @@ async fn compact_history_segment_in_place(
     let mut compaction_input = history.clone();
     strip_existing_memory_envelope(&mut compaction_input);
     let original_history = compaction_input.clone();
-    let compaction_history = if provider.supports_responses_compaction(model) {
-        compaction_input
-    } else {
-        dedup_repeated_file_reads_for_local_compaction(&compaction_input)
-    };
-    let compacted = vtcode_core::compaction::compact_history(
+
+    // Route through the same strategy dispatch as the manual `/compact` command
+    // (`compact_history_manual`), so auto/recovery/targeted compaction uses the
+    // correct native strategy per provider instead of the legacy binary
+    // `supports_responses_compaction` path. NativeInline (Anthropic) replaces a
+    // hard `Err` (Anthropic does not override `compact_history`) with a graceful
+    // Local fallback, so recovery never aborts.
+    let config = local_compaction_config(vt_cfg, false);
+    let strategy = vtcode_core::compaction::manual_compaction_strategy(provider, model);
+    let compaction_history =
+        if matches!(strategy, vtcode_core::compaction::CompactionStrategy::Local) {
+            dedup_repeated_file_reads_for_local_compaction(&compaction_input)
+        } else {
+            compaction_input.clone()
+        };
+    // Preserve the legacy small-segment short-circuit: auto/recovery/targeted
+    // pass `always_summarize=false`, so skip compaction for tiny segments.
+    if !config.always_summarize && compaction_history.len() <= config.keep_last_messages {
+        return Ok(None);
+    }
+    let (compacted, compaction_mode) = vtcode_core::compaction::compact_history_manual(
         provider,
         model,
         &compaction_history,
-        &local_compaction_config(vt_cfg, false),
+        &config,
+        &vtcode_core::compaction::ManualCompactionOptions::default(),
     )
     .await?;
 
@@ -498,11 +524,6 @@ async fn compact_history_segment_in_place(
         return Ok(None);
     }
 
-    let compaction_mode = if provider.supports_responses_compaction(model) {
-        vtcode_core::exec::events::CompactionMode::Provider
-    } else {
-        vtcode_core::exec::events::CompactionMode::Local
-    };
     apply_compacted_history(
         CompactionContext {
             provider,
