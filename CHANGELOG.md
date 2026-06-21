@@ -2,6 +2,24 @@
 
 All notable changes to vtcode will be documented in this file.
 ## v0.73.2 - 2026-01-29
+## 0.133.3 - 2026-06-21
+
+### Highlights
+#### Bug Fixes
+
+- Preflight respects release channel, DRY config check, collapsible if (db12a590) 
+- Resolve clippy warnings across workspace (967c2e7d) 
+- Explicit semver equality guard prevents spurious update notices (e0573aa6) 
+#### Features
+
+- Self-update check on every launch (4787b4d9) 
+### Other Changes
+#### Other
+
+- Simplify preflight debug logging, remove redundant variable (c2bb6672) 
+#### Refactors
+
+- Update ATIF metrics handling and exit data structure for zero-allocation (908b5224) 
 ## 0.133.2 - 2026-06-21
 
 ### Highlights
