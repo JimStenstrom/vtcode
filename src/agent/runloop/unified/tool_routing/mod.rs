@@ -1158,6 +1158,22 @@ pub(crate) async fn ensure_tool_permission_with_call_id<S: UiSession + ?Sized>(
         &display_labels.learning_label,
     );
 
+    let cached_command_approval = if let Some(cache) = tool_permission_cache {
+        let permission_cache = cache.read().await;
+        session_approval_cache_keys(
+            tool_name,
+            &cache_key,
+            &approval_learning_target,
+            exact_shell_approval_target.as_ref(),
+        )
+        .any(|key| permission_cache.can_use_cached(key))
+    } else {
+        false
+    };
+    if cached_command_approval {
+        shell_approval_reason = None;
+    }
+
     let raw_requires_sandbox_prompt = shell_approval_reason.is_some();
     let policy_requires_prompt = policy_decision == ToolPermissionDecision::Prompt;
     let full_auto_promptable = full_auto_allowlist_active

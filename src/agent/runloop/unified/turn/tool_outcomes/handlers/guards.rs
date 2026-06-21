@@ -56,8 +56,15 @@ pub(super) fn enforce_blocked_tool_call_guard(
         return Some(TurnHandlerOutcome::Continue);
     }
 
+    // A single allowed tool call is enough to reset `streak`, but the model can
+    // still churn on alternating blocked calls (for example repeated shell
+    // denials interleaved with allowed reads). Keep the consecutive cap for the
+    // common tight-loop case and add a wider total fuse for non-consecutive
+    // blocked calls in normal turns. Recovery mode already uses `max_streak` as
+    // its tighter total fuse after the one-pass grace above.
     let recovery_total_fuse_tripped = ctx.is_recovery_active() && blocked_total > max_streak;
-    if streak <= max_streak && !recovery_total_fuse_tripped {
+    let normal_total_fuse_tripped = !ctx.is_recovery_active() && blocked_total > max_streak * 2;
+    if streak <= max_streak && !recovery_total_fuse_tripped && !normal_total_fuse_tripped {
         return None;
     }
 
@@ -65,6 +72,11 @@ pub(super) fn enforce_blocked_tool_call_guard(
     let block_reason = if recovery_total_fuse_tripped {
         format!(
             "Blocked tool calls reached the recovery-mode cap ({max_streak}) for this turn. Last blocked call: '{display_tool}'. Stopping turn."
+        )
+    } else if normal_total_fuse_tripped {
+        let max_total = max_streak * 2;
+        format!(
+            "Blocked tool calls reached per-turn cap ({max_total}). Last blocked call: '{display_tool}'. Stopping turn to prevent retry churn."
         )
     } else {
         format!(
@@ -79,10 +91,13 @@ pub(super) fn enforce_blocked_tool_call_guard(
                 format!(
                     "Blocked tool calls exceeded the recovery-mode cap ({max_streak}) for this turn."
                 )
+            } else if normal_total_fuse_tripped {
+                let max_total = max_streak * 2;
+                format!("Blocked tool calls exceeded cap ({max_total}) for this turn.")
             } else {
                 format!("Consecutive blocked tool calls exceeded cap ({max_streak}) for this turn.")
             },
-            if recovery_total_fuse_tripped {
+            if recovery_total_fuse_tripped || normal_total_fuse_tripped {
                 "blocked_total"
             } else {
                 "blocked_streak"

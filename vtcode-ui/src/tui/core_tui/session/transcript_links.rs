@@ -571,6 +571,33 @@ fn may_contain_link_candidate_text(text: &str) -> bool {
         || text.contains("../")
 }
 
+fn line_local_link_bounds(
+    link_start: usize,
+    link_end: usize,
+    line_start: usize,
+    line_end: usize,
+    line_text: &str,
+) -> Option<(usize, usize)> {
+    let relative_start = link_start.max(line_start).saturating_sub(line_start);
+    let relative_end = link_end.min(line_end).saturating_sub(line_start);
+    if relative_start >= relative_end {
+        return None;
+    }
+
+    let start = if line_text.is_char_boundary(relative_start) {
+        relative_start
+    } else {
+        line_text.floor_char_boundary(relative_start)
+    };
+    let end = if line_text.is_char_boundary(relative_end) {
+        relative_end
+    } else {
+        line_text.ceil_char_boundary(relative_end)
+    };
+
+    (start < end && end <= line_text.len()).then_some((start, end))
+}
+
 #[inline]
 pub(crate) fn transcript_line_text<'a>(line: &'a Line<'a>) -> Cow<'a, str> {
     match line.spans.as_slice() {
@@ -708,8 +735,15 @@ pub(crate) fn decorate_detected_link_lines(
                     continue;
                 }
 
-                let relative_start = local_start - wrapped_start;
-                let relative_end = local_end - wrapped_start;
+                let Some((relative_start, relative_end)) = line_local_link_bounds(
+                    *start,
+                    *end,
+                    wrapped_start,
+                    wrapped_end,
+                    &wrapped_text,
+                ) else {
+                    continue;
+                };
                 let start_col = UnicodeWidthStr::width(&wrapped_text[..relative_start]);
                 let width = UnicodeWidthStr::width(&wrapped_text[relative_start..relative_end]);
                 if width == 0 {
@@ -775,8 +809,15 @@ pub(crate) fn project_detected_links_onto_wrapped_lines(
                 continue;
             }
 
-            let relative_start = local_start - wrapped_start;
-            let relative_end = local_end - wrapped_start;
+            let Some((relative_start, relative_end)) = line_local_link_bounds(
+                *start,
+                *end,
+                wrapped_start,
+                wrapped_end,
+                &wrapped_text,
+            ) else {
+                continue;
+            };
             let start_col = UnicodeWidthStr::width(&wrapped_text[..relative_start]);
             let width = UnicodeWidthStr::width(&wrapped_text[relative_start..relative_end]);
             if width == 0 {
@@ -1051,5 +1092,23 @@ mod tests {
         let text = transcript_line_text(&line);
 
         assert!(matches!(text, Cow::Owned(ref content) if content == "plain text only"));
+    }
+
+    #[test]
+    fn project_detected_links_preserves_char_boundaries_for_unicode_wraps() {
+        let original_text = "vtcode-core/src/tool_policy.rs — those files";
+        let wrapped_lines = vec![Line::from("vtcode-core/src/tool_policy.rs —"), Line::from(" those files")];
+
+        let projected = project_detected_links_onto_wrapped_lines(
+            &wrapped_lines,
+            original_text,
+            Some(Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap()),
+        );
+
+        assert_eq!(projected.len(), 2);
+        assert_eq!(projected[0].len(), 1);
+        assert_eq!(projected[0][0].start, 0);
+        assert!(projected[0][0].end <= "vtcode-core/src/tool_policy.rs —".len());
+        assert!("vtcode-core/src/tool_policy.rs —".is_char_boundary(projected[0][0].end));
     }
 }

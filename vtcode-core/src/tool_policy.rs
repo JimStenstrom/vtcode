@@ -28,10 +28,15 @@ use crate::utils::file_utils::{
 };
 
 const AUTO_ALLOW_TOOLS: &[&str] = &[
+    tools::START_PLANNING,
+    tools::TASK_TRACKER,
     tools::UNIFIED_SEARCH,
     tools::READ_FILE,
-    // Unified exec remains prompt-gated; legacy PTY helpers stay compatibility-only
-    // and are no longer auto-seeded into default policy files.
+    // Whitelist the core execution tool itself; individual shell commands remain
+    // gated by command/sandbox approval policy.
+    tools::UNIFIED_EXEC,
+    // Legacy PTY helpers stay compatibility-only and are no longer auto-seeded
+    // into default policy files.
     "cargo_check",
     "cargo_test",
     "git_status",
@@ -42,7 +47,15 @@ const AUTO_ALLOW_TOOLS: &[&str] = &[
 const SHELL_APPROVAL_SCOPE_MARKER: &str = "|sandbox_permissions=";
 const DEFAULT_APPROVAL_SCOPE_SIGNATURE: &str =
     "sandbox_permissions=\"use_default\"|additional_permissions=null";
-const READ_ONLY_COMMANDS_WITH_PATH_ARG: &[&str] = &["cat", "head", "tail", "sed", "grep", "rg"];
+const KNOWN_MUTATING_COMMANDS: &[&str] = &[
+    "awk", "chmod", "chown", "cp", "curl", "dd", "install", "ln", "mkdir", "mv", "perl",
+    "python", "python3", "rm", "rmdir", "rsync", "ruby", "sh", "bash", "zsh", "tee", "touch",
+    "truncate", "wget",
+];
+const MUTATING_OPTION_HINTS: &[&str] = &[
+    "--delete", "--exec", "--in-place", "--output", "--remove", "--write", "-delete",
+    "-exec", "-execdir", "-i", "-o",
+];
 
 /// Decision result for tool execution
 #[derive(Debug, Clone, PartialEq)]
@@ -1297,15 +1310,47 @@ fn shell_command_words_for_approval(text: &str) -> Vec<String> {
 }
 
 fn is_probable_workspace_path(word: &str) -> bool {
-    !word.is_empty()
-        && !word.starts_with('-')
-        && !word.starts_with('/')
-        && !word.starts_with('~')
-        && word != "."
-        && word != ".."
-        && word.split('/').all(|part| {
-            !part.is_empty() && part != "." && part != ".." && !part.contains('\0')
-        })
+    if word.is_empty() || word.starts_with('-') || word.starts_with('~') || word == "." {
+        return false;
+    }
+
+    let parts = if word.starts_with('/') {
+        word.split('/').skip(1).collect::<Vec<_>>()
+    } else {
+        word.split('/').collect::<Vec<_>>()
+    };
+
+    !parts.is_empty()
+        && parts
+            .iter()
+            .all(|part| !part.is_empty() && *part != "." && *part != ".." && !part.contains('\0'))
+}
+
+fn command_looks_like_readonly_path_query(program: &str, words: &[String]) -> bool {
+    if program.is_empty()
+        || KNOWN_MUTATING_COMMANDS.contains(&program)
+        || words
+            .iter()
+            .skip(1)
+            .any(|word| MUTATING_OPTION_HINTS.contains(&word.as_str()))
+    {
+        return false;
+    }
+
+    words.iter().skip(1).any(|word| is_probable_workspace_path(word))
+}
+
+fn command_path_args<'a>(program: &str, words: &'a [String]) -> Vec<&'a str> {
+    if !command_looks_like_readonly_path_query(program, words) {
+        return Vec::new();
+    }
+
+    words
+        .iter()
+        .skip(1)
+        .filter(|word| is_probable_workspace_path(word))
+        .map(String::as_str)
+        .collect()
 }
 
 fn derived_shell_approval_prefixes(key: &str) -> Vec<String> {
@@ -1325,15 +1370,17 @@ fn derived_shell_approval_prefixes(key: &str) -> Vec<String> {
 
     let mut prefixes = Vec::new();
     if let Some(program) = words.first().map(String::as_str) {
-        if READ_ONLY_COMMANDS_WITH_PATH_ARG.contains(&program)
-            && words
-                .last()
-                .is_some_and(|path| is_probable_workspace_path(path))
-            && words.len() > 2
-        {
-            prefixes.push(append_scope(shell_words::join(
-                words[..words.len() - 1].iter().map(String::as_str),
-            )));
+        let path_args = command_path_args(program, &words);
+        if !path_args.is_empty() {
+            let option_words = words[1..]
+                .iter()
+                .filter(|word| !is_probable_workspace_path(word))
+                .map(String::as_str)
+                .collect::<Vec<_>>();
+            let mut prefix_words = Vec::with_capacity(1 + option_words.len());
+            prefix_words.push(program);
+            prefix_words.extend(option_words);
+            prefixes.push(append_scope(shell_words::join(prefix_words)));
         }
 
         match program {
@@ -1595,6 +1642,36 @@ mod tests {
             prefix
                 == "sed -n|sandbox_permissions=\"use_default\"|additional_permissions=null"
         }));
+    }
+
+    #[test]
+    fn approval_prefix_derivation_handles_absolute_ls_path() {
+        let prefixes = derived_shell_approval_prefixes(
+            "ls /Users/vinhnguyenxuan/Developer/learn-by-doing/vtcode/.claude/|sandbox_permissions=\"use_default\"|additional_permissions=null",
+        );
+
+        assert!(prefixes.iter().any(|prefix| {
+            prefix == "ls|sandbox_permissions=\"use_default\"|additional_permissions=null"
+        }));
+    }
+
+    #[test]
+    fn approval_prefix_derivation_generalizes_non_mutating_path_commands() {
+        let prefixes = derived_shell_approval_prefixes(
+            "wc -l src/lib.rs README.md|sandbox_permissions=\"use_default\"|additional_permissions=null",
+        );
+
+        assert!(prefixes.iter().any(|prefix| {
+            prefix == "wc -l|sandbox_permissions=\"use_default\"|additional_permissions=null"
+        }));
+        assert!(derived_shell_approval_prefixes(
+            "rm src/lib.rs|sandbox_permissions=\"use_default\"|additional_permissions=null"
+        )
+        .is_empty());
+        assert!(derived_shell_approval_prefixes(
+            "perl -i -pe 's/a/b/' src/lib.rs|sandbox_permissions=\"use_default\"|additional_permissions=null"
+        )
+        .is_empty());
     }
 
     #[tokio::test]

@@ -202,8 +202,80 @@ fn learned_shell_pattern(tool_name: &str, tool_args: Option<&Value>) -> Option<L
     // by commands like `find src && rm -rf target` or `bash -c '...'`.
     let command_words = extract_shell_approval_command_prefix_words(tool_name, tool_args)?;
 
-    learned_find_pattern(&command_words, &scope_signature)
+    learned_readonly_path_pattern(&command_words, &scope_signature)
+        .or_else(|| learned_find_pattern(&command_words, &scope_signature))
         .or_else(|| learned_sed_print_pattern(&command_words, &scope_signature))
+}
+
+fn learned_readonly_path_pattern(
+    command_words: &[String],
+    scope_signature: &str,
+) -> Option<LearnedPattern> {
+    let program = command_words.first()?.as_str();
+    if !command_looks_like_readonly_path_query(program, command_words) {
+        return None;
+    }
+    if command_words.len() < 2
+        || !command_words[1..]
+            .iter()
+            .any(|word| is_probable_readonly_path_arg(word))
+    {
+        return None;
+    }
+
+    let option_words = command_words[1..]
+        .iter()
+        .filter(|word| !is_probable_readonly_path_arg(word))
+        .map(String::as_str)
+        .collect::<Vec<_>>();
+    let mut prefix_words = Vec::with_capacity(1 + option_words.len());
+    prefix_words.push(program);
+    prefix_words.extend(option_words);
+    let rendered = shell_words::join(prefix_words);
+
+    Some(LearnedPattern {
+        key: format!("shell-pattern:{rendered}|{scope_signature}"),
+        label: format!("safe `{rendered}` path reads"),
+    })
+}
+
+fn command_looks_like_readonly_path_query(program: &str, words: &[String]) -> bool {
+    const KNOWN_MUTATING_COMMANDS: &[&str] = &[
+        "awk", "chmod", "chown", "cp", "curl", "dd", "install", "ln", "mkdir", "mv",
+        "perl", "python", "python3", "rm", "rmdir", "rsync", "ruby", "sh", "bash", "zsh",
+        "tee", "touch", "truncate", "wget",
+    ];
+    const MUTATING_OPTION_HINTS: &[&str] = &[
+        "--delete", "--exec", "--in-place", "--output", "--remove", "--write", "-delete",
+        "-exec", "-execdir", "-i", "-o",
+    ];
+
+    !program.is_empty()
+        && !KNOWN_MUTATING_COMMANDS.contains(&program)
+        && !words
+            .iter()
+            .skip(1)
+            .any(|word| MUTATING_OPTION_HINTS.contains(&word.as_str()))
+        && words
+            .iter()
+            .skip(1)
+            .any(|word| is_probable_readonly_path_arg(word))
+}
+
+fn is_probable_readonly_path_arg(word: &str) -> bool {
+    if word.is_empty() || word.starts_with('-') || word.starts_with('~') || word == "." {
+        return false;
+    }
+    let parts = if word.starts_with('/') {
+        word.split('/').skip(1).collect::<Vec<_>>()
+    } else {
+        word.split('/').collect::<Vec<_>>()
+    };
+
+    !parts.is_empty()
+        && parts
+            .iter()
+            .all(|part| !part.is_empty() && *part != "." && *part != ".." && !part.contains('\0'))
 }
 
 fn learned_find_pattern(command_words: &[String], scope_signature: &str) -> Option<LearnedPattern> {
@@ -395,7 +467,8 @@ mod tests {
 
     #[test]
     fn grep_command_has_no_pattern() {
-        assert!(pattern_for("grep -r foo src").is_none());
+        let pattern = pattern_for("grep -r foo src").expect("pattern");
+        assert!(pattern.key.starts_with("shell-pattern:grep -r foo|"));
     }
 
     #[test]
@@ -406,9 +479,9 @@ mod tests {
         assert!(
             pattern
                 .key
-                .starts_with("shell-pattern:sed -n <range> vtcode-core|sandbox_permissions=")
+                .starts_with("shell-pattern:sed -n|sandbox_permissions=")
         );
-        assert_eq!(pattern.label, "safe `sed -n` reads under `vtcode-core`");
+        assert_eq!(pattern.label, "safe `sed -n` path reads");
     }
 
     #[test]
@@ -416,6 +489,35 @@ mod tests {
         assert!(pattern_for("sed -i 's/a/b/' src/lib.rs").is_none());
         assert!(pattern_for("sed -n '1,10d' src/lib.rs").is_none());
         assert!(pattern_for("sed -n '1,10p' ../src/lib.rs").is_none());
+    }
+
+    #[test]
+    fn ls_multiple_absolute_paths_yields_compact_pattern_key() {
+        let pattern = pattern_for(
+            "ls /Users/me/project/.claude/agents/ /Users/me/project/.codex/agents/ /Users/me/project/.opencode/agents/",
+        )
+        .expect("pattern");
+
+        assert!(
+            pattern
+                .key
+                .starts_with("shell-pattern:ls|sandbox_permissions=")
+        );
+        assert_eq!(pattern.label, "safe `ls` path reads");
+    }
+
+    #[test]
+    fn unknown_non_mutating_path_command_gets_compact_pattern() {
+        let pattern = pattern_for("wc -l src/lib.rs README.md").expect("pattern");
+        assert!(pattern.key.starts_with("shell-pattern:wc -l|"));
+        assert_eq!(pattern.label, "safe `wc -l` path reads");
+    }
+
+    #[test]
+    fn mutating_path_commands_do_not_get_generic_pattern() {
+        assert!(pattern_for("rm src/lib.rs").is_none());
+        assert!(pattern_for("cp src/lib.rs /tmp/lib.rs").is_none());
+        assert!(pattern_for("perl -i -pe 's/a/b/' src/lib.rs").is_none());
     }
 
     #[test]

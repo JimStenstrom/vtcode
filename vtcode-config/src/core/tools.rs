@@ -282,6 +282,9 @@ const fn default_editor_suspend_tui() -> bool {
 }
 
 const DEFAULT_TOOL_POLICIES: &[(&str, ToolPolicy)] = &[
+    // Core workflow tools (non-destructive)
+    (tools::START_PLANNING, ToolPolicy::Allow),
+    (tools::TASK_TRACKER, ToolPolicy::Allow),
     // Search operations (non-destructive)
     (tools::UNIFIED_SEARCH, ToolPolicy::Allow),
     // File operations (non-destructive)
@@ -294,8 +297,9 @@ const DEFAULT_TOOL_POLICIES: &[(&str, ToolPolicy)] = &[
     (tools::DELETE_FILE, ToolPolicy::Prompt),
     (tools::APPLY_PATCH, ToolPolicy::Prompt),
     (tools::SEARCH_REPLACE, ToolPolicy::Prompt),
-    // Canonical execution interface. Compatibility aliases normalize to this at runtime.
-    (tools::UNIFIED_EXEC, ToolPolicy::Prompt),
+    // Canonical execution interface. The tool is core; individual shell commands
+    // remain gated by command/sandbox approval policy.
+    (tools::UNIFIED_EXEC, ToolPolicy::Allow),
 ];
 
 #[cfg(test)]
@@ -348,7 +352,7 @@ mod tests {
 
         assert_eq!(
             config.policies.get(tools::UNIFIED_EXEC),
-            Some(&ToolPolicy::Prompt)
+            Some(&ToolPolicy::Allow)
         );
         for legacy_tool in [
             tools::RUN_PTY_CMD,

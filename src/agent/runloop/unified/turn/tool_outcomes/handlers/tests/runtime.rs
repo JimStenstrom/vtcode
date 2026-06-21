@@ -37,6 +37,72 @@ async fn blocked_tool_call_guard_emits_tool_and_system_messages() {
 }
 
 #[tokio::test]
+async fn blocked_tool_call_guard_allows_configured_consecutive_cap() {
+    let mut backing = TestContextBacking::new(4).await;
+    let mut ctx = backing.turn_processing_context();
+    let max_streak = max_consecutive_blocked_tool_calls_per_turn(&ctx);
+    let args = json!({"path":"src/main.rs"});
+
+    for idx in 0..max_streak {
+        let outcome = enforce_blocked_tool_call_guard(
+            &mut ctx,
+            &format!("blocked_{idx}"),
+            tool_names::READ_FILE,
+            &args,
+        );
+        assert!(
+            outcome.is_none(),
+            "blocked call {idx} should stay under cap"
+        );
+    }
+
+    let outcome =
+        enforce_blocked_tool_call_guard(&mut ctx, "blocked_over_cap", tool_names::READ_FILE, &args);
+    assert!(matches!(
+        outcome,
+        Some(TurnHandlerOutcome::Break(TurnLoopResult::Blocked { .. }))
+    ));
+}
+
+#[tokio::test]
+async fn blocked_tool_call_guard_caps_non_consecutive_total_churn() {
+    let mut backing = TestContextBacking::new(4).await;
+    let mut ctx = backing.turn_processing_context();
+    let max_streak = max_consecutive_blocked_tool_calls_per_turn(&ctx);
+    let args = json!({"path":"src/main.rs"});
+
+    for idx in 0..(max_streak * 2) {
+        let outcome = enforce_blocked_tool_call_guard(
+            &mut ctx,
+            &format!("blocked_{idx}"),
+            tool_names::READ_FILE,
+            &args,
+        );
+        assert!(
+            outcome.is_none(),
+            "blocked total {idx} should stay under cap"
+        );
+        ctx.reset_blocked_tool_call_streak();
+    }
+
+    let outcome = enforce_blocked_tool_call_guard(
+        &mut ctx,
+        "blocked_total_over_cap",
+        tool_names::READ_FILE,
+        &args,
+    );
+    assert!(matches!(
+        outcome,
+        Some(TurnHandlerOutcome::Break(TurnLoopResult::Blocked { .. }))
+    ));
+    assert!(
+        ctx.working_history
+            .iter()
+            .any(|message| message.content.as_text().contains("blocked_total"))
+    );
+}
+
+#[tokio::test]
 async fn blocked_tool_call_guard_short_circuits_to_recovery_when_active() {
     let mut backing = TestContextBacking::new(4).await;
     let mut ctx = backing.turn_processing_context();
