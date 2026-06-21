@@ -2,6 +2,29 @@
 
 All notable changes to vtcode will be documented in this file.
 ## v0.73.2 - 2026-01-29
+## 0.133.1 - 2026-06-21
+
+### Highlights
+#### Bug Fixes
+
+- Drain terminal responses before disabling raw mode on exit (0b3a6e02) 
+- Resolve clippy issues and improve shell approval patterns (d78c2796) 
+- Improve raw display and messaging for budget exhaustion in recovery decision (5a844757) 
+- Resolve clippy issues across vtcode-exec-events, vtcode-mcp, vtcode-ui, vtcode-config (637942df) 
+- Clean up recovery messaging and improve tool call handling (3079b762) 
+- Unify recovery cleanup info message wording (9975023b) 
+- Remediate modes/subagents audit and clear pre-existing test drift (6620f73c) 
+#### Documentation
+
+- Add model list to vtcode.toml.example (c8538c10) 
+#### Features
+
+- Enhance tool policy and session management with interrupt handling and approval caching (bdb857b5) 
+- Enhance tool call guards and approval handling with new patterns and configurations (0ece95d4) 
+### Other Changes
+#### Other
+
+- Refactor numeric calculations to prevent sign loss and improve precision in various modules (9c5c7bc9) 
 ## 0.133.0 - 2026-06-20
 
 ### Highlights
