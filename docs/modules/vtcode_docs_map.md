@@ -774,10 +774,6 @@ This document serves as an index of all VT Code documentation. When users ask qu
   - **Topics**: For CLI Output, For TUI Widgets, Unified Theme, Color Reference, Common Patterns
   - **User Questions**: "What can you tell me about Styling Quick Start Guide?", "How does For CLI Output work?", "How does For TUI Widgets work?"
 
-- **File**: `docs/project/TODO.md`
-  - **Content**: TODO.md
-  - **User Questions**: "What can you tell me about TODO.md?"
-
 - **File**: `docs/harness/TECH_DEBT_TRACKER.md`
   - **Content**: Tech Debt Tracker
   - **Topics**: Priority Levels, Status Values, Debt Items, How to Add a New Item, How to Resolve an Item
@@ -822,6 +818,11 @@ This document serves as an index of all VT Code documentation. When users ask qu
   - **Content**: VT Code Styling System - Complete Documentation Index
   - **Topics**: Quick Navigation, Implementation Status, Document Guide, Quick Reference, Key Crates
   - **User Questions**: "What can you tell me about VT Code Styling System - Complete Documentation Index?", "How does Quick Navigation work?", "How does Implementation Status work?"
+
+- **File**: `docs/project/TODO.md`
+  - **Content**: VTCode Modes & Subagents Audit
+  - **Topics**: Executive Summary, 1. Mode Map (plan / build / auto / duck), 2. Blocker-Level Issues, 3. Technical Issues, 4. Workflow Inefficiencies
+  - **User Questions**: "What can you tell me about VTCode Modes & Subagents Audit?", "How does Executive Summary work?", "How does 1. Mode Map (plan / build / auto / duck) work?"
 
 - **File**: `docs/project/vtcode-modes-subagents-audit.md`
   - **Content**: VTCode Modes and Subagents: Comprehensive Audit Report
