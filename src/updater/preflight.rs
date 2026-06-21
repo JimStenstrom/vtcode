@@ -7,6 +7,11 @@ use super::cache;
 use super::github;
 use super::types::StartupUpdateNotice;
 
+/// Maximum time (seconds) to wait for the GitHub API during preflight.
+/// The preflight runs at startup and must never block the binary for longer
+/// than this.  Users can still shorten the timeout via config.
+const PREFLIGHT_TIMEOUT_CAP_SECS: u64 = 10;
+
 static PREFLIGHT_NOTICE: Mutex<Option<StartupUpdateNotice>> = Mutex::new(None);
 
 pub(crate) fn set_preflight_notice(notice: Option<StartupUpdateNotice>) {
@@ -21,9 +26,9 @@ pub(crate) fn get_preflight_notice() -> Option<StartupUpdateNotice> {
 ///
 /// Always fetches from the GitHub API (force fetch) to ensure the user sees
 /// the most recent version immediately.  Respects the user's
-/// `check_interval_hours` and pinned-version config — when updates are
-/// disabled or pinned the check is skipped.  Errors are silently ignored so
-/// that a network failure never blocks startup.
+/// `check_interval_hours`, `release_channel`, and pinned-version config —
+/// when updates are disabled or pinned the check is skipped.  Errors are
+/// silently ignored so that a network failure never blocks startup.
 pub(crate) async fn run_preflight_check() {
     let current_version_str = env!("CARGO_PKG_VERSION");
 
@@ -41,11 +46,12 @@ pub(crate) async fn run_preflight_check() {
         return;
     }
 
-    // Always hit the GitHub API.  Cap at 10 seconds — a version-info
-    // request should never block startup for longer than the original
-    // hardcoded timeout.  Users can still shorten it via config.
-    let timeout = updater.config().download_timeout_secs.min(10);
-    let latest = match github::fetch_latest_release_info(timeout).await {
+    // Always hit the GitHub API.  Cap the timeout so a version-info request
+    // never blocks startup for longer than the cap.  Users can shorten it
+    // further via config.
+    let timeout = updater.config().download_timeout_secs.min(PREFLIGHT_TIMEOUT_CAP_SECS);
+    let channel = &updater.config().channel;
+    let latest = match github::fetch_latest_for_channel(timeout, channel).await {
         Ok(info) => info,
         Err(err) => {
             debug!("Preflight update check: GitHub fetch failed: {err}");

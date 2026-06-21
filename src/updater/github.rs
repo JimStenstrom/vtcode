@@ -92,17 +92,28 @@ pub(super) fn release_url(version: &Version) -> String {
     format!("https://github.com/{REPO_SLUG}/releases/tag/v{version}")
 }
 
+/// Fetch the latest release info for a given release channel.
+///
+/// Dispatches to the stable latest-release endpoint or the pre-release
+/// listing endpoint depending on the channel.
+pub(super) async fn fetch_latest_for_channel(
+    timeout_secs: u64,
+    channel: &ReleaseChannel,
+) -> Result<UpdateInfo> {
+    match channel {
+        ReleaseChannel::Stable => fetch_latest_release_info(timeout_secs).await,
+        ReleaseChannel::Beta | ReleaseChannel::Nightly => {
+            fetch_latest_prerelease_info(timeout_secs, channel).await
+        }
+    }
+}
+
 pub(super) async fn fetch_latest_release(
     updater: &Updater,
     timeout_secs: u64,
     channel: &ReleaseChannel,
 ) -> Result<Option<UpdateInfo>> {
-    let latest = match channel {
-        ReleaseChannel::Stable => fetch_latest_release_info(timeout_secs).await?,
-        ReleaseChannel::Beta | ReleaseChannel::Nightly => {
-            fetch_latest_prerelease_info(timeout_secs, channel).await?
-        }
-    };
+    let latest = fetch_latest_for_channel(timeout_secs, channel).await?;
     if latest.version > updater.current_version {
         Ok(Some(latest))
     } else {
