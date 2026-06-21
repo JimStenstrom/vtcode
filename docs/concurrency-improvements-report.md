@@ -166,6 +166,7 @@ All tests pass:
 1. Consider migrating `MetricsCollector` to use `parking_lot::Mutex` for consistency
 2. Add integration tests for circuit breakers with real tool calls
 3. Consider adding a `probe_in_progress` flag to limit concurrent probes in `ToolCircuitBreaker`
+4. Monitor `TOOL_REENTRANCY_STACKS` contention under high concurrency
 
 ---
 
@@ -182,3 +183,33 @@ All tests pass:
 - [Rust Prevents Data Races, Not Race Conditions](https://corrode.dev/blog/rust-prevents-data-races-not-race-conditions/)
 - [Rustonomicon: Races](https://doc.rust-lang.org/nomicon/races.html)
 - [Mara Bos: Rust Atomics and Locks](https://mara.nl/atomics/)
+
+---
+
+## Additional Improvements (Round 2)
+
+### Fixed JustificationManager I/O Under Lock (HIGH)
+
+**File**: `vtcode-core/src/tools/registry/justification.rs`
+
+**Problem**: `persist_patterns` held the mutex while performing filesystem I/O, blocking other threads.
+
+**Solution**: Clone patterns under the lock, then write to disk outside the lock.
+
+### Fixed LrMap Silent Data Loss (MEDIUM)
+
+**File**: `vtcode-commons/src/lr_map.rs`
+
+**Problem**: `insert` and `clear` silently dropped writes when the mutex was poisoned.
+
+**Solution**: Added error logging for lock poisoning failures instead of silently dropping writes.
+
+### Documented Trade-offs for Global Mutexes (LOW)
+
+**Files**:
+- `vtcode-core/src/utils/error_log_collector.rs`
+- `vtcode-core/src/tools/registry/execution_facade.rs`
+
+**Problem**: Global mutexes could cause contention under high concurrency.
+
+**Solution**: Added documentation explaining the trade-offs and suggesting future improvements if contention becomes an issue.

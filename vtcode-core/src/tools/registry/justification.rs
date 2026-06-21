@@ -250,14 +250,24 @@ impl JustificationManager {
     }
 
     /// Persist patterns to disk
+    ///
+    /// This method clones the patterns under the lock, then writes to disk
+    /// outside the lock to minimize critical section duration.
     fn persist_patterns(&self) -> Result<()> {
         ensure_dir_exists_sync(&self.cache_dir)?;
         let patterns_file = self.cache_dir.join("approval_patterns.json");
-        let patterns = self
-            .patterns
-            .lock()
-            .map_err(|e| anyhow::anyhow!("Failed to lock patterns: {}", e))?;
-        let content = serde_json::to_string_pretty(&*patterns)?;
+
+        // Clone patterns under the lock to minimize lock hold time
+        let patterns_snapshot = {
+            let patterns = self
+                .patterns
+                .lock()
+                .map_err(|e| anyhow::anyhow!("Failed to lock patterns: {}", e))?;
+            patterns.clone()
+        };
+
+        // Write to disk outside the lock
+        let content = serde_json::to_string_pretty(&patterns_snapshot)?;
         write_file_with_context_sync(&patterns_file, &content, "approval patterns cache")?;
         Ok(())
     }

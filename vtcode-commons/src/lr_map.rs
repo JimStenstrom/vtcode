@@ -67,16 +67,34 @@ where
     }
 
     pub fn insert(&self, key: K, value: V) {
-        if let Ok(mut w) = self.writer.lock() {
-            w.append(MapOp::Insert(key, value));
-            w.publish();
+        match self.writer.lock() {
+            Ok(mut w) => {
+                w.append(MapOp::Insert(key, value));
+                w.publish();
+            }
+            Err(e) => {
+                // Log the lock poisoning error instead of silently dropping the write
+                eprintln!(
+                    "WARNING: LrMap::insert failed due to poisoned mutex: {}. Write dropped.",
+                    e
+                );
+            }
         }
     }
 
     pub fn clear(&self) {
-        if let Ok(mut w) = self.writer.lock() {
-            w.append(MapOp::Clear);
-            w.publish();
+        match self.writer.lock() {
+            Ok(mut w) => {
+                w.append(MapOp::Clear);
+                w.publish();
+            }
+            Err(e) => {
+                // Log the lock poisoning error instead of silently dropping the write
+                eprintln!(
+                    "WARNING: LrMap::clear failed due to poisoned mutex: {}. Operation dropped.",
+                    e
+                );
+            }
         }
     }
 

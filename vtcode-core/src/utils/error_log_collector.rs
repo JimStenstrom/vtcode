@@ -30,6 +30,14 @@ struct ErrorLogBuffer {
 }
 
 /// Global buffer of captured error log entries.
+///
+/// Uses `std::sync::Mutex` because:
+/// 1. Critical section is very short (just pushing to VecDeque)
+/// 2. ERROR events are typically infrequent
+/// 3. No async operations occur inside the lock
+///
+/// If ERROR events become frequent, consider using a lock-free ring buffer
+/// or batching entries to reduce lock contention.
 static ERROR_LOG_BUFFER: Mutex<ErrorLogBuffer> = Mutex::new(ErrorLogBuffer {
     entries: VecDeque::new(),
     total_estimated_bytes: 0,

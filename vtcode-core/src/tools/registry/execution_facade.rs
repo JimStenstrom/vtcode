@@ -41,6 +41,17 @@ const REENTRANCY_STACK_DEPTH_LIMIT: usize = 64;
 // on alias/self-recursion bugs with minimal extra work.
 const REENTRANCY_PER_TOOL_LIMIT: usize = 1;
 
+/// Global reentrancy stacks for tokio tasks.
+///
+/// Uses `std::sync::Mutex` because:
+/// 1. Critical section is very short (just push/pop on Vec)
+/// 2. Only used for tokio tasks (non-tokio uses thread-local storage)
+/// 3. No async operations occur inside the lock
+///
+/// If contention becomes an issue under high concurrency, consider:
+/// - Using a concurrent hash map (e.g., `dashmap`)
+/// - Using task-local storage via `tokio::task_local!`
+/// - Partitioning the map by task ID hash to reduce contention
 static TOOL_REENTRANCY_STACKS: Lazy<Mutex<HashMap<TokioTaskId, Vec<String>>>> =
     Lazy::new(|| Mutex::new(HashMap::new()));
 thread_local! {
