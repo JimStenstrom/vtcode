@@ -40,7 +40,7 @@ fn resolve_inherit_model(
             agent_name,
             parent_model = parent_model.trim(),
             parent_provider = parent_provider.trim(),
-            fallback_model = fallback.as_str(),
+            fallback_model = &*fallback.as_str(),
             "Falling back to the default Copilot subagent model because the inherited parent model identifier is not supported internally"
         );
         return Ok(fallback);

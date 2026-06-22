@@ -76,7 +76,7 @@ pub(crate) fn render_reasoning_inline(
         });
     }
 
-    if let Some(alternative) = selection.reasoning_off_model {
+    if let Some(alternative) = selection.reasoning_off_model.clone() {
         items.push(InlineListItem {
             title: format!("Use {} (reasoning off)", alternative.display_name()),
             subtitle: Some(format!(
@@ -94,7 +94,7 @@ pub(crate) fn render_reasoning_inline(
         "Step 2 – select reasoning effort for {}.",
         selection.model_display
     )];
-    if let Some(alternative) = selection.reasoning_off_model {
+    if let Some(alternative) = selection.reasoning_off_model.clone() {
         lines.push(format!(
             "Select \"Use {} (reasoning off)\" to switch to {}.",
             alternative.display_name(),
@@ -144,7 +144,7 @@ pub(crate) fn prompt_reasoning_plain(
                 reasoning_suffix
             ),
         )?;
-    } else if let Some(alternative) = selection.reasoning_off_model {
+    } else if let Some(alternative) = selection.reasoning_off_model.clone() {
         let prefix = if is_responses_flagship {
             "none/low/medium/high"
         } else {

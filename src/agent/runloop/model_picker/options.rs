@@ -1,41 +1,91 @@
 use hashbrown::HashMap;
 use once_cell::sync::Lazy;
 
+use std::collections::BTreeMap;
+use vtcode_config::core::ProviderOverrideConfig;
 use vtcode_core::config::models::{ModelId, Provider};
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub(super) struct ModelOption {
     pub(super) model: ModelId,
     pub(super) provider: Provider,
-    pub(super) id: &'static str,
-    pub(super) display: &'static str,
-    pub(super) description: &'static str,
+    pub(super) id: String,
+    pub(super) display: String,
+    pub(super) description: String,
     pub(super) supports_reasoning: bool,
     pub(super) reasoning_alternative: Option<ModelId>,
 }
 
 static EMPTY_OPTION_INDEXES: [usize; 0] = [];
 
+/// Check if a model should be filtered out from the picker.
+///
+/// Currently filters out Copilot models except for CopilotAuto.
+fn should_filter_model(provider: Provider, model: &ModelId) -> bool {
+    provider == Provider::Copilot && !matches!(model, ModelId::CopilotAuto)
+}
+
 pub(super) static MODEL_OPTIONS: Lazy<Vec<ModelOption>> = Lazy::new(|| {
     let models = ModelId::all_models();
     let mut options = Vec::with_capacity(models.len());
     for model in models {
         let provider = model.provider();
-        if provider == Provider::Copilot && !matches!(model, ModelId::CopilotAuto) {
+        if should_filter_model(provider, &model) {
             continue;
         }
         options.push(ModelOption {
-            model,
-            provider,
-            id: model.as_str(),
-            display: model.display_name(),
-            description: model.description(),
+            id: model.as_str().into_owned(),
+            display: model.display_name().into_owned(),
+            description: model.description().into_owned(),
             supports_reasoning: model.supports_reasoning_effort(),
             reasoning_alternative: model.non_reasoning_variant(),
+            model: model.clone(),
+            provider,
         });
     }
     options
 });
+
+/// Build model options list with user-defined provider overrides.
+///
+/// Merges the hardcoded model list with custom models defined in
+/// `[providers.<name>]` config sections. Custom models are appended
+/// to the list as `ModelId::Custom` variants.
+pub(super) fn build_model_options_with_overrides(
+    overrides: &BTreeMap<String, ProviderOverrideConfig>,
+) -> Vec<ModelOption> {
+    if overrides.is_empty() {
+        return MODEL_OPTIONS.clone();
+    }
+
+    let models = ModelId::all_models_with_overrides(overrides);
+    let mut options = Vec::with_capacity(models.len());
+    for model in models {
+        let provider = match &model {
+            ModelId::Custom(provider_key, _) => {
+                // For custom models, resolve the provider from the override key.
+                // If the key doesn't match a known provider, treat it as a custom
+                // provider that routes through the OpenAI-compatible endpoint.
+                use std::str::FromStr;
+                Provider::from_str(provider_key).unwrap_or(Provider::OpenAI)
+            }
+            _ => model.provider(),
+        };
+        if should_filter_model(provider, &model) {
+            continue;
+        }
+        options.push(ModelOption {
+            id: model.as_str().into_owned(),
+            display: model.display_name().into_owned(),
+            description: model.description().into_owned(),
+            supports_reasoning: model.supports_reasoning_effort(),
+            reasoning_alternative: model.non_reasoning_variant(),
+            model: model.clone(),
+            provider,
+        });
+    }
+    options
+}
 
 static MODEL_OPTION_INDEXES_BY_PROVIDER: Lazy<HashMap<Provider, Box<[usize]>>> = Lazy::new(|| {
     let mut indexes: HashMap<Provider, Vec<usize>> = HashMap::new();

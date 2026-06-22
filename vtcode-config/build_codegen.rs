@@ -222,7 +222,7 @@ pub fn generate_openrouter_metadata(entries: &[EntryData]) -> String {
         .collect();
 
     let output = quote! {
-        #[derive(Clone, Copy)]
+        #[derive(Clone)]
         pub struct Entry {
             pub variant: super::ModelId,
             pub id: &'static str,
@@ -241,7 +241,7 @@ pub fn generate_openrouter_metadata(entries: &[EntryData]) -> String {
             #entry_literals
         ];
 
-        #[derive(Clone, Copy)]
+        #[derive(Clone)]
         pub struct VendorModels {
             pub vendor: &'static str,
             pub models: &'static [super::ModelId],

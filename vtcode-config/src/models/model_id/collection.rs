@@ -1,3 +1,6 @@
+use std::collections::BTreeMap;
+
+use crate::core::ProviderOverrideConfig;
 use crate::models::Provider;
 use hashbrown::HashSet;
 
@@ -118,13 +121,44 @@ impl ModelId {
         ];
         models.extend(Self::openrouter_models());
         let mut seen = HashSet::new();
-        models.retain(|model| seen.insert(*model));
+        models.retain(|model| seen.insert(model.clone()));
         models
     }
 
     /// Get all models for a specific provider
     pub fn models_for_provider(provider: Provider) -> Vec<ModelId> {
         Self::all_models()
+            .into_iter()
+            .filter(|model| model.provider() == provider)
+            .collect()
+    }
+
+    /// Return all models including user-defined overrides from config.
+    ///
+    /// Merges the hardcoded model list with custom models defined in
+    /// `[providers.<name>]` config sections. Custom models are appended
+    /// as `ModelId::Custom` variants keyed by provider name.
+    pub fn all_models_with_overrides(
+        overrides: &BTreeMap<String, ProviderOverrideConfig>,
+    ) -> Vec<ModelId> {
+        let mut models = Self::all_models();
+        for (provider_key, config) in overrides {
+            for model_name in &config.models {
+                let trimmed = model_name.trim().to_string();
+                if !trimmed.is_empty() {
+                    models.push(ModelId::Custom(provider_key.clone(), trimmed));
+                }
+            }
+        }
+        models
+    }
+
+    /// Get all models for a specific provider, including user-defined overrides.
+    pub fn models_for_provider_with_overrides(
+        provider: Provider,
+        overrides: &BTreeMap<String, ProviderOverrideConfig>,
+    ) -> Vec<ModelId> {
+        Self::all_models_with_overrides(overrides)
             .into_iter()
             .filter(|model| model.provider() == provider)
             .collect()

@@ -312,7 +312,7 @@ fn step_one_header_lines_explain_codex_runtime_configuration() {
 
 fn base_picker_state(current_provider: &str, current_model: &str) -> ModelPickerState {
     ModelPickerState {
-        options: MODEL_OPTIONS.as_slice(),
+        options: std::borrow::Cow::Borrowed(MODEL_OPTIONS.as_slice()),
         step: PickerStep::AwaitModel,
         inline_enabled: true,
         vt_cfg: None,
@@ -348,7 +348,7 @@ fn session_with_channels() -> (InlineHandle, InlineSession) {
 #[test]
 fn preferred_model_selection_matches_current_static_model() {
     let model_id = ModelId::ClaudeOpus48.as_str();
-    let picker = base_picker_state("anthropic", model_id);
+    let picker = base_picker_state("anthropic", &model_id);
 
     let selection = picker.preferred_model_selection();
     let Some(InlineListSelection::Model(index)) = selection else {

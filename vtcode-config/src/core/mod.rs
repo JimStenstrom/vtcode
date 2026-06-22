@@ -9,6 +9,7 @@ pub mod permissions;
 pub mod plugins;
 pub mod prompt_cache;
 pub mod provider;
+pub mod provider_override;
 pub mod sandbox;
 pub mod security;
 pub mod skills;
@@ -43,6 +44,7 @@ pub use provider::{
     OpenAIHostedShellNetworkPolicyType, OpenAIHostedSkill, OpenAIHostedSkillVersion,
     OpenAIManualCompactionConfig, OpenAIServiceTier, OpenAIToolSearchConfig, ToolSearchConfig,
 };
+pub use provider_override::ProviderOverrideConfig;
 pub use sandbox::{
     DockerSandboxConfig, ExternalSandboxConfig, ExternalSandboxType, MicroVMSandboxConfig,
     NetworkAllowlistEntryConfig, NetworkConfig, ResourceLimitsConfig, ResourceLimitsPreset,

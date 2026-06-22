@@ -288,7 +288,7 @@ impl ModelResolver {
         dynamic_meta: Option<DynamicModelMeta>,
     ) -> ResolvedModel {
         let provider = model_id.provider();
-        let catalog = model_catalog_entry(provider.as_ref(), model_id.as_str());
+        let catalog = model_catalog_entry(provider.as_ref(), &model_id.as_str());
         let dynamic =
             if catalog.is_some() || !has_dynamic_model(provider, requested_model, dynamic_models) {
                 None

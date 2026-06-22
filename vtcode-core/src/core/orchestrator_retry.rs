@@ -110,7 +110,7 @@ impl RetryManager {
                 max_attempts: policy.max_attempts,
             });
 
-            let err = match operation(*primary_model).await {
+            let err = match operation(primary_model.clone()).await {
                 Ok(result) => {
                     observer.observe(RetryEvent::Success { attempt });
                     return Ok(result);
@@ -163,7 +163,7 @@ impl RetryManager {
             );
             self.stats.fallback_activations += 1;
 
-            match operation(*fallback).await {
+            match operation(fallback.clone()).await {
                 Ok(result) => {
                     info!(operation = operation_name, model = ?fallback, "fallback model succeeded");
                     return Ok(result);

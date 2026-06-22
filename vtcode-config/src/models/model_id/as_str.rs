@@ -1,130 +1,163 @@
+use std::borrow::Cow;
+
 use super::ModelId;
 
 impl ModelId {
     /// Convert the model identifier to its string representation
-    /// used in API calls and configurations
-    pub fn as_str(&self) -> &'static str {
+    /// used in API calls and configurations.
+    ///
+    /// Returns `Cow<'static, str>` because custom user-defined models
+    /// carry runtime strings that may not be `'static`.
+    pub fn as_str(&self) -> Cow<'static, str> {
         use crate::constants::models;
         if let Some(meta) = self.openrouter_metadata() {
-            return meta.id;
+            return Cow::Borrowed(meta.id);
         }
         match self {
             // Gemini models
-            ModelId::Gemini31ProPreview => models::GEMINI_3_1_PRO_PREVIEW,
-            ModelId::Gemini31ProPreviewCustomTools => models::GEMINI_3_1_PRO_PREVIEW_CUSTOMTOOLS,
-            ModelId::Gemini35Flash => models::GEMINI_3_5_FLASH,
+            ModelId::Gemini31ProPreview => Cow::Borrowed(models::GEMINI_3_1_PRO_PREVIEW),
+            ModelId::Gemini31ProPreviewCustomTools => {
+                Cow::Borrowed(models::GEMINI_3_1_PRO_PREVIEW_CUSTOMTOOLS)
+            }
+            ModelId::Gemini35Flash => Cow::Borrowed(models::GEMINI_3_5_FLASH),
             // OpenAI models
-            ModelId::GPT55 => models::openai::GPT_5_5,
-            ModelId::GPT54 => models::GPT_5_4,
-            ModelId::GPT54Pro => models::GPT_5_4_PRO,
-            ModelId::GPT54Nano => models::openai::GPT_5_4_NANO,
-            ModelId::GPT54Mini => models::openai::GPT_5_4_MINI,
-            ModelId::GPT53Codex => models::openai::GPT_5_3_CODEX,
-            ModelId::OpenAIGptOss20b => models::openai::GPT_OSS_20B,
-            ModelId::OpenAIGptOss120b => models::openai::GPT_OSS_120B,
+            ModelId::GPT55 => Cow::Borrowed(models::openai::GPT_5_5),
+            ModelId::GPT54 => Cow::Borrowed(models::GPT_5_4),
+            ModelId::GPT54Pro => Cow::Borrowed(models::GPT_5_4_PRO),
+            ModelId::GPT54Nano => Cow::Borrowed(models::openai::GPT_5_4_NANO),
+            ModelId::GPT54Mini => Cow::Borrowed(models::openai::GPT_5_4_MINI),
+            ModelId::GPT53Codex => Cow::Borrowed(models::openai::GPT_5_3_CODEX),
+            ModelId::OpenAIGptOss20b => Cow::Borrowed(models::openai::GPT_OSS_20B),
+            ModelId::OpenAIGptOss120b => Cow::Borrowed(models::openai::GPT_OSS_120B),
             // Anthropic models
-            ModelId::ClaudeOpus48 => models::CLAUDE_OPUS_4_8,
-            ModelId::ClaudeSonnet46 => models::CLAUDE_SONNET_4_6,
-            ModelId::ClaudeHaiku45 => models::CLAUDE_HAIKU_4_5,
-            ModelId::CopilotAuto => models::copilot::AUTO,
-            ModelId::CopilotGPT52Codex => models::copilot::GPT_5_2_CODEX,
-            ModelId::CopilotGPT51CodexMax => models::copilot::GPT_5_1_CODEX_MAX,
-            ModelId::CopilotGPT54 => models::copilot::GPT_5_4,
-            ModelId::CopilotGPT54Mini => models::copilot::GPT_5_4_MINI,
-            ModelId::CopilotClaudeSonnet46 => models::copilot::CLAUDE_SONNET_4_6,
+            ModelId::ClaudeOpus48 => Cow::Borrowed(models::CLAUDE_OPUS_4_8),
+            ModelId::ClaudeSonnet46 => Cow::Borrowed(models::CLAUDE_SONNET_4_6),
+            ModelId::ClaudeHaiku45 => Cow::Borrowed(models::CLAUDE_HAIKU_4_5),
+            ModelId::CopilotAuto => Cow::Borrowed(models::copilot::AUTO),
+            ModelId::CopilotGPT52Codex => Cow::Borrowed(models::copilot::GPT_5_2_CODEX),
+            ModelId::CopilotGPT51CodexMax => Cow::Borrowed(models::copilot::GPT_5_1_CODEX_MAX),
+            ModelId::CopilotGPT54 => Cow::Borrowed(models::copilot::GPT_5_4),
+            ModelId::CopilotGPT54Mini => Cow::Borrowed(models::copilot::GPT_5_4_MINI),
+            ModelId::CopilotClaudeSonnet46 => Cow::Borrowed(models::copilot::CLAUDE_SONNET_4_6),
             // DeepSeek models
-            ModelId::DeepSeekV4Pro => models::deepseek::DEEPSEEK_V4_PRO,
-            ModelId::DeepSeekV4Flash => models::deepseek::DEEPSEEK_V4_FLASH,
+            ModelId::DeepSeekV4Pro => Cow::Borrowed(models::deepseek::DEEPSEEK_V4_PRO),
+            ModelId::DeepSeekV4Flash => Cow::Borrowed(models::deepseek::DEEPSEEK_V4_FLASH),
             // Mistral models
-            ModelId::MistralLarge3 => models::mistral::MISTRAL_LARGE_3,
+            ModelId::MistralLarge3 => Cow::Borrowed(models::mistral::MISTRAL_LARGE_3),
             // MiMo models
-            ModelId::MiMoV25Pro => models::mimo::MIMO_V2_5_PRO,
-            ModelId::MiMoV25 => models::mimo::MIMO_V2_5,
+            ModelId::MiMoV25Pro => Cow::Borrowed(models::mimo::MIMO_V2_5_PRO),
+            ModelId::MiMoV25 => Cow::Borrowed(models::mimo::MIMO_V2_5),
             // Z.AI models
-            ModelId::ZaiGlm52 => models::zai::GLM_5_2,
-            ModelId::ZaiGlm51 => models::zai::GLM_5_1,
+            ModelId::ZaiGlm52 => Cow::Borrowed(models::zai::GLM_5_2),
+            ModelId::ZaiGlm51 => Cow::Borrowed(models::zai::GLM_5_1),
             // Moonshot models
-            ModelId::MoonshotKimiK26 => models::moonshot::KIMI_K2_6,
+            ModelId::MoonshotKimiK26 => Cow::Borrowed(models::moonshot::KIMI_K2_6),
             // OpenCode Zen models
-            ModelId::OpenCodeZenGPT54 => models::opencode_zen::GPT_5_4,
-            ModelId::OpenCodeZenGPT54Mini => models::opencode_zen::GPT_5_4_MINI,
-            ModelId::OpenCodeZenClaudeSonnet46 => models::opencode_zen::CLAUDE_SONNET_4_6,
-            ModelId::OpenCodeZenGlm51 => models::opencode_zen::GLM_5_1,
+            ModelId::OpenCodeZenGPT54 => Cow::Borrowed(models::opencode_zen::GPT_5_4),
+            ModelId::OpenCodeZenGPT54Mini => Cow::Borrowed(models::opencode_zen::GPT_5_4_MINI),
+            ModelId::OpenCodeZenClaudeSonnet46 => {
+                Cow::Borrowed(models::opencode_zen::CLAUDE_SONNET_4_6)
+            }
+            ModelId::OpenCodeZenGlm51 => Cow::Borrowed(models::opencode_zen::GLM_5_1),
             // OpenCode Go models
-            ModelId::OpenCodeGoGlm51 => models::opencode_go::GLM_5_1,
-            ModelId::OpenCodeGoMinimaxM27 => models::opencode_go::MINIMAX_M2_7,
+            ModelId::OpenCodeGoGlm51 => Cow::Borrowed(models::opencode_go::GLM_5_1),
+            ModelId::OpenCodeGoMinimaxM27 => Cow::Borrowed(models::opencode_go::MINIMAX_M2_7),
             // Ollama models
-            ModelId::OllamaGptOss20b => models::ollama::GPT_OSS_20B,
-            ModelId::OllamaGptOss20bCloud => models::ollama::GPT_OSS_20B_CLOUD,
-            ModelId::OllamaGptOss120bCloud => models::ollama::GPT_OSS_120B_CLOUD,
-            ModelId::OllamaDeepseekV4FlashCloud => models::ollama::DEEPSEEK_V4_FLASH_CLOUD,
-            ModelId::OllamaDeepseekV4ProCloud => models::ollama::DEEPSEEK_V4_PRO_CLOUD,
-            ModelId::OllamaGlm51Cloud => models::ollama::GLM_5_1_CLOUD,
-            ModelId::OllamaGlm52Cloud => models::ollama::GLM_5_2_CLOUD,
-            ModelId::OllamaMinimaxM27Cloud => models::ollama::MINIMAX_M27_CLOUD,
-            ModelId::OllamaMinimaxM3Cloud => models::ollama::MINIMAX_M3_CLOUD,
-            ModelId::OllamaKimiK26Cloud => models::ollama::KIMI_K2_6_CLOUD,
-            ModelId::OllamaKimiK27CodeCloud => models::ollama::KIMI_K2_7_CODE_CLOUD,
-            ModelId::OllamaGemma4 => models::ollama::GEMMA_4,
-            ModelId::OllamaLagunaXs2 => models::ollama::LAGUNA_XS_2,
+            ModelId::OllamaGptOss20b => Cow::Borrowed(models::ollama::GPT_OSS_20B),
+            ModelId::OllamaGptOss20bCloud => Cow::Borrowed(models::ollama::GPT_OSS_20B_CLOUD),
+            ModelId::OllamaGptOss120bCloud => Cow::Borrowed(models::ollama::GPT_OSS_120B_CLOUD),
+            ModelId::OllamaDeepseekV4FlashCloud => {
+                Cow::Borrowed(models::ollama::DEEPSEEK_V4_FLASH_CLOUD)
+            }
+            ModelId::OllamaDeepseekV4ProCloud => {
+                Cow::Borrowed(models::ollama::DEEPSEEK_V4_PRO_CLOUD)
+            }
+            ModelId::OllamaGlm51Cloud => Cow::Borrowed(models::ollama::GLM_5_1_CLOUD),
+            ModelId::OllamaGlm52Cloud => Cow::Borrowed(models::ollama::GLM_5_2_CLOUD),
+            ModelId::OllamaMinimaxM27Cloud => Cow::Borrowed(models::ollama::MINIMAX_M27_CLOUD),
+            ModelId::OllamaMinimaxM3Cloud => Cow::Borrowed(models::ollama::MINIMAX_M3_CLOUD),
+            ModelId::OllamaKimiK26Cloud => Cow::Borrowed(models::ollama::KIMI_K2_6_CLOUD),
+            ModelId::OllamaKimiK27CodeCloud => Cow::Borrowed(models::ollama::KIMI_K2_7_CODE_CLOUD),
+            ModelId::OllamaGemma4 => Cow::Borrowed(models::ollama::GEMMA_4),
+            ModelId::OllamaLagunaXs2 => Cow::Borrowed(models::ollama::LAGUNA_XS_2),
             // llama.cpp models
-            ModelId::LlamaCppGemma426bA4b => models::llamacpp::GEMMA_4_26B_A4B,
-            ModelId::LlamaCppGemma4E4b => models::llamacpp::GEMMA_4_E4B,
-            ModelId::LlamaCppGptOss20b => models::llamacpp::GPT_OSS_20B,
-            ModelId::LlamaCppStep35Flash => models::llamacpp::STEP_3_5_FLASH,
+            ModelId::LlamaCppGemma426bA4b => Cow::Borrowed(models::llamacpp::GEMMA_4_26B_A4B),
+            ModelId::LlamaCppGemma4E4b => Cow::Borrowed(models::llamacpp::GEMMA_4_E4B),
+            ModelId::LlamaCppGptOss20b => Cow::Borrowed(models::llamacpp::GPT_OSS_20B),
+            ModelId::LlamaCppStep35Flash => Cow::Borrowed(models::llamacpp::STEP_3_5_FLASH),
             // Hugging Face models
-            ModelId::HuggingFaceOpenAIGptOss20b => models::huggingface::OPENAI_GPT_OSS_20B,
-            ModelId::HuggingFaceOpenAIGptOss120b => models::huggingface::OPENAI_GPT_OSS_120B,
-            ModelId::HuggingFaceGlm51ZaiOrg => models::huggingface::ZAI_GLM_5_1_ZAI_ORG,
-            ModelId::HuggingFaceGlm52Novita => models::huggingface::ZAI_GLM_5_2_NOVITA,
-            ModelId::HuggingFaceKimiK26Novita => models::huggingface::KIMI_K2_6_NOVITA,
+            ModelId::HuggingFaceOpenAIGptOss20b => {
+                Cow::Borrowed(models::huggingface::OPENAI_GPT_OSS_20B)
+            }
+            ModelId::HuggingFaceOpenAIGptOss120b => {
+                Cow::Borrowed(models::huggingface::OPENAI_GPT_OSS_120B)
+            }
+            ModelId::HuggingFaceGlm51ZaiOrg => {
+                Cow::Borrowed(models::huggingface::ZAI_GLM_5_1_ZAI_ORG)
+            }
+            ModelId::HuggingFaceGlm52Novita => {
+                Cow::Borrowed(models::huggingface::ZAI_GLM_5_2_NOVITA)
+            }
+            ModelId::HuggingFaceKimiK26Novita => {
+                Cow::Borrowed(models::huggingface::KIMI_K2_6_NOVITA)
+            }
             ModelId::HuggingFaceDeepseekV4FlashNovita => {
-                models::huggingface::DEEPSEEK_V4_FLASH_NOVITA
+                Cow::Borrowed(models::huggingface::DEEPSEEK_V4_FLASH_NOVITA)
             }
             ModelId::HuggingFaceDeepseekV4ProTogether => {
-                models::huggingface::DEEPSEEK_V4_PRO_TOGETHER
+                Cow::Borrowed(models::huggingface::DEEPSEEK_V4_PRO_TOGETHER)
             }
-            ModelId::HuggingFaceStep35Flash => models::huggingface::STEP_3_5_FLASH,
-            ModelId::HuggingFaceGlm51Deepinfra => models::huggingface::ZAI_GLM_5_1_DEEPINFRA,
-            ModelId::HuggingFaceMinimaxM27Novita => models::huggingface::MINIMAX_M2_7_NOVITA,
-            ModelId::HuggingFaceMinimaxM3Novita => models::huggingface::MINIMAX_M3_NOVITA,
-            ModelId::HuggingFaceDeepseekV4ProNovita => models::huggingface::DEEPSEEK_V4_PRO_NOVITA,
-            ModelId::StepFun37Flash => models::stepfun::STEP_3_7_FLASH,
+            ModelId::HuggingFaceStep35Flash => Cow::Borrowed(models::huggingface::STEP_3_5_FLASH),
+            ModelId::HuggingFaceGlm51Deepinfra => {
+                Cow::Borrowed(models::huggingface::ZAI_GLM_5_1_DEEPINFRA)
+            }
+            ModelId::HuggingFaceMinimaxM27Novita => {
+                Cow::Borrowed(models::huggingface::MINIMAX_M2_7_NOVITA)
+            }
+            ModelId::HuggingFaceMinimaxM3Novita => {
+                Cow::Borrowed(models::huggingface::MINIMAX_M3_NOVITA)
+            }
+            ModelId::HuggingFaceDeepseekV4ProNovita => {
+                Cow::Borrowed(models::huggingface::DEEPSEEK_V4_PRO_NOVITA)
+            }
+            ModelId::StepFun37Flash => Cow::Borrowed(models::stepfun::STEP_3_7_FLASH),
             // Evolink gateway models (namespaced; the provider strips the `evolink/` prefix)
-            ModelId::EvolinkGpt52 => "evolink/gpt-5.2",
-            ModelId::EvolinkGpt55 => "evolink/gpt-5.5",
-            ModelId::EvolinkDeepseekV4Pro => "evolink/deepseek-v4-pro",
-            ModelId::EvolinkDeepseekV4Flash => "evolink/deepseek-v4-flash",
-            ModelId::EvolinkDoubaoSeed20Pro => "evolink/doubao-seed-2.0-pro",
-            ModelId::EvolinkGemini31Pro => "evolink/gemini-3.1-pro-preview",
-            ModelId::EvolinkGemini35Flash => "evolink/gemini-3.5-flash",
-            ModelId::EvolinkMinimaxM3 => "evolink/MiniMax-M3",
-            ModelId::EvolinkClaudeSonnet46 => "evolink/claude-sonnet-4-6",
-            ModelId::EvolinkClaudeOpus48 => "evolink/claude-opus-4-8",
-            ModelId::EvolinkClaudeHaiku45 => "evolink/claude-haiku-4-5-20251001",
+            ModelId::EvolinkGpt52 => Cow::Borrowed("evolink/gpt-5.2"),
+            ModelId::EvolinkGpt55 => Cow::Borrowed("evolink/gpt-5.5"),
+            ModelId::EvolinkDeepseekV4Pro => Cow::Borrowed("evolink/deepseek-v4-pro"),
+            ModelId::EvolinkDeepseekV4Flash => Cow::Borrowed("evolink/deepseek-v4-flash"),
+            ModelId::EvolinkDoubaoSeed20Pro => Cow::Borrowed("evolink/doubao-seed-2.0-pro"),
+            ModelId::EvolinkGemini31Pro => Cow::Borrowed("evolink/gemini-3.1-pro-preview"),
+            ModelId::EvolinkGemini35Flash => Cow::Borrowed("evolink/gemini-3.5-flash"),
+            ModelId::EvolinkMinimaxM3 => Cow::Borrowed("evolink/MiniMax-M3"),
+            ModelId::EvolinkClaudeSonnet46 => Cow::Borrowed("evolink/claude-sonnet-4-6"),
+            ModelId::EvolinkClaudeOpus48 => Cow::Borrowed("evolink/claude-opus-4-8"),
+            ModelId::EvolinkClaudeHaiku45 => Cow::Borrowed("evolink/claude-haiku-4-5-20251001"),
             // Qwen models
-            ModelId::QwenDeepSeekV4Flash => models::qwen::DEEPSEEK_V4_FLASH,
-            ModelId::QwenDeepSeekV4Pro => models::qwen::DEEPSEEK_V4_PRO,
-            ModelId::QwenGlm51 => models::qwen::GLM_5_1,
+            ModelId::QwenDeepSeekV4Flash => Cow::Borrowed(models::qwen::DEEPSEEK_V4_FLASH),
+            ModelId::QwenDeepSeekV4Pro => Cow::Borrowed(models::qwen::DEEPSEEK_V4_PRO),
+            ModelId::QwenGlm51 => Cow::Borrowed(models::qwen::GLM_5_1),
             // MiniMax models
-            ModelId::MinimaxM3 => models::minimax::MINIMAX_M3,
-            ModelId::MinimaxM27 => models::minimax::MINIMAX_M2_7,
+            ModelId::MinimaxM3 => Cow::Borrowed(models::minimax::MINIMAX_M3),
+            ModelId::MinimaxM27 => Cow::Borrowed(models::minimax::MINIMAX_M2_7),
             // Poolside models
-            ModelId::PoolsideLagunaM1 => models::poolside::LAGUNA_M1,
-            ModelId::PoolsideLagunaXs2 => models::poolside::LAGUNA_XS2,
+            ModelId::PoolsideLagunaM1 => Cow::Borrowed(models::poolside::LAGUNA_M1),
+            ModelId::PoolsideLagunaXs2 => Cow::Borrowed(models::poolside::LAGUNA_XS2),
             // Moonshot models
-            ModelId::MoonshotKimiK27Code => models::moonshot::KIMI_K2_7_CODE,
+            ModelId::MoonshotKimiK27Code => Cow::Borrowed(models::moonshot::KIMI_K2_7_CODE),
             // OpenRouter models
-            ModelId::OpenRouterMoonshotaiKimiK26 => "moonshotai/kimi-k2.6",
-            ModelId::OpenRouterMoonshotaiKimiK27Code => "moonshotai/kimi-k2.7-code",
-            ModelId::OpenRouterZaiGlm51 => "z-ai/glm-5.1",
-            ModelId::OpenRouterZaiGlm52 => "z-ai/glm-5.2",
-            model => {
+            ModelId::OpenRouterMoonshotaiKimiK26 => Cow::Borrowed("moonshotai/kimi-k2.6"),
+            ModelId::OpenRouterMoonshotaiKimiK27Code => Cow::Borrowed("moonshotai/kimi-k2.7-code"),
+            ModelId::OpenRouterZaiGlm51 => Cow::Borrowed("z-ai/glm-5.1"),
+            ModelId::OpenRouterZaiGlm52 => Cow::Borrowed("z-ai/glm-5.2"),
+            // Custom user-defined models
+            ModelId::Custom(_, model) => Cow::Owned(model.clone()),
+            model => Cow::Borrowed(
                 model
                     .openrouter_metadata()
                     .expect("generated OpenRouter model should have metadata")
-                    .id
-            }
+                    .id,
+            ),
         }
     }
 }

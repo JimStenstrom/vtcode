@@ -164,9 +164,9 @@ pub fn auto_lightweight_model(provider_name: &str, active_model: &str) -> String
     }
 
     provider_default_lightweight_model(provider)
-        .or_else(|| model_helpers::default_for(provider_name))
-        .unwrap_or(trimmed_model)
-        .to_string()
+        .map(|cow| cow.into_owned())
+        .or_else(|| model_helpers::default_for(provider_name).map(|s| s.to_string()))
+        .unwrap_or_else(|| trimmed_model.to_string())
 }
 
 pub fn lightweight_model_choices(provider_name: &str, active_model: &str) -> Vec<String> {
@@ -390,7 +390,9 @@ fn preferred_lightweight_model_slug(provider: Provider, active_model: &str) -> O
     }
 }
 
-fn provider_default_lightweight_model(provider: Provider) -> Option<&'static str> {
+fn provider_default_lightweight_model(
+    provider: Provider,
+) -> Option<std::borrow::Cow<'static, str>> {
     match provider {
         Provider::OpenAI => Some(ModelId::GPT54Mini.as_str()),
         Provider::Anthropic => Some(ModelId::ClaudeHaiku45.as_str()),
@@ -471,7 +473,7 @@ mod tests {
     #[test]
     fn auto_lightweight_model_prefers_same_generation_openai_sibling() {
         assert_eq!(
-            auto_lightweight_model("openai", ModelId::GPT54.as_str()),
+            auto_lightweight_model("openai", &ModelId::GPT54.as_str()),
             ModelId::GPT54Mini.as_str()
         );
     }
@@ -479,7 +481,7 @@ mod tests {
     #[test]
     fn auto_lightweight_model_uses_closest_anthropic_haiku_pair() {
         assert_eq!(
-            auto_lightweight_model("anthropic", ModelId::ClaudeSonnet46.as_str()),
+            auto_lightweight_model("anthropic", &ModelId::ClaudeSonnet46.as_str()),
             ModelId::ClaudeHaiku45.as_str()
         );
         assert_eq!(
@@ -491,7 +493,7 @@ mod tests {
     #[test]
     fn auto_lightweight_model_uses_lower_generation_glm_pair() {
         assert_eq!(
-            auto_lightweight_model("zai", ModelId::ZaiGlm51.as_str()),
+            auto_lightweight_model("zai", &ModelId::ZaiGlm51.as_str()),
             ModelId::ZaiGlm51.as_str()
         );
     }
@@ -499,7 +501,7 @@ mod tests {
     #[test]
     fn auto_lightweight_model_prefers_same_generation_gemini_flash_lite() {
         assert_eq!(
-            auto_lightweight_model("gemini", ModelId::Gemini31ProPreview.as_str()),
+            auto_lightweight_model("gemini", &ModelId::Gemini31ProPreview.as_str()),
             ModelId::Gemini35Flash.as_str()
         );
     }
@@ -507,7 +509,7 @@ mod tests {
     #[test]
     fn auto_lightweight_model_infers_family_for_custom_provider() {
         assert_eq!(
-            auto_lightweight_model("mycorp", ModelId::GPT54.as_str()),
+            auto_lightweight_model("mycorp", &ModelId::GPT54.as_str()),
             ModelId::GPT54Mini.as_str()
         );
     }

@@ -165,7 +165,7 @@ pub fn prepare_child_runtime_config(
         runtime.canonical_name.as_str(),
     )?;
     let mut child_cfg =
-        build_child_config_from_runtime(parent, &runtime, resolved_model.as_str(), max_turns);
+        build_child_config_from_runtime(parent, &runtime, &resolved_model.as_str(), max_turns);
     let child_reasoning_effort = reasoning_override
         .and_then(ReasoningEffortLevel::parse)
         .or_else(|| {

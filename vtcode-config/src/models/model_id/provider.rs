@@ -111,11 +111,15 @@ impl ModelId {
             | ModelId::OpenRouterPoolsideLagunaXs2Free
             | ModelId::OpenRouterPoolsideLagunaM1Free => Provider::OpenRouter,
             ModelId::PoolsideLagunaM1 | ModelId::PoolsideLagunaXs2 => Provider::Poolside,
+            ModelId::Custom(provider_key, _) => {
+                use std::str::FromStr;
+                Provider::from_str(provider_key).unwrap_or(Provider::OpenAI)
+            }
         }
     }
 
     /// Whether this model supports configurable reasoning effort levels
     pub fn supports_reasoning_effort(&self) -> bool {
-        self.provider().supports_reasoning_effort(self.as_str())
+        self.provider().supports_reasoning_effort(&self.as_str())
     }
 }

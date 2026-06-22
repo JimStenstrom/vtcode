@@ -212,7 +212,7 @@ impl AgentRunner {
         let provider_name = {
             let configured = session_config.effective().agent.provider.trim();
             if configured.is_empty() {
-                infer_provider_from_model(model.as_str())
+                infer_provider_from_model(&model.as_str())
                     .map(|provider| provider.to_string())
                     .ok_or_else(|| anyhow!("Failed to determine provider for model {}", model))?
             } else {
@@ -256,15 +256,15 @@ impl AgentRunner {
         let deferred_tool_policy = crate::tools::handlers::deferred_tool_policy_for_runtime(
             crate::llm::factory::infer_provider(
                 Some(&session_config.effective().agent.provider),
-                model.as_str(),
+                &model.as_str(),
             ),
-            provider_client.supports_responses_compaction(model.as_str()),
+            provider_client.supports_responses_compaction(&model.as_str()),
             Some(session_config.effective()),
         );
         let anthropic_native_memory_enabled =
             crate::tools::handlers::anthropic_native_memory_enabled_for_runtime(
                 Provider::from_str(provider_client.name()).ok(),
-                model.as_str(),
+                &model.as_str(),
                 Some(session_config.effective()),
             );
         let tool_registry = ToolRegistry::new(workspace.clone()).await;
@@ -306,7 +306,7 @@ impl AgentRunner {
                 planning_active: tool_registry.is_planning_active(),
                 request_user_input_enabled: false,
                 model_capabilities: crate::tools::handlers::ToolModelCapabilities::for_model_name(
-                    model.as_str(),
+                    &model.as_str(),
                 ),
                 deferred_tool_policy,
                 anthropic_native_memory_enabled,
@@ -329,7 +329,7 @@ impl AgentRunner {
         if bootstrap.metadata.is_none() {
             bootstrap.metadata = Some(build_thread_archive_metadata(
                 workspace.as_path(),
-                model.as_str(),
+                &model.as_str(),
                 &session_config.effective().agent.provider,
                 &session_config.effective().agent.theme,
                 settings

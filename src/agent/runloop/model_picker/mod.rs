@@ -28,7 +28,7 @@ use interaction::{
     ModelSelectionListOutcome, select_model_with_ratatui_list, select_reasoning_with_ratatui,
     select_service_tier_with_ratatui,
 };
-use options::{MODEL_OPTIONS, ModelOption, find_option_index};
+use options::{MODEL_OPTIONS, ModelOption, build_model_options_with_overrides, find_option_index};
 use rendering::{
     CLOSE_THEME_MESSAGE, dynamic_model_subtitle, model_search_value, prompt_api_key_plain,
     prompt_custom_model_entry, prompt_mimo_auth_method_plain, prompt_reasoning_plain,
@@ -123,7 +123,7 @@ enum SubagentReasoningChoice {
 }
 
 pub(crate) struct ModelPickerState {
-    options: &'static [ModelOption],
+    options: std::borrow::Cow<'static, [ModelOption]>,
     step: PickerStep,
     inline_enabled: bool,
     vt_cfg: Option<VTCodeConfig>,
@@ -165,10 +165,18 @@ impl ModelPickerState {
         ctrl_c_state: Option<Arc<CtrlCState>>,
         ctrl_c_notify: Option<Arc<Notify>>,
     ) -> Result<ModelPickerStart> {
-        let options = MODEL_OPTIONS.as_slice();
+        let options = if let Some(cfg) = vt_cfg.as_ref() {
+            if !cfg.provider_overrides.is_empty() {
+                std::borrow::Cow::Owned(build_model_options_with_overrides(&cfg.provider_overrides))
+            } else {
+                std::borrow::Cow::Borrowed(MODEL_OPTIONS.as_slice())
+            }
+        } else {
+            std::borrow::Cow::Borrowed(MODEL_OPTIONS.as_slice())
+        };
         let inline_enabled = renderer.supports_inline_ui();
         let dynamic_models =
-            DynamicModelRegistry::load(options, workspace.as_deref(), vt_cfg.as_ref()).await;
+            DynamicModelRegistry::load(&options, workspace.as_deref(), vt_cfg.as_ref()).await;
         let custom_providers = vt_cfg
             .as_ref()
             .map(|cfg| {
@@ -204,7 +212,7 @@ impl ModelPickerState {
         if inline_enabled {
             render_step_one_inline(
                 renderer,
-                options,
+                &state.options,
                 current_reasoning,
                 &state.dynamic_models,
                 state.preferred_model_selection(),
@@ -217,7 +225,7 @@ impl ModelPickerState {
         if !inline_enabled {
             loop {
                 match select_model_with_ratatui_list(
-                    options,
+                    &state.options,
                     current_reasoning,
                     &state.dynamic_models,
                     &state.custom_providers,
@@ -254,7 +262,7 @@ impl ModelPickerState {
                         state.plain_mode_active = true;
                         render_step_one_plain(
                             renderer,
-                            options,
+                            &state.options,
                             &state.dynamic_models,
                             &state.custom_providers,
                             &state.current_provider,
@@ -266,7 +274,7 @@ impl ModelPickerState {
                         state.plain_mode_active = true;
                         render_step_one_plain(
                             renderer,
-                            options,
+                            &state.options,
                             &state.dynamic_models,
                             &state.custom_providers,
                             &state.current_provider,
@@ -295,7 +303,7 @@ impl ModelPickerState {
                         state.plain_mode_active = true;
                         render_step_one_plain(
                             renderer,
-                            options,
+                            &state.options,
                             &state.dynamic_models,
                             &state.custom_providers,
                             &state.current_provider,
@@ -313,7 +321,7 @@ impl ModelPickerState {
     pub async fn refresh_dynamic_models(&mut self, renderer: &mut AnsiRenderer) -> Result<()> {
         renderer.line(MessageStyle::Info, "Refreshing local model inventory...")?;
         self.dynamic_models = DynamicModelRegistry::load(
-            self.options,
+            &self.options,
             self.workspace.as_deref(),
             self.vt_cfg.as_ref(),
         )
@@ -336,7 +344,7 @@ impl ModelPickerState {
         if self.inline_enabled {
             render_step_one_inline(
                 renderer,
-                self.options,
+                &self.options,
                 self.current_reasoning,
                 &self.dynamic_models,
                 self.preferred_model_selection(),
@@ -347,7 +355,7 @@ impl ModelPickerState {
         } else if self.plain_mode_active {
             render_step_one_plain(
                 renderer,
-                self.options,
+                &self.options,
                 &self.dynamic_models,
                 &self.custom_providers,
                 &self.current_provider,
@@ -587,7 +595,7 @@ impl ModelPickerState {
         renderer: &mut AnsiRenderer,
         input: &str,
     ) -> Result<ModelPickerProgress> {
-        let selection = match parse_model_selection(self.options, input, self.vt_cfg.as_ref()) {
+        let selection = match parse_model_selection(&self.options, input, self.vt_cfg.as_ref()) {
             Ok(detail) => detail,
             Err(err) => {
                 renderer.line(MessageStyle::Error, &err.to_string())?;
@@ -653,8 +661,18 @@ pub(crate) async fn pick_subagent_model(
         return Ok(None);
     }
 
-    let mut dynamic_models =
-        DynamicModelRegistry::load(MODEL_OPTIONS.as_slice(), workspace, vt_cfg).await;
+    // Build override-aware model list for subagent picker
+    let options = if let Some(cfg) = vt_cfg.as_ref() {
+        if !cfg.provider_overrides.is_empty() {
+            std::borrow::Cow::Owned(build_model_options_with_overrides(&cfg.provider_overrides))
+        } else {
+            std::borrow::Cow::Borrowed(MODEL_OPTIONS.as_slice())
+        }
+    } else {
+        std::borrow::Cow::Borrowed(MODEL_OPTIONS.as_slice())
+    };
+
+    let mut dynamic_models = DynamicModelRegistry::load(&options, workspace, vt_cfg).await;
     loop {
         let Some(target) = select_subagent_model_target(
             handle,
@@ -662,6 +680,7 @@ pub(crate) async fn pick_subagent_model(
             ctrl_c_state,
             ctrl_c_notify,
             &dynamic_models,
+            &options,
             current_model,
         )
         .await?
@@ -673,8 +692,7 @@ pub(crate) async fn pick_subagent_model(
             SubagentModelChoice::Target(target) => target,
             SubagentModelChoice::Refresh => {
                 renderer.line(MessageStyle::Info, "Refreshing local model inventory...")?;
-                dynamic_models =
-                    DynamicModelRegistry::load(MODEL_OPTIONS.as_slice(), workspace, vt_cfg).await;
+                dynamic_models = DynamicModelRegistry::load(&options, workspace, vt_cfg).await;
                 continue;
             }
             SubagentModelChoice::Manual => {
@@ -684,6 +702,7 @@ pub(crate) async fn pick_subagent_model(
                     session,
                     ctrl_c_state,
                     ctrl_c_notify,
+                    &options,
                 )
                 .await?
                 else {
@@ -723,6 +742,7 @@ async fn select_subagent_model_target(
     ctrl_c_state: &Arc<CtrlCState>,
     ctrl_c_notify: &Arc<Notify>,
     dynamic_models: &DynamicModelRegistry,
+    options: &[ModelOption],
     current_model: &str,
 ) -> Result<Option<SubagentModelChoice>> {
     let mut items = Vec::new();
@@ -741,8 +761,8 @@ async fn select_subagent_model_target(
         });
     }
 
-    for (index, option) in MODEL_OPTIONS.iter().enumerate() {
-        let current_provider = if current_model.eq_ignore_ascii_case(option.id) {
+    for (index, option) in options.iter().enumerate() {
+        let current_provider = if current_model.eq_ignore_ascii_case(&option.id) {
             option.provider.as_ref()
         } else {
             ""
@@ -759,10 +779,10 @@ async fn select_subagent_model_target(
             selection: Some(InlineListSelection::Model(index)),
             search_value: Some(model_search_value(
                 option.provider,
-                option.display,
-                option.id,
-                Some(option.description),
-                &static_model_search_terms(option.model, option.supports_reasoning),
+                &option.display,
+                &option.id,
+                Some(&option.description),
+                &static_model_search_terms(option.model.clone(), option.supports_reasoning),
             )),
         });
     }
@@ -862,7 +882,7 @@ async fn select_subagent_model_target(
             }
         }
         InlineListSelection::Model(index) => {
-            let option = MODEL_OPTIONS
+            let option = options
                 .get(index)
                 .ok_or_else(|| anyhow!("Unable to locate the selected model option"))?;
             SubagentModelChoice::Target(SubagentModelTarget::Concrete(selection_from_option(
@@ -1010,6 +1030,7 @@ async fn prompt_subagent_model_id(
     session: &mut InlineSession,
     ctrl_c_state: &Arc<CtrlCState>,
     ctrl_c_notify: &Arc<Notify>,
+    options: &[ModelOption],
 ) -> Result<Option<SubagentModelTarget>> {
     loop {
         let outcome = show_wizard_modal_and_wait(
@@ -1081,7 +1102,7 @@ async fn prompt_subagent_model_id(
             }
         };
         let detail = parse_model_selection(
-            MODEL_OPTIONS.as_slice(),
+            options,
             &format!("{} {}", model_id.provider(), model_id.as_str()),
             None,
         )?;
@@ -1103,7 +1124,7 @@ fn preferred_subagent_model_selection(
         )));
     }
     if let Ok(model_id) = current_trimmed.parse::<ModelId>()
-        && let Some(index) = find_option_index(model_id.provider(), model_id.as_str())
+        && let Some(index) = find_option_index(model_id.provider(), &model_id.as_str())
     {
         return Some(InlineListSelection::Model(index));
     }

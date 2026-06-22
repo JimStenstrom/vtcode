@@ -581,7 +581,11 @@ fn test_enum_variants_match_all_models_collection() {
             continue;
         }
         if let Some((name, _)) = line.split_once(',') {
-            enum_variants.insert(name.trim().to_string());
+            let variant_name = name.trim().to_string();
+            // Custom is a runtime-only variant not included in all_models()
+            if !variant_name.starts_with("Custom") {
+                enum_variants.insert(variant_name);
+            }
         }
     }
 
@@ -621,7 +625,7 @@ fn test_all_models_have_non_empty_metadata_and_parse() {
             // LlamaCpp/Ollama GPT-OSS-20B share the same model string as OpenAI's variant;
             // `gpt-oss-20b` resolves to OpenAIGptOss20b first.
             ModelId::LlamaCppGptOss20b | ModelId::OllamaGptOss20b => continue,
-            _ => ModelId::from_str(model.as_str()),
+            _ => ModelId::from_str(&model.as_str()),
         };
         assert_eq!(parsed.unwrap(), model);
     }

@@ -154,18 +154,18 @@ fn provider_scoped_items(
         items.push(InlineListItem {
             title: option.display.to_string(),
             subtitle: Some(static_model_subtitle(option, current_provider, main_model)),
-            badge: Some(model_badge(current_setting, option.id, provider.label())),
+            badge: Some(model_badge(current_setting, &option.id, provider.label())),
             indent: 0,
             selection: Some(InlineListSelection::ConfigAction(format!(
                 "{action_prefix}{}",
-                option.id
+                &option.id
             ))),
             search_value: Some(model_search_value(
                 provider,
-                option.display,
-                option.id,
-                Some(option.description),
-                &static_model_search_terms(option.model, option.supports_reasoning),
+                &option.display,
+                &option.id,
+                Some(&option.description),
+                &static_model_search_terms(option.model.clone(), option.supports_reasoning),
             )),
         });
     }

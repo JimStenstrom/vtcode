@@ -136,7 +136,7 @@ pub fn catalog_provider_keys() -> &'static [&'static str] {
 
 impl ModelId {
     fn generated_capabilities(&self) -> Option<ModelCatalogEntry> {
-        generated_catalog_entry(capability_provider_key(self.provider()), self.as_str())
+        generated_catalog_entry(capability_provider_key(self.provider()), &self.as_str())
     }
 
     /// Preferred built-in lightweight sibling or lower-tier fallback for this model.
@@ -192,7 +192,7 @@ impl ModelId {
                 .map(|(_, models)| {
                     models
                         .iter()
-                        .copied()
+                        .cloned()
                         .filter(|candidate| candidate != self)
                         .filter(|candidate| {
                             candidate
@@ -374,7 +374,7 @@ impl ModelId {
         if let Some(meta) = self.openrouter_metadata() {
             return meta.reasoning;
         }
-        self.provider().supports_reasoning_effort(self.as_str())
+        self.provider().supports_reasoning_effort(&self.as_str())
     }
 
     /// Determine whether the model supports tool calls/function execution

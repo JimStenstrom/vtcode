@@ -679,11 +679,6 @@ This document serves as an index of all VT Code documentation. When users ask qu
   - **Topics**: Featured Integrations, About This Directory, Overview, Configuration, Resources
   - **User Questions**: "What can you tell me about Hugging Face Inference Providers Integrations?", "How does Featured Integrations work?", "How does About This Directory work?"
 
-- **File**: `docs/project/TODO.md`
-  - **Content**: Implementation Plan: Custom model lists for built-in providers
-  - **Topics**: Problem, Proposed solution, Implementation steps, Key files to modify, Usage (after implementation)
-  - **User Questions**: "What can you tell me about Implementation Plan: Custom model lists for built-in providers?", "How does Problem work?", "How does Proposed solution work?"
-
 - **File**: `docs/installation/README.md`
   - **Content**: Installation Guide
   - **Topics**: Quick Install, Supported AI Providers, Troubleshooting, Uninstall, Additional Resources
@@ -778,6 +773,10 @@ This document serves as an index of all VT Code documentation. When users ask qu
   - **Content**: Styling Quick Start Guide
   - **Topics**: For CLI Output, For TUI Widgets, Unified Theme, Color Reference, Common Patterns
   - **User Questions**: "What can you tell me about Styling Quick Start Guide?", "How does For CLI Output work?", "How does For TUI Widgets work?"
+
+- **File**: `docs/project/TODO.md`
+  - **Content**: TODO.md
+  - **User Questions**: "What can you tell me about TODO.md?"
 
 - **File**: `docs/harness/TECH_DEBT_TRACKER.md`
   - **Content**: Tech Debt Tracker

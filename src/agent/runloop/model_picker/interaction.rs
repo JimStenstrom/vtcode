@@ -231,7 +231,7 @@ pub(super) fn select_reasoning_with_ratatui(
     }
 
     let mut disable_index = None;
-    if let Some(alternative) = selection.reasoning_off_model {
+    if let Some(alternative) = selection.reasoning_off_model.clone() {
         entries.push(SelectionEntry::new(
             format!("Use {} (reasoning off)", alternative.display_name()),
             Some(format!(
@@ -248,7 +248,7 @@ pub(super) fn select_reasoning_with_ratatui(
         selection.model_display,
         reasoning_level_label(current),
     );
-    if let Some(alternative) = selection.reasoning_off_model {
+    if let Some(alternative) = selection.reasoning_off_model.clone() {
         instructions.push(' ');
         instructions.push_str(&format!(
             "Choose \"Use {} (reasoning off)\" to switch to {}.",

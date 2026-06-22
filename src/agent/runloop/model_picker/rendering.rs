@@ -118,7 +118,7 @@ fn context_window_segment(provider: &str, model_id: &str) -> Option<String> {
 fn static_model_capability_segments(option: &ModelOption) -> Vec<String> {
     let mut segments = Vec::new();
     let provider_key = option.provider.to_string();
-    if let Some(context_window) = context_window_segment(&provider_key, option.id) {
+    if let Some(context_window) = context_window_segment(&provider_key, &option.id) {
         segments.push(context_window);
     }
 
@@ -181,8 +181,8 @@ pub(super) fn static_model_subtitle(
     current_model: &str,
 ) -> String {
     subtitle_from_segments(
-        option.id,
-        is_current_model(option.provider, option.id, current_provider, current_model),
+        &option.id,
+        is_current_model(option.provider, &option.id, current_provider, current_model),
         static_model_capability_segments(option),
     )
 }
@@ -334,10 +334,10 @@ pub(super) fn render_step_one_inline(
                 selection: Some(InlineListSelection::Model(*idx)),
                 search_value: Some(model_search_value(
                     provider,
-                    option.display,
-                    option.id,
-                    Some(option.description),
-                    &static_model_search_terms(option.model, option.supports_reasoning),
+                    &option.display,
+                    &option.id,
+                    Some(&option.description),
+                    &static_model_search_terms(option.model.clone(), option.supports_reasoning),
                 )),
             });
         }

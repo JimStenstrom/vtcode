@@ -18,7 +18,7 @@ pub use capabilities::{
 
 /// Centralized enum for all supported model identifiers
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum ModelId {
     // Gemini models
     /// Gemini 3.1 Pro Preview - Latest Gemini 3.1 Pro flagship
@@ -274,4 +274,8 @@ pub enum ModelId {
     PoolsideLagunaM1,
     /// Laguna XS.2 - Poolside's efficient MoE coding agent model
     PoolsideLagunaXs2,
+
+    /// User-defined model not in the hardcoded catalog.
+    /// Carries the provider key string and model identifier string.
+    Custom(String, String),
 }

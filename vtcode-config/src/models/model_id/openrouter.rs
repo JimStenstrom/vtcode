@@ -4,7 +4,7 @@ use super::ModelId;
 
 impl ModelId {
     pub(super) fn openrouter_metadata(&self) -> Option<OpenRouterMetadata> {
-        openrouter_generated::metadata_for(*self)
+        openrouter_generated::metadata_for(self.clone())
     }
 
     pub(super) fn parse_openrouter_model(value: &str) -> Option<Self> {
@@ -21,7 +21,7 @@ impl ModelId {
     pub(super) fn openrouter_models() -> Vec<Self> {
         Self::openrouter_vendor_groups()
             .into_iter()
-            .flat_map(|(_, models)| models.iter().copied())
+            .flat_map(|(_, models)| models.iter().cloned())
             .collect()
     }
 }

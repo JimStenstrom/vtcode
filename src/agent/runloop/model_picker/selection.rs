@@ -8,7 +8,7 @@ use vtcode_config::core::CustomProviderConfig;
 use vtcode_core::config::constants::reasoning;
 use vtcode_core::config::models::{ModelId, Provider, ProviderModelSupport};
 use vtcode_core::config::types::ReasoningEffortLevel;
-use vtcode_core::llm::{DynamicModelMeta, ModelResolver, ResolvedModel};
+use vtcode_core::llm::{DynamicModelMeta, ModelAvailability, ModelResolver, ResolvedModel};
 
 use super::options::{ModelOption, find_option_index};
 
@@ -144,7 +144,13 @@ pub(super) fn parse_model_selection(
     if let Some(provider) = provider_enum {
         let resolved =
             ModelResolver::resolve(Some(provider.as_ref()), model_token.trim(), &[], None)
-                .expect("provider override should resolve");
+                .ok_or_else(|| {
+                    anyhow::anyhow!(
+                        "unable to resolve model `{}` for provider `{}`",
+                        model_token.trim(),
+                        provider.as_ref()
+                    )
+                })?;
         return Ok(selection_from_resolved(
             provider_lower,
             provider_label,
@@ -175,15 +181,24 @@ pub(super) fn parse_model_selection(
 }
 
 pub(super) fn selection_from_option(option: &ModelOption) -> SelectionDetail {
-    let resolved = ModelResolver::resolve(Some(option.provider.as_ref()), option.id, &[], None)
-        .expect("static model option should resolve");
+    let resolved = ModelResolver::resolve(Some(option.provider.as_ref()), &option.id, &[], None)
+        .unwrap_or_else(|| {
+            // Fallback: create a minimal ResolvedModel for static options
+            ResolvedModel {
+                provider: option.provider,
+                model_id: option.id.clone(),
+                catalog: None,
+                dynamic: None,
+                availability: ModelAvailability::Available,
+            }
+        });
     selection_from_resolved(
         option.provider.to_string(),
         option.provider.label().to_string(),
         Some(option.provider),
         resolved,
         false,
-        option.reasoning_alternative,
+        option.reasoning_alternative.clone(),
         option.provider.default_api_key_env().to_string(),
     )
 }
@@ -206,7 +221,20 @@ pub(super) fn selection_from_dynamic(
             context_window,
         }),
     )
-    .expect("dynamic model should resolve");
+    .unwrap_or_else(|| {
+        // Fallback: create a minimal ResolvedModel for dynamic models
+        ResolvedModel {
+            provider,
+            model_id: model_id.to_string(),
+            catalog: None,
+            dynamic: Some(DynamicModelMeta {
+                display_name: display_name.to_string(),
+                description: description.map(ToOwned::to_owned),
+                context_window,
+            }),
+            availability: ModelAvailability::Available,
+        }
+    });
     selection_from_resolved(
         provider.to_string(),
         provider.label().to_string(),

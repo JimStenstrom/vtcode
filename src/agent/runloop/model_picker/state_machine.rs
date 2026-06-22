@@ -297,7 +297,7 @@ impl ModelPickerState {
             return self.continue_after_reasoning(renderer);
         }
 
-        let Some(target_model) = current_selection.reasoning_off_model else {
+        let Some(ref target_model) = current_selection.reasoning_off_model else {
             renderer.line(
                 MessageStyle::Error,
                 "This model does not have a non-reasoning variant.",
@@ -313,7 +313,7 @@ impl ModelPickerState {
         let Some(option) = self
             .options
             .iter()
-            .find(|candidate| candidate.id.eq_ignore_ascii_case(target_model.as_str()))
+            .find(|candidate| candidate.id.eq_ignore_ascii_case(&target_model.as_str()))
         else {
             renderer.line(
                 MessageStyle::Error,

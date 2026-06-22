@@ -216,7 +216,7 @@ fn prompt_model_text(
     }
 
     match trimmed.parse::<ModelId>() {
-        Ok(id) => Ok(id.as_str().to_owned()),
+        Ok(id) => Ok(id.as_str().into_owned()),
         Err(_) => {
             renderer.line(
                 MessageStyle::Info,

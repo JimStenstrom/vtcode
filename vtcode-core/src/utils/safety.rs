@@ -57,7 +57,7 @@ impl SafetyValidator {
             }
 
             // Ask for explicit confirmation before using the most capable model
-            match UserConfirmation::confirm_pro_model_usage(current_default.as_str())? {
+            match UserConfirmation::confirm_pro_model_usage(&current_default.as_str())? {
                 ProModelConfirmationResult::Yes => {}
                 ProModelConfirmationResult::YesAutoAccept => {
                     PRO_MODEL_AUTO_ACCEPT.store(true, Ordering::Relaxed);

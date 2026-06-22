@@ -287,7 +287,10 @@ impl ZedAgent {
                 ModelId::models_for_provider(provider)
                     .into_iter()
                     .map(|model| {
-                        acp::SessionConfigSelectOption::new(model.as_str(), model.display_name())
+                        acp::SessionConfigSelectOption::new(
+                            model.as_str().into_owned(),
+                            model.display_name().into_owned(),
+                        )
                     })
                     .collect::<Vec<_>>()
             })

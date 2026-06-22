@@ -1,7 +1,9 @@
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 use std::fs;
 use std::path::Path;
+use std::str::FromStr;
 
 use crate::acp::AgentClientProtocolConfig;
 use crate::codex::{FileOpener, HistoryConfig, TuiConfig};
@@ -10,14 +12,15 @@ use crate::context::ContextFeaturesConfig;
 use crate::core::{
     AgentConfig, AgentPermissionsConfig, AnthropicConfig, AuthConfig, AutomationConfig,
     CommandsConfig, CustomProviderConfig, DotfileProtectionConfig, ModelConfig, OpenAIConfig,
-    PermissionsConfig, PromptCachingConfig, SandboxConfig, SecurityConfig, SkillsConfig,
-    ToolsConfig,
+    PermissionsConfig, PromptCachingConfig, ProviderOverrideConfig, SandboxConfig, SecurityConfig,
+    SkillsConfig, ToolsConfig,
 };
 use crate::debug::DebugConfig;
 use crate::defaults::{self, ConfigDefaultsProvider};
 use crate::hooks::HooksConfig;
 use crate::ide_context::IdeContextConfig;
 use crate::mcp::McpClientConfig;
+use crate::models::Provider;
 use crate::optimization::OptimizationConfig;
 use crate::output_styles::OutputStyleConfig;
 use crate::root::{ChatConfig, PtyConfig, UiConfig};
@@ -240,6 +243,14 @@ pub struct VTCodeConfig {
     #[serde(default)]
     pub custom_providers: Vec<CustomProviderConfig>,
 
+    /// Built-in provider overrides for model lists and endpoint configuration.
+    ///
+    /// Maps provider key (e.g., "opencode-zen", "opencode-go") to override
+    /// config that extends the provider's hardcoded model list with custom
+    /// models, and optionally overrides the base URL or API key env var.
+    #[serde(default)]
+    pub provider_overrides: BTreeMap<String, ProviderOverrideConfig>,
+
     /// Output style configuration
     #[serde(default)]
     pub output_style: OutputStyleConfig,
@@ -290,6 +301,7 @@ impl Default for VTCodeConfig {
             provider: ProviderConfig::default(),
             skills: SkillsConfig::default(),
             custom_providers: Vec::new(),
+            provider_overrides: BTreeMap::new(),
             output_style: OutputStyleConfig::default(),
             dotfile_protection: DotfileProtectionConfig::default(),
             workspace: WorkspaceConfig::default(),
@@ -342,6 +354,24 @@ impl VTCodeConfig {
             }
         }
 
+        // Validate provider overrides
+        for (provider_name, override_config) in &self.provider_overrides {
+            override_config
+                .validate(provider_name)
+                .map_err(|msg| anyhow::anyhow!(msg))
+                .context("Invalid provider_overrides configuration")?;
+            // Validate that the provider key matches a known provider
+            if Provider::from_str(provider_name).is_err() {
+                anyhow::bail!(
+                    "provider_overrides: unknown provider `{provider_name}`; \
+                     must be one of: gemini, openai, anthropic, copilot, deepseek, \
+                     openrouter, ollama, lmstudio, llamacpp, moonshot, zai, minimax, \
+                     mimo, mistral, huggingface, opencodezen, opencodego, qwen, \
+                     stepfun, evolink, poolside"
+                );
+            }
+        }
+
         Ok(())
     }
 
@@ -384,8 +414,8 @@ impl VTCodeConfig {
             cp.display_name.clone()
         } else if provider_key.eq_ignore_ascii_case("codex") {
             "Codex".to_string()
-        } else if let Ok(p) = std::str::FromStr::from_str(provider_key) {
-            let p: crate::models::Provider = p;
+        } else if let Ok(p) = FromStr::from_str(provider_key) {
+            let p: Provider = p;
             p.label().to_string()
         } else {
             provider_key.to_string()

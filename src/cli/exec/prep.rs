@@ -364,7 +364,7 @@ fn build_exec_archive_metadata(
 ) -> vtcode_core::utils::session_archive::SessionArchiveMetadata {
     build_thread_archive_metadata(
         workspace,
-        model_id.as_str(),
+        &model_id.as_str(),
         &vt_cfg.agent.provider,
         &vt_cfg.agent.theme,
         config.reasoning_effort.as_str(),

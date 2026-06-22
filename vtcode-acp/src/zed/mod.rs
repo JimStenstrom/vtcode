@@ -553,7 +553,9 @@ Project build prompt."#,
         let temp = TempDir::new().unwrap();
         let agent = build_agent(temp.path()).await;
         let session_id = agent.register_session();
-        let anthropic_default = ModelId::default_single_for_provider(Provider::Anthropic).as_str();
+        let anthropic_default = ModelId::default_single_for_provider(Provider::Anthropic)
+            .as_str()
+            .into_owned();
 
         let response = agent
             .set_session_config_option(SetSessionConfigOptionRequest::new(
@@ -582,7 +584,7 @@ Project build prompt."#,
                     &option.kind,
                     SessionConfigKind::Select(select)
                         if select.current_value
-                            == crate::acp::SessionConfigValueId::new(anthropic_default)
+                            == crate::acp::SessionConfigValueId::new(anthropic_default.as_str())
                 )
         }));
     }
