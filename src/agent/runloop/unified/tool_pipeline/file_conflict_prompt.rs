@@ -86,6 +86,11 @@ where
     .await
 }
 
+/// Maximum number of file conflict resolution attempts before aborting.
+/// This prevents an infinite loop when the file keeps changing on disk
+/// between re-executions (e.g., from a file watcher or formatter).
+const MAX_CONFLICT_RESOLUTION_ATTEMPTS: u32 = 10;
+
 #[allow(clippy::too_many_arguments)] // internal pipeline function, all params needed
 async fn resolve_file_conflict_status_inner<S>(
     registry: &mut ToolRegistry,
@@ -106,6 +111,7 @@ async fn resolve_file_conflict_status_inner<S>(
 where
     S: UiSession + ?Sized,
 {
+    let mut conflict_resolution_attempts = 0u32;
     loop {
         let conflict = match execution {
             RuntimeToolExecution::Completed(status) => return Ok(status),
@@ -144,6 +150,15 @@ where
                 return Ok(aborted_conflict_status(&conflict));
             }
             OverlayWaitOutcome::Submitted(ConflictResolution::Proceed) => {
+                conflict_resolution_attempts += 1;
+                if conflict_resolution_attempts >= MAX_CONFLICT_RESOLUTION_ATTEMPTS {
+                    tracing::warn!(
+                        tool = %name,
+                        attempts = conflict_resolution_attempts,
+                        "File conflict resolution attempts exhausted; aborting to prevent infinite loop"
+                    );
+                    return Ok(aborted_conflict_status(&conflict));
+                }
                 let override_args = build_override_args(args_val, &conflict)?;
                 execution = execute_with_cache_and_streaming(
                     registry,

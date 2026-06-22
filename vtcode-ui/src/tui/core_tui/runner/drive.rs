@@ -65,7 +65,8 @@ fn suspend_to_shell<B: Backend, S: TuiSessionDriver>(
     use ratatui::crossterm::{
         event::{
             DisableBracketedPaste, DisableFocusChange, DisableMouseCapture, EnableBracketedPaste,
-            EnableFocusChange, EnableMouseCapture, PushKeyboardEnhancementFlags,
+            EnableFocusChange, EnableMouseCapture, PopKeyboardEnhancementFlags,
+            PushKeyboardEnhancementFlags,
         },
         terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
     };
@@ -88,6 +89,11 @@ fn suspend_to_shell<B: Backend, S: TuiSessionDriver>(
             && let Err(error) = execute!(stderr, DisableMouseCapture)
         {
             tracing::debug!(%error, "failed to disable mouse capture before suspend");
+        }
+        if !keyboard_flags.is_empty()
+            && let Err(error) = execute!(stderr, PopKeyboardEnhancementFlags)
+        {
+            tracing::debug!(%error, "failed to suspend keyboard enhancement flags");
         }
         // Drain any terminal responses from the disable sequences above
         // while raw mode is still active so individual bytes remain readable.

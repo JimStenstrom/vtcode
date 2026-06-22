@@ -87,7 +87,7 @@ impl StreamingOutputCoalescer {
         if chunk.is_empty() {
             return;
         }
-        let (emit_started, output) = {
+        let emit_started = {
             let mut state = self
                 .state
                 .lock()
@@ -95,7 +95,7 @@ impl StreamingOutputCoalescer {
             let emit_started = !state.started_emitted;
             state.started_emitted = true;
             state.output.push_str(chunk);
-            (emit_started, state.output.clone())
+            emit_started
         };
 
         if emit_started {
@@ -105,10 +105,17 @@ impl StreamingOutputCoalescer {
             ));
         }
 
+        // Emit the chunk directly as the update payload. The Open Responses bridge
+        // computes deltas via strip_prefix on successive updates; sending the chunk
+        // (rather than the full accumulated output) is correct because each chunk
+        // is a fresh string that won't prefix-match the previous state, so the
+        // bridge emits it as-is. This avoids O(n^2) memory from cloning the full
+        // output on every chunk. The final tool_output_completed_event carries the
+        // full output for consumers that need it.
         let _ = self.harness_emitter.emit(tool_updated_event(
             self.tool_item_id.clone(),
             Some(self.tool_call_id.as_str()),
-            output,
+            chunk,
         ));
     }
 
@@ -720,6 +727,9 @@ mod tests {
             Some("abc")
         );
 
+        // Each update emits only the new chunk, not the full accumulated output.
+        // This avoids O(n^2) memory from cloning the full output on every chunk.
+        // The final tool_output_completed_event carries the full output.
         let second_update: serde_json::Value = serde_json::from_str(lines[2]).expect("parse event");
         assert_eq!(
             second_update["event"]["type"].as_str(),
@@ -727,7 +737,7 @@ mod tests {
         );
         assert_eq!(
             second_update["event"]["item"]["output"].as_str(),
-            Some("abcdef")
+            Some("def")
         );
     }
 }

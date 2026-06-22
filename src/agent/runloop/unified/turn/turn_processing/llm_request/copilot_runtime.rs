@@ -403,7 +403,7 @@ impl<'a> CopilotRuntimeHost<'a> {
         arguments: &Value,
     ) -> Result<Option<CopilotToolCallResponse>> {
         let invocation_id = invocation_id_from_call_id(tool_call_id);
-        match validate_tool_call_with_limit_prompt(
+        let safety_approval_justification = match validate_tool_call_with_limit_prompt(
             self.safety_validator,
             self.handle,
             self.session,
@@ -415,7 +415,7 @@ impl<'a> CopilotRuntimeHost<'a> {
         )
         .await
         {
-            Ok(()) => {}
+            Ok(()) => None,
             Err(SafetyValidationFailure::SessionLimitNotIncreased) => {
                 return Ok(Some(denied_tool_response(
                     tool_name,
@@ -428,16 +428,20 @@ impl<'a> CopilotRuntimeHost<'a> {
                     &format!("failed while requesting a session tool-limit increase: {error}"),
                 )));
             }
+            Err(SafetyValidationFailure::NeedsApproval(justification)) => Some(justification),
             Err(SafetyValidationFailure::Validation(error)) => {
                 return Ok(Some(denied_tool_response(
                     tool_name,
                     &format!("safety validation failed: {error}"),
                 )));
             }
-        }
+        };
 
         match ensure_tool_permission_with_call_id(
-            self.tool_permissions_context(renderer),
+            self.tool_permissions_context_with_safety(
+                renderer,
+                safety_approval_justification.as_deref(),
+            ),
             tool_name,
             Some(arguments),
             Some(tool_call_id),
@@ -488,9 +492,10 @@ impl<'a> CopilotRuntimeHost<'a> {
         Ok(None)
     }
 
-    fn tool_permissions_context<'b>(
+    fn tool_permissions_context_with_safety<'b>(
         &'b mut self,
         renderer: &'b mut AnsiRenderer,
+        safety_approval_justification: Option<&str>,
     ) -> ToolPermissionsContext<'b, InlineSession> {
         ToolPermissionsContext {
             tool_registry: self.tool_registry,
@@ -514,6 +519,7 @@ impl<'a> CopilotRuntimeHost<'a> {
             permissions_config: self.vt_cfg.map(|cfg| &cfg.permissions),
             auto_permission_runtime: None,
             session_stats: Some(self.session_stats),
+            safety_approval_justification: safety_approval_justification.map(String::from),
         }
     }
 

@@ -639,7 +639,11 @@ impl ToolPolicyManager {
         .unwrap_or(tools_config.default_policy.clone())
     }
 
-    /// Apply policies defined in vtcode.toml to the runtime policy manager
+    /// Apply policies defined in vtcode.toml to the runtime policy manager.
+    ///
+    /// Auto-allow defaults are NOT re-applied here — they are seeded once
+    /// during `load_or_create_config`. Re-applying them after user overrides
+    /// would silently revert explicit Deny/Prompt settings in vtcode.toml.
     pub async fn apply_tools_config(&mut self, tools_config: &ToolsConfig) -> Result<()> {
         if self.config.available_tools.is_empty() {
             return Ok(());
@@ -652,7 +656,6 @@ impl ToolPolicyManager {
             self.apply_config_policy(&tool, config_policy);
         }
 
-        Self::apply_auto_allow_defaults(&mut self.config);
         self.save_config().await
     }
 

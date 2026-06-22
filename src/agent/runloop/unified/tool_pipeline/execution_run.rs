@@ -206,7 +206,7 @@ pub(crate) async fn run_tool_call_with_args(
         };
 
     if !prevalidated {
-        if let Err(safety_failure) = check_tool_safety(
+        let safety_approval_justification = match check_tool_safety(
             ctx,
             name,
             &effective_args,
@@ -216,8 +216,11 @@ pub(crate) async fn run_tool_call_with_args(
         )
         .await
         {
-            return Ok(finish_with_status(safety_failure, false, &effective_args));
-        }
+            Ok(justification) => justification,
+            Err(safety_failure) => {
+                return Ok(finish_with_status(safety_failure, false, &effective_args));
+            }
+        };
 
         match check_tool_permission(
             ctx,
@@ -230,6 +233,7 @@ pub(crate) async fn run_tool_call_with_args(
             lifecycle_hooks,
             skip_confirmations,
             vt_cfg,
+            safety_approval_justification.as_deref(),
         )
         .await
         {
@@ -438,9 +442,9 @@ async fn check_tool_safety(
     invocation_id: ToolInvocationId,
     ctrl_c_state: &Arc<CtrlCState>,
     ctrl_c_notify: &Arc<Notify>,
-) -> Result<(), ToolExecutionStatus> {
+) -> Result<Option<String>, ToolExecutionStatus> {
     let Some(safety_validator) = ctx.safety_validator else {
-        return Ok(());
+        return Ok(None);
     };
 
     match validate_tool_call_with_limit_prompt(
@@ -455,7 +459,7 @@ async fn check_tool_safety(
     )
     .await
     {
-        Ok(()) => Ok(()),
+        Ok(()) => Ok(None),
         Err(SafetyValidationFailure::SessionLimitNotIncreased) => {
             Err(ToolExecutionStatus::Failure {
                 error: structured_failure_from_message(
@@ -472,6 +476,7 @@ async fn check_tool_safety(
                 ),
             })
         }
+        Err(SafetyValidationFailure::NeedsApproval(justification)) => Ok(Some(justification)),
         Err(SafetyValidationFailure::Validation(error)) => Err(ToolExecutionStatus::Failure {
             error: structured_failure(name, &anyhow!("Safety validation failed: {error}")),
         }),
@@ -490,6 +495,7 @@ async fn check_tool_permission(
     lifecycle_hooks: Option<&LifecycleHookEngine>,
     skip_confirmations: bool,
     vt_cfg: Option<&VTCodeConfig>,
+    safety_approval_justification: Option<&str>,
 ) -> Result<Option<Value>, ToolExecutionStatus> {
     let permissions_ctx = build_tool_permissions_context(
         ctx,
@@ -499,6 +505,7 @@ async fn check_tool_permission(
         lifecycle_hooks,
         skip_confirmations,
         vt_cfg,
+        safety_approval_justification,
     );
 
     match ensure_tool_permission_with_call_id(
@@ -533,6 +540,7 @@ fn build_tool_permissions_context<'a>(
     lifecycle_hooks: Option<&'a LifecycleHookEngine>,
     skip_confirmations: bool,
     vt_cfg: Option<&'a VTCodeConfig>,
+    safety_approval_justification: Option<&str>,
 ) -> crate::agent::runloop::unified::tool_routing::ToolPermissionsContext<
     'a,
     vtcode_ui::tui::app::InlineSession,
@@ -575,6 +583,7 @@ fn build_tool_permissions_context<'a>(
         permissions_config: vt_cfg.map(|cfg| &cfg.permissions),
         auto_permission_runtime,
         session_stats: Some(ctx.session_stats),
+        safety_approval_justification: safety_approval_justification.map(String::from),
     }
 }
 

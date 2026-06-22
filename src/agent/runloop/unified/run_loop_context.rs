@@ -184,6 +184,11 @@ pub(crate) struct HarnessTurnState {
     pub max_tool_calls: usize,
     pub max_tool_wall_clock: Duration,
     pub max_tool_retries: u32,
+    /// Tracks consecutive relaxed continuation decisions. If this exceeds
+    /// `MAX_CONSECUTIVE_RELAXED_CONTINUATIONS`, the turn ends to prevent
+    /// infinite loops where the model keeps producing continuation-worthy
+    /// text without making actual progress.
+    pub consecutive_relaxed_continuations: u32,
 }
 
 impl HarnessTurnState {
@@ -225,6 +230,7 @@ impl HarnessTurnState {
             max_tool_calls,
             max_tool_wall_clock: Duration::from_secs(max_tool_wall_clock_secs),
             max_tool_retries,
+            consecutive_relaxed_continuations: 0,
         }
     }
 

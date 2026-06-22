@@ -16,6 +16,7 @@ use crate::tools::handlers::{
 use crate::tools::native_memory;
 use crate::tools::request_user_input::RequestUserInputTool;
 use crate::tools::tool_intent::builtin_tool_behavior;
+use crate::tools::web_fetch::WebFetchTool;
 use serde_json::json;
 use vtcode_utility_tool_specs::{
     apply_patch_parameters, close_agent_parameters, cron_create_parameters, cron_delete_parameters,
@@ -338,6 +339,51 @@ fn register_unified_search(_plan_state: Option<&PlanningWorkflowState>) -> ToolR
         "show agent info",
         "fetch",
     ])
+}
+
+// ---------------------------------------------------------------------------
+// WEB FETCH (built-in, sandbox-bypassing network fetch)
+// ---------------------------------------------------------------------------
+
+#[distributed_slice(BUILTIN_TOOLS)]
+fn register_web_fetch(_plan_state: Option<&PlanningWorkflowState>) -> ToolRegistration {
+    let web_fetch = WebFetchTool::new();
+    let web_fetch_for_factory = web_fetch.clone();
+    let web_fetch_factory = native_cgp_tool_factory(move || web_fetch_for_factory.clone());
+    ToolRegistration::from_tool_instance(
+        tools::WEB_FETCH,
+        CapabilityLevel::Basic,
+        web_fetch,
+    )
+    .with_native_cgp_factory(web_fetch_factory)
+    .with_description(
+        "Fetch content from a URL and return analyzed text. Accepts: { url: string, prompt?: string, max_bytes?: number, timeout_secs?: number }. If 'prompt' is omitted, a safe default summary prompt is used.",
+    )
+    .with_parameter_schema(json!({
+        "type": "object",
+        "properties": {
+            "url": {
+                "type": "string",
+                "description": "URL to fetch (HTTPS required by default)"
+            },
+            "prompt": {
+                "type": "string",
+                "description": "Question or instruction for analyzing the fetched content. Omit for a default summary."
+            },
+            "max_bytes": {
+                "type": "integer",
+                "description": "Maximum response body size in bytes (default: 500000)"
+            },
+            "timeout_secs": {
+                "type": "integer",
+                "description": "Request timeout in seconds (default: 30)"
+            }
+        },
+        "required": ["url"],
+        "additionalProperties": false
+    }))
+    .with_permission(ToolPolicy::Prompt)
+    .with_aliases(["fetch_url", "web"])
 }
 
 #[distributed_slice(BUILTIN_TOOLS)]

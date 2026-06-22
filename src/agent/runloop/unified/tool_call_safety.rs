@@ -33,6 +33,12 @@ pub(crate) enum SafetyError {
         max: usize,
         window: &'static str,
     },
+    /// The safety gateway determined that this tool call requires human approval.
+    /// The justification describes the risk (e.g. destructive operation, network
+    /// access). This is distinct from `Other` because it carries structured intent
+    /// — the permission path should force a prompt rather than deny outright.
+    #[error("Safety approval required: {0}")]
+    NeedsApproval(String),
     #[error(transparent)]
     Other(#[from] anyhow::Error),
 }
@@ -151,7 +157,10 @@ impl ToolCallSafetyValidator {
             .await;
 
         match result.decision {
-            SafetyDecision::Allow | SafetyDecision::NeedsApproval(_) => Ok(()),
+            SafetyDecision::Allow => Ok(()),
+            SafetyDecision::NeedsApproval(justification) => {
+                Err(SafetyError::NeedsApproval(justification))
+            }
             SafetyDecision::Deny(reason) => Err(map_gateway_violation(result.violation, &reason)),
         }
     }
@@ -234,18 +243,25 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_validation_allows_safe_and_destructive_tools() {
+    async fn test_validation_allows_safe_and_flags_destructive_tools() {
         let validator = ToolCallSafetyValidator::new();
         validator.start_turn();
 
+        // Safe tools pass without approval
         validator
             .validate_call("read_file", &json!({}))
             .await
             .unwrap();
-        validator
+
+        // Destructive tools now correctly require approval instead of silently passing
+        let err = validator
             .validate_call("delete_file", &json!({}))
             .await
-            .unwrap();
+            .unwrap_err();
+        assert!(
+            matches!(err, SafetyError::NeedsApproval(_)),
+            "destructive tool should require approval, got: {err:?}"
+        );
     }
 
     #[tokio::test]

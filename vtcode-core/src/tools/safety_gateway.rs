@@ -976,8 +976,9 @@ impl SafetyGateway {
             ctx = ctx.as_destructive();
         }
 
-        // Check for network access
-        if tool_name == tools::WEB_SEARCH || tool_name == tools::FETCH_URL || web_search {
+        // Check for network access (web_search here is the action-qualified
+        // `unified_search:web` form computed above).
+        if ToolRiskScorer::is_network_tool(tool_name) || web_search {
             ctx = ctx.accesses_network();
         }
 

@@ -55,7 +55,23 @@ pub(super) async fn record_approval_blocking(
 }
 
 pub(super) fn cache_key(tool_name: &str, tool_args: Option<&Value>) -> String {
-    super::permission_prompt::shell_permission_cache_suffix(tool_name, tool_args)
-        .map(|suffix| format!("{tool_name}:{suffix}"))
-        .unwrap_or_else(|| tool_name.to_string())
+    // For non-shell tools, the shell suffix is None, so the key degrades to the
+    // bare tool name. Qualify `unified_search` with its action to prevent
+    // cross-action cache contamination (e.g. a grep approval auto-approving a
+    // web fetch).
+    if let Some(suffix) =
+        super::permission_prompt::shell_permission_cache_suffix(tool_name, tool_args)
+    {
+        return format!("{tool_name}:{suffix}");
+    }
+
+    use vtcode_core::config::constants::tools::UNIFIED_SEARCH;
+    if tool_name == UNIFIED_SEARCH
+        && let Some(args) = tool_args
+        && vtcode_core::tools::tool_intent::unified_search_action_is(args, "web")
+    {
+        return "unified_search:web".to_string();
+    }
+
+    tool_name.to_string()
 }

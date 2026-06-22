@@ -684,7 +684,7 @@ async fn vtcode_tool_calls_render_transcript_output_via_shared_pipeline() {
                 tool_name: "unified_exec".to_string(),
                 arguments: json!({
                     "action": "run",
-                    "command": "printf 'hello from acp\\n'"
+                    "command": "cat sample.txt"
                 }),
             },
         )
@@ -707,7 +707,7 @@ async fn vtcode_tool_calls_render_transcript_output_via_shared_pipeline() {
         stripped_text
     );
     assert!(
-        stripped_text.contains("Ran printf") || stripped_text.contains("Run command"),
+        stripped_text.contains("Ran cat") || stripped_text.contains("Run command"),
         "expected command preview in transcript, got: {stripped_text}"
     );
 }

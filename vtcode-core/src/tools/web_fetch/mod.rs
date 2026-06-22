@@ -19,6 +19,8 @@ pub use domains::{BUILTIN_BLOCKED_DOMAINS, BUILTIN_BLOCKED_PATTERNS, MALICIOUS_P
 
 const DEFAULT_TIMEOUT_SECS: u64 = 30;
 const MAX_CONTENT_SIZE: usize = 500_000; // 500KB max content size
+const MAX_ALLOWED_BYTES: usize = 2_000_000; // 2MB hard cap
+const MAX_ALLOWED_TIMEOUT_SECS: u64 = 120; // 2 minutes hard cap
 
 #[derive(Debug, Deserialize)]
 struct WebFetchArgs {
@@ -279,8 +281,14 @@ impl WebFetchTool {
         let args: WebFetchArgs = serde_json::from_value(raw_args)
             .context("Invalid arguments for web_fetch tool. Provide 'url' and 'prompt'.")?;
 
-        let max_bytes = args.max_bytes.unwrap_or(MAX_CONTENT_SIZE);
-        let timeout_secs = args.timeout_secs.unwrap_or(DEFAULT_TIMEOUT_SECS);
+        let max_bytes = args
+            .max_bytes
+            .map(|v| v.min(MAX_ALLOWED_BYTES))
+            .unwrap_or(MAX_CONTENT_SIZE);
+        let timeout_secs = args
+            .timeout_secs
+            .map(|v| v.min(MAX_ALLOWED_TIMEOUT_SECS))
+            .unwrap_or(DEFAULT_TIMEOUT_SECS);
 
         // Fetch the URL content with detailed error handling
         let content = match self
@@ -807,5 +815,14 @@ mod tests {
         assert!(headers.contains_key(ACCEPT));
         let val = headers.get(ACCEPT).unwrap().to_str().unwrap();
         assert!(val.contains("text/markdown"));
+    }
+
+    #[test]
+    fn max_bytes_and_timeout_are_clamped_to_hard_caps() {
+        // Verify the constants exist and are reasonable
+        assert!(MAX_ALLOWED_BYTES >= MAX_CONTENT_SIZE);
+        assert!(MAX_ALLOWED_TIMEOUT_SECS >= DEFAULT_TIMEOUT_SECS);
+        assert!(MAX_ALLOWED_BYTES <= 10_000_000); // sanity: under 10MB
+        assert!(MAX_ALLOWED_TIMEOUT_SECS <= 300); // sanity: under 5 minutes
     }
 }

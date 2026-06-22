@@ -138,6 +138,7 @@ impl<'a> TurnProcessingContext<'a> {
         let recovery_pass_response = self.is_recovery_active() && self.recovery_pass_used();
         let tool_free_recovery_pass = recovery_pass_response && self.recovery_is_tool_free();
         let final_text = text.clone();
+        let consecutive_relaxed = self.harness_state.consecutive_relaxed_continuations;
         let continuation_decision = if tool_free_recovery_pass {
             // During tool-free recovery (LLM follow-up failed after tool execution),
             // evaluate whether the recovery text expresses continuation intent.
@@ -150,6 +151,7 @@ impl<'a> TurnProcessingContext<'a> {
                 self.is_planning_active(),
                 self.working_history,
                 &text,
+                consecutive_relaxed,
             );
             if decision.should_continue {
                 decision
@@ -162,6 +164,7 @@ impl<'a> TurnProcessingContext<'a> {
                     recent_tool_activity: decision.recent_tool_activity,
                     last_user_requested_progressive_work: decision
                         .last_user_requested_progressive_work,
+                    is_relaxed_continuation: false,
                 }
             }
         } else {
@@ -170,8 +173,21 @@ impl<'a> TurnProcessingContext<'a> {
                 self.is_planning_active(),
                 self.working_history,
                 &text,
+                consecutive_relaxed,
             )
         };
+
+        // Track consecutive relaxed continuations to prevent infinite loops.
+        if continuation_decision.should_continue && continuation_decision.is_relaxed_continuation {
+            self.harness_state.consecutive_relaxed_continuations += 1;
+        } else if continuation_decision.should_continue {
+            // Non-relaxed continuation resets the counter
+            self.harness_state.consecutive_relaxed_continuations = 0;
+        } else {
+            // Turn is ending, reset the counter
+            self.harness_state.consecutive_relaxed_continuations = 0;
+        }
+
         let assistant_phase = if continuation_decision.should_continue {
             Some(uni::AssistantPhase::Commentary)
         } else {

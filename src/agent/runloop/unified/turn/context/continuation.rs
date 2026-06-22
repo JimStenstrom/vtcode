@@ -2,6 +2,11 @@ use vtcode_core::llm::provider as uni;
 
 pub(super) const AUTONOMOUS_CONTINUE_DIRECTIVE: &str = "Do not stop with intent-only updates. Execute the next concrete action now, then report completion or blocker.";
 
+/// Maximum number of consecutive relaxed continuation decisions before the turn
+/// is forced to end. This prevents infinite loops where the model keeps producing
+/// continuation-worthy text without making actual progress.
+pub(super) const MAX_CONSECUTIVE_RELAXED_CONTINUATIONS: u32 = 3;
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) struct InterimTextContinuationDecision {
     pub(super) should_continue: bool,
@@ -10,6 +15,9 @@ pub(super) struct InterimTextContinuationDecision {
     pub(super) last_user_follow_up: bool,
     pub(super) recent_tool_activity: bool,
     pub(super) last_user_requested_progressive_work: bool,
+    /// True if this continuation decision came from the relaxed path
+    /// (recent_tool_activity_relaxed or progressive_relaxed).
+    pub(super) is_relaxed_continuation: bool,
 }
 
 impl InterimTextContinuationDecision {
@@ -28,6 +36,26 @@ impl InterimTextContinuationDecision {
             last_user_follow_up,
             recent_tool_activity,
             last_user_requested_progressive_work,
+            is_relaxed_continuation: false,
+        }
+    }
+
+    fn with_relaxed(
+        should_continue: bool,
+        reason: &'static str,
+        is_interim_progress: bool,
+        last_user_follow_up: bool,
+        recent_tool_activity: bool,
+        last_user_requested_progressive_work: bool,
+    ) -> Self {
+        Self {
+            should_continue,
+            reason,
+            is_interim_progress,
+            last_user_follow_up,
+            recent_tool_activity,
+            last_user_requested_progressive_work,
+            is_relaxed_continuation: true,
         }
     }
 }
@@ -37,6 +65,7 @@ pub(super) fn evaluate_interim_text_continuation(
     planning_active: bool,
     history: &[uni::Message],
     text: &str,
+    consecutive_relaxed_continuations: u32,
 ) -> InterimTextContinuationDecision {
     let is_interim_progress = is_interim_progress_update(text);
     let lower = text.to_ascii_lowercase();
@@ -46,6 +75,17 @@ pub(super) fn evaluate_interim_text_continuation(
 
     let d = |should_continue: bool, reason: &'static str| {
         InterimTextContinuationDecision::with(
+            should_continue,
+            reason,
+            is_interim_progress,
+            last_user_follow_up,
+            recent_tool_activity,
+            last_user_requested_progressive_work,
+        )
+    };
+
+    let d_relaxed = |should_continue: bool, reason: &'static str| {
+        InterimTextContinuationDecision::with_relaxed(
             should_continue,
             reason,
             is_interim_progress,
@@ -66,12 +106,30 @@ pub(super) fn evaluate_interim_text_continuation(
         // and the text still contains a continuation-intent clause, treat long
         // analysis text as continuation-worthy even if it exceeded the strict
         // interim-progress shape.
-        if not_conclusive && has_relaxed_continuation_intent && recent_tool_activity {
-            return d(true, "recent_tool_activity_relaxed");
-        }
-        if not_conclusive && has_relaxed_continuation_intent && last_user_requested_progressive_work
+        // However, if the text contains a user-directed question, it's asking for
+        // input and should NOT be treated as continuation-worthy. This prevents
+        // infinite loops where the model explains blockers and asks the user how
+        // to proceed, but the system keeps injecting continue directives.
+        let asks_user_question = text.contains('?') || contains_user_directed_question(&lower);
+        // Also cap relaxed continuations to prevent infinite loops where the model
+        // keeps producing continuation-worthy text without progress.
+        let relaxed_budget_exhausted =
+            consecutive_relaxed_continuations >= MAX_CONSECUTIVE_RELAXED_CONTINUATIONS;
+        if !asks_user_question
+            && !relaxed_budget_exhausted
+            && not_conclusive
+            && has_relaxed_continuation_intent
+            && recent_tool_activity
         {
-            return d(true, "progressive_relaxed");
+            return d_relaxed(true, "recent_tool_activity_relaxed");
+        }
+        if !asks_user_question
+            && !relaxed_budget_exhausted
+            && not_conclusive
+            && has_relaxed_continuation_intent
+            && last_user_requested_progressive_work
+        {
+            return d_relaxed(true, "progressive_relaxed");
         }
         return d(false, "non_interim_text");
     }
@@ -265,6 +323,40 @@ fn has_relaxed_continuation_intent(lower: &str) -> bool {
     ]
     .iter()
     .any(|needle| lower.contains(needle))
+}
+
+/// Returns true when the text contains a question directed at the user,
+/// indicating the model is waiting for input rather than continuing autonomously.
+/// This prevents infinite loops where the model explains blockers and asks the
+/// user how to proceed, but the system keeps injecting continue directives.
+fn contains_user_directed_question(lower: &str) -> bool {
+    let user_question_patterns = [
+        "how would you like",
+        "what would you like",
+        "which option",
+        "would you like me to",
+        "shall i",
+        "do you want me to",
+        "should i",
+        "how should i proceed",
+        "what should i do",
+        "how do you want to proceed",
+        "how would you like to proceed",
+        "what would you prefer",
+        "which approach",
+        "any suggestions",
+        "please confirm",
+        "please let me know",
+        "let me know how",
+        "let me know if",
+        "waiting for your",
+        "awaiting your",
+        "your choice",
+        "your decision",
+    ];
+    user_question_patterns
+        .iter()
+        .any(|pattern| lower.contains(pattern))
 }
 
 /// Returns true when a single clause expresses an intent to continue working.
@@ -471,19 +563,32 @@ mod tests {
     fn autonomous_continue_triggers_for_follow_up_and_interim_text() {
         let history = vec![uni::Message::user("continue".to_string())];
         assert!(
-            evaluate_interim_text_continuation(true, false, &history, "Let me fix the next issue.")
-                .should_continue
+            evaluate_interim_text_continuation(
+                true,
+                false,
+                &history,
+                "Let me fix the next issue.",
+                0
+            )
+            .should_continue
         );
         assert!(
-            !evaluate_interim_text_continuation(true, true, &history, "Let me fix the next issue.")
-                .should_continue
+            !evaluate_interim_text_continuation(
+                true,
+                true,
+                &history,
+                "Let me fix the next issue.",
+                0
+            )
+            .should_continue
         );
         assert!(
             evaluate_interim_text_continuation(
                 false,
                 false,
                 &history,
-                "Let me fix the next issue."
+                "Let me fix the next issue.",
+                0
             )
             .should_continue
         );
@@ -507,7 +612,8 @@ mod tests {
             true,
             false,
             &history,
-            "Now I need to update the function body to use settings.reasoning_effort and settings.verbosity:"
+            "Now I need to update the function body to use settings.reasoning_effort and settings.verbosity:",
+            0
         )
         .should_continue);
     }
@@ -523,7 +629,8 @@ mod tests {
             true,
             false,
             &history,
-            "Now I need to update the function body to use settings.reasoning_effort and settings.verbosity:"
+            "Now I need to update the function body to use settings.reasoning_effort and settings.verbosity:",
+            0
         )
         .should_continue);
     }
@@ -539,7 +646,8 @@ mod tests {
             false,
             false,
             &history,
-            "I'll quickly inspect the actual vtcode-core runloop files and then summarize the core agent loop concretely from code."
+            "I'll quickly inspect the actual vtcode-core runloop files and then summarize the core agent loop concretely from code.",
+            0
         )
         .should_continue);
     }
@@ -555,7 +663,8 @@ mod tests {
             false,
             false,
             &history,
-            "I'll quickly inspect the actual vtcode-core runloop files and then summarize the core agent loop concretely from code."
+            "I'll quickly inspect the actual vtcode-core runloop files and then summarize the core agent loop concretely from code.",
+            0
         )
         .should_continue);
     }
@@ -679,7 +788,8 @@ mod tests {
         // Without tool activity, the text is > 800 chars → not interim → hits relaxed path
         // last_user_requested_progressive_work is true → should continue
         assert!(
-            evaluate_interim_text_continuation(false, false, &history, &long_text).should_continue
+            evaluate_interim_text_continuation(false, false, &history, &long_text, 0)
+                .should_continue
         );
     }
 
@@ -711,7 +821,7 @@ mod tests {
         ];
 
         assert!(
-            evaluate_interim_text_continuation(true, false, &history, long_analysis)
+            evaluate_interim_text_continuation(true, false, &history, long_analysis, 0)
                 .should_continue
         );
     }
@@ -734,7 +844,8 @@ mod tests {
                 true,
                 false,
                 &history,
-                "It works! The program compiled and ran successfully, printing `Hello, World!`."
+                "It works! The program compiled and ran successfully, printing `Hello, World!`.",
+                0
             )
             .should_continue
         );
@@ -752,7 +863,8 @@ mod tests {
                 false,
                 false,
                 &history,
-                "I updated the parser logic and the targeted regression test now passes."
+                "I updated the parser logic and the targeted regression test now passes.",
+                0
             )
             .should_continue
         );
@@ -843,5 +955,158 @@ mod tests {
             .find(|message| message.role == uni::MessageRole::Assistant)
             .expect("assistant message should be recorded");
         assert_eq!(last_assistant.phase, Some(uni::AssistantPhase::FinalAnswer));
+    }
+
+    #[test]
+    fn relaxed_continuation_does_not_trigger_for_user_directed_questions() {
+        // This is the exact scenario from the infinite loop bug:
+        // Agent tries to fetch a URL, both tools fail, agent explains blockers
+        // and asks "How would you like to proceed?" - this should NOT trigger
+        // the relaxed continuation path.
+        let blocker_explanation = "I don't have a direct web-fetch tool available in this session. \
+            My available tools are scoped to local file/code operations, and both `unified_exec` \
+            (for `curl`/`wget`) and `unified_search` (web action) require explicit safety approval \
+            for outbound network requests. A few options: 1. Approve the network call 2. Use a \
+            subagent 3. Paste the content. How would you like to proceed? If you want me to fetch \
+            it, please confirm and I'll retry with the appropriate sandbox permission.";
+        let history = vec![
+            uni::Message::user("can you fetch https://www.google.com.vn/".to_string()),
+            uni::Message::assistant("I'll try to fetch it.".to_string()).with_tool_calls(vec![
+                uni::ToolCall::function(
+                    "call_1".to_string(),
+                    "unified_exec".to_string(),
+                    "{}".to_string(),
+                ),
+            ]),
+            uni::Message::tool_response(
+                "call_1".to_string(),
+                "Tool preflight validation failed".to_string(),
+            ),
+        ];
+
+        // Should NOT continue - the model is asking the user a question
+        assert!(
+            !evaluate_interim_text_continuation(true, false, &history, blocker_explanation, 0)
+                .should_continue,
+            "User-directed questions should not trigger relaxed continuation"
+        );
+    }
+
+    #[test]
+    fn relaxed_continuation_still_works_for_genuine_interim_progress() {
+        // Legitimate interim progress should still trigger continuation
+        let interim_text = "I've reviewed the linter output. There are several warnings. \
+            Let me apply these changes to the affected files now. Starting with the networking \
+            module, I'll remove the unused imports and then fix the memory leak.";
+        let history = vec![
+            uni::Message::user("run cargo clippy and fix warnings".to_string()),
+            uni::Message::assistant("Running clippy now.".to_string()).with_tool_calls(vec![
+                uni::ToolCall::function(
+                    "call_1".to_string(),
+                    "unified_exec".to_string(),
+                    "{}".to_string(),
+                ),
+            ]),
+            uni::Message::tool_response("call_1".to_string(), "warning: ...".to_string()),
+        ];
+
+        // Should continue - this is genuine interim progress with no user question
+        assert!(
+            evaluate_interim_text_continuation(true, false, &history, interim_text, 0)
+                .should_continue,
+            "Genuine interim progress should still trigger continuation"
+        );
+    }
+
+    #[test]
+    fn relaxed_continuation_stops_after_budget_exhausted() {
+        // After MAX_CONSECUTIVE_RELAXED_CONTINuations, relaxed path should stop.
+        // Use a long text (> 800 chars) to trigger the relaxed path (not interim progress).
+        let long_analysis = "I've reviewed the output from the linter. There are several \
+            warnings in the networking module. The main issues are unused imports and \
+            a potential memory leak in the connection handler. The fixes are \
+            straightforward: remove the unused imports and add proper cleanup in the \
+            deinit method. Let me apply these changes to the affected files now. \
+            Starting with the networking module, I'll remove the unused imports and \
+            then fix the memory leak in the connection handler. After that, I'll \
+            run the linter again to verify the warnings are resolved. The key changes \
+            involve updating the connection pool initialization and adding proper \
+            resource cleanup in the deinitialization path. I will also review the \
+            authentication module for similar issues and ensure all error paths are \
+            properly handled with appropriate cleanup routines to prevent resource leaks.";
+        assert!(
+            long_analysis.len() > 800,
+            "test text must exceed 800-char limit to trigger relaxed path"
+        );
+        let history = vec![
+            uni::Message::user("run cargo clippy and fix warnings".to_string()),
+            uni::Message::assistant("Running clippy now.".to_string()).with_tool_calls(vec![
+                uni::ToolCall::function(
+                    "call_1".to_string(),
+                    "unified_exec".to_string(),
+                    "{}".to_string(),
+                ),
+            ]),
+            uni::Message::tool_response("call_1".to_string(), "warning: ...".to_string()),
+        ];
+
+        // Should continue with budget = 0
+        assert!(
+            evaluate_interim_text_continuation(true, false, &history, &long_analysis, 0)
+                .should_continue
+        );
+
+        // Should continue with budget = 1 (still under limit)
+        assert!(
+            evaluate_interim_text_continuation(true, false, &history, &long_analysis, 1)
+                .should_continue
+        );
+
+        // Should continue with budget = 2 (still under limit)
+        assert!(
+            evaluate_interim_text_continuation(true, false, &history, &long_analysis, 2)
+                .should_continue
+        );
+
+        // Should NOT continue with budget = 3 (at limit)
+        assert!(
+            !evaluate_interim_text_continuation(true, false, &history, &long_analysis, 3)
+                .should_continue,
+            "Relaxed continuation should stop after MAX_CONSECUTIVE_RELAXED_CONTINuations"
+        );
+
+        // Should NOT continue with budget = 4 (over limit)
+        assert!(
+            !evaluate_interim_text_continuation(true, false, &history, &long_analysis, 4)
+                .should_continue
+        );
+    }
+
+    #[test]
+    fn contains_user_directed_question_detects_various_patterns() {
+        assert!(contains_user_directed_question(
+            "how would you like to proceed?"
+        ));
+        assert!(contains_user_directed_question(
+            "what would you like me to do?"
+        ));
+        assert!(contains_user_directed_question(
+            "which option should i choose?"
+        ));
+        assert!(contains_user_directed_question("shall i continue?"));
+        assert!(contains_user_directed_question("do you want me to retry?"));
+        assert!(contains_user_directed_question(
+            "please confirm and i'll retry"
+        ));
+        assert!(contains_user_directed_question(
+            "let me know how to proceed"
+        ));
+        assert!(contains_user_directed_question("waiting for your approval"));
+        assert!(!contains_user_directed_question(
+            "let me fix the next issue"
+        ));
+        assert!(!contains_user_directed_question(
+            "i'll apply these changes now"
+        ));
     }
 }

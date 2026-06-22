@@ -16,7 +16,8 @@
     "task_tracker",
     "unified_exec",
     "unified_file",
-    "unified_search"
+    "unified_search",
+    "web_fetch"
   ],
   "policies": {
     "apply_patch": "prompt",
@@ -35,6 +36,7 @@
     "unified_exec": "allow",
     "unified_file": "prompt",
     "unified_search": "allow",
+    "web_fetch": "prompt",
     "list_files": "allow",
     "memory": "allow",
     "read_file": "allow"

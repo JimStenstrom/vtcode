@@ -207,6 +207,19 @@ impl ToolRiskScorer {
         }
     }
 
+    /// Whether a tool name performs outbound network access.
+    ///
+    /// Centralizes the network-tool set so policy auto-approval, risk scoring,
+    /// and the safety gateway stay in agreement. `unified_search:web` is the
+    /// action-qualified form of `unified_search` used when its `web` action
+    /// performs a fetch.
+    pub fn is_network_tool(tool_name: &str) -> bool {
+        matches!(
+            tool_name,
+            tools::WEB_SEARCH | tools::WEB_FETCH | tools::FETCH_URL
+        ) || tool_name == "unified_search:web"
+    }
+
     /// Determine if justification is required
     pub fn requires_justification(risk: RiskLevel, threshold: RiskLevel) -> bool {
         risk >= threshold
@@ -239,7 +252,7 @@ impl ToolRiskScorer {
             | tools::UNIFIED_EXEC => 35,
 
             // Network operations (base: 40)
-            tools::WEB_SEARCH | tools::FETCH_URL | "unified_search:web" => 40,
+            tools::WEB_SEARCH | tools::WEB_FETCH | tools::FETCH_URL | "unified_search:web" => 40,
 
             // MCP tools (default to medium risk)
             _ if tool_name.starts_with("mcp_") => 30,
@@ -281,6 +294,35 @@ mod tests {
         .as_write();
         let risk = ToolRiskScorer::calculate_risk(&ctx);
         assert!(risk >= RiskLevel::High);
+    }
+
+    #[test]
+    fn test_network_tools_are_classified() {
+        assert!(ToolRiskScorer::is_network_tool(tools::WEB_FETCH));
+        assert!(ToolRiskScorer::is_network_tool(tools::WEB_SEARCH));
+        assert!(ToolRiskScorer::is_network_tool(tools::FETCH_URL));
+        assert!(ToolRiskScorer::is_network_tool("unified_search:web"));
+        assert!(!ToolRiskScorer::is_network_tool(tools::UNIFIED_SEARCH));
+        assert!(!ToolRiskScorer::is_network_tool(tools::READ_FILE));
+    }
+
+    #[test]
+    fn test_network_fetch_not_low_risk_even_when_trusted() {
+        // Mirrors the policy auto-approval path: trusted workspace + network
+        // flag. Must stay above Low so HITL approval is required.
+        for tool in [tools::WEB_FETCH, "unified_search:web"] {
+            let ctx = ToolRiskContext::new(
+                tool.to_string(),
+                ToolSource::Internal,
+                WorkspaceTrust::Trusted,
+            )
+            .accesses_network();
+            let risk = ToolRiskScorer::calculate_risk(&ctx);
+            assert!(
+                risk > RiskLevel::Low,
+                "network tool '{tool}' should not be auto-approved as low risk, got {risk:?}"
+            );
+        }
     }
 
     #[test]

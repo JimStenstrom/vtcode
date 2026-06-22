@@ -7,6 +7,7 @@ mod limit_prompts;
 mod permission_prompt;
 mod shell_approval;
 
+use std::borrow::Cow;
 #[cfg(test)]
 use std::future::Future;
 use std::sync::Arc;
@@ -148,8 +149,16 @@ fn session_approval_cache_keys<'a>(
     approval_learning_target: &'a shell_approval::ApprovalLearningTarget,
     exact_shell_approval_target: Option<&'a shell_approval::ApprovalLearningTarget>,
 ) -> impl Iterator<Item = &'a str> {
+    // The bare tool_name is only included when it differs from cache_key to
+    // avoid cross-action contamination (e.g. `unified_search` grep approval
+    // should not satisfy a `unified_search:web` call).
+    let bare_if_different = if cache_key != tool_name {
+        Some(tool_name)
+    } else {
+        None
+    };
     std::iter::once(cache_key)
-        .chain(std::iter::once(tool_name))
+        .chain(bare_if_different)
         .chain(std::iter::once(
             approval_learning_target.approval_key.as_str(),
         ))
@@ -198,6 +207,11 @@ pub(crate) struct ToolPermissionsContext<'a, S: UiSession + ?Sized> {
     pub permissions_config: Option<&'a PermissionsConfig>,
     pub auto_permission_runtime: Option<AutoPermissionRuntimeContext<'a>>,
     pub session_stats: Option<&'a mut SessionStats>,
+    /// Justification from the safety gateway when it flagged this call as
+    /// requiring approval. Folded into the HITL prompt trigger so that
+    /// high-risk implicit-allow tools (auto-approved by the low-risk heuristic)
+    /// still get gated by the gateway's risk/destructive assessment.
+    pub safety_approval_justification: Option<String>,
 }
 
 fn resolve_permission_decision(
@@ -457,6 +471,28 @@ fn full_auto_unavailable_reason(tool_name: &str) -> String {
     format!(
         "Auto permission review is unavailable for `{tool_name}` while full-auto permission review is active."
     )
+}
+
+/// Resolve the tool name used for policy evaluation, qualifying it with the
+/// requested action when the action changes the tool's risk profile.
+///
+/// `unified_search` is a low-risk read-only tool for most actions, but its
+/// `web` action performs an outbound network fetch. Evaluating the bare name
+/// would let the read-only risk score auto-approve the fetch, bypassing HITL.
+/// Returning `unified_search:web` aligns the policy decision with the risk
+/// scorer, which already classifies that name as a network operation.
+fn policy_evaluation_name<'a>(tool_name: &'a str, tool_args: Option<&Value>) -> Cow<'a, str> {
+    use vtcode_core::config::constants::tools::UNIFIED_SEARCH;
+    use vtcode_core::tools::tool_intent::unified_search_action_is;
+
+    if tool_name == UNIFIED_SEARCH
+        && let Some(args) = tool_args
+        && unified_search_action_is(args, "web")
+    {
+        return Cow::Borrowed("unified_search:web");
+    }
+
+    Cow::Borrowed(tool_name)
 }
 
 async fn reuse_saved_approval(
@@ -992,6 +1028,7 @@ pub(crate) async fn ensure_tool_permission_with_call_id<S: UiSession + ?Sized>(
         permissions_config,
         auto_permission_runtime,
         session_stats,
+        safety_approval_justification,
     } = ctx;
 
     // Generate cache key - use command text for shell tools to enable granular session approval
@@ -1041,7 +1078,15 @@ pub(crate) async fn ensure_tool_permission_with_call_id<S: UiSession + ?Sized>(
         })
         .unwrap_or_else(|| tool_name.to_string());
 
-    let policy_decision = tool_registry.evaluate_tool_policy(tool_name).await?;
+    // Evaluate the tool policy against an action-qualified name so that
+    // network-accessing actions (e.g. `unified_search` with `action: "web"`)
+    // are not auto-approved as if they were the low-risk read-only tool. The
+    // risk scorer already models `unified_search:web` as a network operation;
+    // routing the policy check through this name keeps web fetches HITL-gated.
+    let policy_eval_name = policy_evaluation_name(tool_name, tool_args);
+    let policy_decision = tool_registry
+        .evaluate_tool_policy(policy_eval_name.as_ref())
+        .await?;
     if policy_decision == ToolPermissionDecision::Deny {
         // Show HITL prompt with "Enable" option so the user can fix the policy at runtime
         if !skip_confirmations {
@@ -1120,9 +1165,15 @@ pub(crate) async fn ensure_tool_permission_with_call_id<S: UiSession + ?Sized>(
             permission_decision
         };
     let requires_protected_write_prompt = permission_request.requires_protected_write_prompt();
+    // The safety gateway flagged this call as requiring approval (destructive,
+    // network access, etc.). Force a prompt unless the user explicitly set the
+    // tool to Allow — explicit Allow means the user already reviewed the risk.
+    let safety_requires_prompt =
+        safety_approval_justification.is_some() && policy_decision != ToolPermissionDecision::Allow;
     let raw_requires_rule_prompt = hook_requires_prompt
         || permission_decision == ResolvedPermissionDecision::Ask
-        || requires_protected_write_prompt;
+        || requires_protected_write_prompt
+        || safety_requires_prompt;
 
     let persisted_shell_approval =
         persisted_shell_approval(tool_registry, &normalized_tool_name, tool_args).await;
@@ -1189,8 +1240,12 @@ pub(crate) async fn ensure_tool_permission_with_call_id<S: UiSession + ?Sized>(
     let requires_sandbox_prompt = raw_requires_sandbox_prompt && !auto_permission_classifier_review;
     // Check saved approval regardless of permission-config "Ask" — the user's
     // explicit permanent/session approval overrides the config-level prompt.
-    let can_reuse_saved_approval =
-        !auto_permission_classifier_review && !full_auto_allowlist_active;
+    // However, when the safety gateway flagged this call as needing approval,
+    // saved approvals must not short-circuit the prompt — the gateway's risk
+    // assessment may differ from the original approval context.
+    let can_reuse_saved_approval = !auto_permission_classifier_review
+        && !full_auto_allowlist_active
+        && !safety_requires_prompt;
 
     if can_reuse_saved_approval
         && let Some(flow) = reuse_saved_approval(
@@ -1228,7 +1283,10 @@ pub(crate) async fn ensure_tool_permission_with_call_id<S: UiSession + ?Sized>(
     }
 
     let mut requires_auto_fallback_prompt = false;
-    if auto_permission_classifier_review {
+    // When the safety gateway flagged this call as needing approval, the
+    // auto-permission classifier must not override that decision — the
+    // gateway's risk/destructive assessment is the authoritative signal.
+    if auto_permission_classifier_review && !safety_requires_prompt {
         match resolve_auto_permission(
             renderer,
             tool_registry,
@@ -1255,7 +1313,11 @@ pub(crate) async fn ensure_tool_permission_with_call_id<S: UiSession + ?Sized>(
         }
     }
 
-    if skip_confirmations && !full_auto_allowlist_active {
+    // skip_confirmations bypasses the normal HITL prompt flow, but must NOT
+    // bypass the safety gateway's NeedsApproval decision. The safety gateway
+    // flags destructive/risky tool calls that require explicit human review
+    // regardless of the skip_confirmations setting.
+    if skip_confirmations && !full_auto_allowlist_active && !safety_requires_prompt {
         return Ok(approve_tool_permission_no_cache(tool_registry, tool_name).await);
     }
 

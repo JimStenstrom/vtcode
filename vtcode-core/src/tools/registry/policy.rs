@@ -387,11 +387,18 @@ impl ToolPolicyGateway {
     /// Determine if a tool should be auto-approved based on risk level
     /// Low-risk read-only tools are auto-approved to reduce approval friction
     fn should_auto_approve_by_risk(tool_name: &str) -> bool {
-        let ctx = ToolRiskContext::new(
+        let mut ctx = ToolRiskContext::new(
             tool_name.to_string(),
             ToolSource::Internal,
             WorkspaceTrust::Trusted,
         );
+        // Reflect outbound network access in the score so network tools are not
+        // silently auto-approved. Without this, the trusted-workspace risk
+        // reduction can drop a network tool below the low-risk threshold and
+        // bypass human-in-the-loop approval.
+        if ToolRiskScorer::is_network_tool(tool_name) {
+            ctx = ctx.accesses_network();
+        }
         let risk = ToolRiskScorer::calculate_risk(&ctx);
         // Auto-approve only low-risk tools
         matches!(risk, RiskLevel::Low)
@@ -483,6 +490,22 @@ mod tests {
             .await
             .expect("policy manager");
         ToolPolicyGateway::with_policy_manager(manager)
+    }
+
+    #[test]
+    fn network_tools_are_not_auto_approved_by_risk() {
+        // Web fetches must require HITL approval and never be auto-promoted to
+        // Allow by the low-risk auto-approval heuristic.
+        assert!(!ToolPolicyGateway::should_auto_approve_by_risk(
+            "unified_search:web"
+        ));
+        assert!(!ToolPolicyGateway::should_auto_approve_by_risk(
+            tools::WEB_FETCH
+        ));
+        // The bare read-only search tool stays auto-approved for low friction.
+        assert!(ToolPolicyGateway::should_auto_approve_by_risk(
+            tools::UNIFIED_SEARCH
+        ));
     }
 
     #[tokio::test]

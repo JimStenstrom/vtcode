@@ -629,11 +629,6 @@ This document serves as an index of all VT Code documentation. When users ask qu
   - **Topics**: System Architecture Diagram, Data Flow: Style Parsing and Application, Module Dependencies, Effect Support Matrix, InlineTextStyle Evolution
   - **User Questions**: "What can you tell me about Architecture: Anstyle Integration in Vtcode?", "How does System Architecture Diagram work?", "How does Data Flow: Style Parsing and Application work?"
 
-- **File**: `docs/project/audit-remediation-review.md`
-  - **Content**: Audit Remediation (Blocks A-J) — Code Review
-  - **Topics**: Summary, Findings, Verified (no action), Fixes Applied, Verification After Fix
-  - **User Questions**: "What can you tell me about Audit Remediation (Blocks A-J) — Code Review?", "How does Summary work?", "How does Findings work?"
-
 - **File**: `docs/analysis/BLOATY_ANALYSIS.md`
   - **Content**: Bloaty Analysis Report for vtcode
   - **Topics**: Overview, Binary Size Summary, Release-fast Binary Analysis (32 MiB), Debug Binary Analysis (84 MiB), Recommendations
@@ -649,11 +644,6 @@ This document serves as an index of all VT Code documentation. When users ask qu
   - **Topics**: 1. Humans Steer, Agents Execute, 2. Repository as System of Record, 3. Progressive Disclosure, 4. Agent Legibility Over Human Aesthetics, 5. Enforce Invariants, Not Implementations
   - **User Questions**: "What can you tell me about Core Beliefs?", "How does 1. Humans Steer, Agents Execute work?", "How does 2. Repository as System of Record work?"
 
-- **File**: `docs/project/TODO.md`
-  - **Content**: Curl web tool blocked by policy
-  - **Topics**: User, Assistant, User, Assistant, User
-  - **User Questions**: "What can you tell me about Curl web tool blocked by policy?", "How does User work?", "How does Assistant work?"
-
 - **File**: `docs/analysis/DRY_DUPLICATION_AUDIT.md`
   - **Content**: DRY/KISS Duplication Audit
   - **Topics**: Scope, Implemented Refactors, Duplication Intentionally Left Alone, Expected Benefits, Verification
@@ -668,11 +658,6 @@ This document serves as an index of all VT Code documentation. When users ask qu
   - **Content**: Execution Plans
   - **Topics**: Why Exec Plans?, Exec Plans vs Planning Workflow, Directory Structure, Mandatory Sections, Template
   - **User Questions**: "What can you tell me about Execution Plans?", "How does Why Exec Plans? work?", "How does Exec Plans vs Planning Workflow work?"
-
-- **File**: `docs/project/extraction-remaining-plan.md`
-  - **Content**: Extraction Remaining Plan
-  - **Topics**: Issue Tracker, Remaining Work (5 items), Execution Order, Verification Checklist
-  - **User Questions**: "What can you tell me about Extraction Remaining Plan?", "How does Issue Tracker work?", "How does Remaining Work (5 items) work?"
 
 - **File**: `docs/features/FILE_REFERENCE.md`
   - **Content**: File Reference Feature (@-Symbol)
@@ -694,6 +679,11 @@ This document serves as an index of all VT Code documentation. When users ask qu
   - **Topics**: Featured Integrations, About This Directory, Overview, Configuration, Resources
   - **User Questions**: "What can you tell me about Hugging Face Inference Providers Integrations?", "How does Featured Integrations work?", "How does About This Directory work?"
 
+- **File**: `docs/project/TODO.md`
+  - **Content**: Implement `[workspace]` config section
+  - **Topics**: Problem, Plan, Key files to modify, Risk, Problem
+  - **User Questions**: "What can you tell me about Implement `[workspace]` config section?", "How does Problem work?", "How does Plan work?"
+
 - **File**: `docs/installation/README.md`
   - **Content**: Installation Guide
   - **Topics**: Quick Install, Supported AI Providers, Troubleshooting, Uninstall, Additional Resources
@@ -713,11 +703,6 @@ This document serves as an index of all VT Code documentation. When users ask qu
   - **Content**: Language Support in VT Code
   - **Topics**: Semantic Understanding, Tree-sitter Security Parsing (Bash), Syntax Highlighting
   - **User Questions**: "What can you tell me about Language Support in VT Code?", "How does Semantic Understanding work?", "How does Tree-sitter Security Parsing (Bash) work?"
-
-- **File**: `docs/project/modes-audit-bug-report.md`
-  - **Content**: Modes Audit: Bug Report and Fix Summary
-  - **Topics**: Ranked Bug Report, False Positives Eliminated, Files Changed, Validation
-  - **User Questions**: "What can you tell me about Modes Audit: Bug Report and Fix Summary?", "How does Ranked Bug Report work?", "How does False Positives Eliminated work?"
 
 - **File**: `docs/installation/NATIVE_INSTALLERS.md`
   - **Content**: Native Installers
@@ -839,15 +824,15 @@ This document serves as an index of all VT Code documentation. When users ask qu
   - **Topics**: Quick Navigation, Implementation Status, Document Guide, Quick Reference, Key Crates
   - **User Questions**: "What can you tell me about VT Code Styling System - Complete Documentation Index?", "How does Quick Navigation work?", "How does Implementation Status work?"
 
-- **File**: `docs/project/vtcode-modes-subagents-audit.md`
-  - **Content**: VTCode Modes and Subagents: Comprehensive Audit Report
-  - **Topics**: Executive Summary, 1. Architecture Overview, 2. Identified Issues, 3. Per-Mode Analysis, 4. Proposed Optimized Architecture
-  - **User Questions**: "What can you tell me about VTCode Modes and Subagents: Comprehensive Audit Report?", "How does Executive Summary work?", "How does 1. Architecture Overview work?"
-
 - **File**: `docs/styling/README.md`
   - **Content**: Vtcode Styling System Documentation
   - **Topics**: Files, Quick Summary, Architecture Overview, Dependencies, Related Code Locations
   - **User Questions**: "What can you tell me about Vtcode Styling System Documentation?", "How does Files work?", "How does Quick Summary work?"
+
+- **File**: `docs/project/web-fetch-hilt-fix.md`
+  - **Content**: Web Fetch Tool Registration & HITL Popup Fix
+  - **Topics**: Problem, Root Cause Analysis, Solution, Testing, Files Changed
+  - **User Questions**: "What can you tell me about Web Fetch Tool Registration & HITL Popup Fix?", "How does Problem work?", "How does Root Cause Analysis work?"
 
 - **File**: `docs/protocols/XDG_DIRECTORY_SPECIFICATION.md`
   - **Content**: XDG Base Directory Specification Implementation

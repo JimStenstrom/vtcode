@@ -117,7 +117,7 @@ async fn run_safety_validation_loop(
     tool_call_id: &str,
     canonical_tool_name: &str,
     effective_args: &serde_json::Value,
-) -> Result<Option<ValidationResult>> {
+) -> Result<Option<(ValidationResult, Option<String>)>> {
     let invocation_id = invocation_id_from_call_id(tool_call_id);
     match validate_tool_call_with_limit_prompt(
         ctx.safety_validator,
@@ -141,7 +141,10 @@ async fn run_safety_validation_loop(
                     "safety_limit",
                 ),
             );
-            Ok(Some(ValidationResult::Blocked))
+            Ok(Some((ValidationResult::Blocked, None)))
+        }
+        Err(SafetyValidationFailure::NeedsApproval(justification)) => {
+            Ok(Some((ValidationResult::Handled, Some(justification))))
         }
         Err(SafetyValidationFailure::Validation(err)) => {
             ctx.renderer.line(
@@ -155,13 +158,24 @@ async fn run_safety_validation_loop(
                     "safety_validation",
                 ),
             );
-            Ok(Some(ValidationResult::Blocked))
+            Ok(Some((ValidationResult::Blocked, None)))
         }
     }
 }
 
+#[cfg(test)]
 fn build_tool_permissions_context<'ctx, 'a>(
     ctx: &'ctx mut TurnProcessingContext<'a>,
+) -> crate::agent::runloop::unified::tool_routing::ToolPermissionsContext<
+    'ctx,
+    vtcode_ui::tui::app::InlineSession,
+> {
+    build_tool_permissions_context_with_safety(ctx, None)
+}
+
+fn build_tool_permissions_context_with_safety<'ctx, 'a>(
+    ctx: &'ctx mut TurnProcessingContext<'a>,
+    safety_approval_justification: Option<&str>,
 ) -> crate::agent::runloop::unified::tool_routing::ToolPermissionsContext<
     'ctx,
     vtcode_ui::tui::app::InlineSession,
@@ -205,6 +219,7 @@ fn build_tool_permissions_context<'ctx, 'a>(
             },
         ),
         session_stats: Some(ctx.session_stats),
+        safety_approval_justification: safety_approval_justification.map(String::from),
     }
 }
 
@@ -489,15 +504,19 @@ pub(crate) async fn validate_tool_call<'a>(
     // the turn balancer. The legacy core loop detector remains available for
     // non-unified autonomous execution paths only.
 
-    if let Some(outcome) =
+    let mut safety_approval_justification = None;
+    if let Some((outcome, justification)) =
         run_safety_validation_loop(ctx, tool_call_id, &canonical_tool_name, effective_args).await?
     {
-        return Ok(outcome);
+        safety_approval_justification = justification;
+        if matches!(outcome, ValidationResult::Blocked) {
+            return Ok(outcome);
+        }
     }
 
     // Ensure tool permission
     let permission_result = ensure_tool_permission_with_call_id(
-        build_tool_permissions_context(ctx),
+        build_tool_permissions_context_with_safety(ctx, safety_approval_justification.as_deref()),
         &canonical_tool_name,
         Some(effective_args),
         Some(tool_call_id),

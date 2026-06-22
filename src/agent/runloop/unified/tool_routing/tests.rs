@@ -414,6 +414,7 @@ async fn skip_confirmations_does_not_bypass_cached_tool_denial() {
             auto_permission_runtime: None,
             active_thread_label: None,
             session_stats: None,
+            safety_approval_justification: None,
         },
         tools::READ_FILE,
         None,
@@ -467,6 +468,7 @@ async fn tool_policy_deny_overrides_cached_session_approval() {
             auto_permission_runtime: None,
             active_thread_label: None,
             session_stats: None,
+            safety_approval_justification: None,
         },
         tools::READ_FILE,
         Some(&json!({"path": "README.md"})),
@@ -512,6 +514,7 @@ async fn active_agent_deny_default_denies_non_allowed_requests() {
             auto_permission_runtime: None,
             active_thread_label: None,
             session_stats: None,
+            safety_approval_justification: None,
         },
         tools::READ_FILE,
         Some(&json!({"path": "README.md"})),
@@ -559,6 +562,7 @@ async fn matching_allow_rule_allows_tool_call() {
             auto_permission_runtime: None,
             active_thread_label: None,
             session_stats: None,
+            safety_approval_justification: None,
         },
         tools::READ_FILE,
         Some(&json!({"path": "README.md"})),
@@ -619,6 +623,7 @@ async fn active_agent_auto_rule_enters_classifier_review() {
             }),
             active_thread_label: None,
             session_stats: Some(&mut session_stats),
+            safety_approval_justification: None,
         },
         tools::UNIFIED_EXEC,
         Some(&json!({"action": "run", "command": "echo hi"})),
@@ -672,6 +677,7 @@ async fn active_agent_permissions_restrict_global_direct_allow() {
             auto_permission_runtime: None,
             active_thread_label: None,
             session_stats: None,
+            safety_approval_justification: None,
         },
         tools::UNIFIED_FILE,
         Some(&json!({"action": "write", "path": "notes.md", "content": "hello"})),
@@ -720,6 +726,7 @@ async fn subagent_local_permissions_restrict_global_direct_allow() {
             auto_permission_runtime: None,
             active_thread_label: None,
             session_stats: None,
+            safety_approval_justification: None,
         },
         tools::UNIFIED_FILE,
         Some(&json!({"action": "write", "path": "notes.md", "content": "hello"})),
@@ -771,6 +778,7 @@ async fn active_agent_ask_allows_skip_confirmations_auto_approval() {
             auto_permission_runtime: None,
             active_thread_label: None,
             session_stats: None,
+            safety_approval_justification: None,
         },
         tools::UNIFIED_FILE,
         Some(&json!({"action": "write", "path": "docs/guide.md", "content": "hello"})),
@@ -818,6 +826,7 @@ async fn skip_confirmations_auto_approves_without_active_agent_policy() {
             auto_permission_runtime: None,
             active_thread_label: None,
             session_stats: None,
+            safety_approval_justification: None,
         },
         tools::UNIFIED_FILE,
         Some(&json!({"action": "write", "path": "docs/guide.md", "content": "hello"})),
@@ -865,6 +874,7 @@ async fn full_auto_without_skip_confirmations_does_not_take_dangerous_skip_path(
             auto_permission_runtime: None,
             active_thread_label: None,
             session_stats: None,
+            safety_approval_justification: None,
         },
         tools::UNIFIED_FILE,
         Some(&json!({"action": "write", "path": "docs/guide.md", "content": "hello"})),
@@ -912,6 +922,7 @@ async fn skip_confirmations_bypasses_active_agent_ask_default() {
             auto_permission_runtime: None,
             active_thread_label: None,
             session_stats: None,
+            safety_approval_justification: None,
         },
         tools::UNIFIED_FILE,
         Some(&json!({"action": "write", "path": "docs/guide.md", "content": "hello"})),
@@ -960,6 +971,7 @@ async fn skip_confirmations_does_not_bypass_explicit_deny_rule() {
             auto_permission_runtime: None,
             active_thread_label: None,
             session_stats: None,
+            safety_approval_justification: None,
         },
         tools::UNIFIED_FILE,
         Some(&json!({"action": "write", "path": "docs/guide.md", "content": "hello"})),
@@ -1010,6 +1022,7 @@ async fn skip_confirmations_does_not_bypass_tool_policy_deny() {
             auto_permission_runtime: None,
             active_thread_label: None,
             session_stats: None,
+            safety_approval_justification: None,
         },
         tools::UNIFIED_FILE,
         Some(&json!({"action": "write", "path": "docs/guide.md", "content": "hello"})),
@@ -1060,6 +1073,7 @@ async fn active_agent_allow_default_allows_builtin_file_mutations() {
             auto_permission_runtime: None,
             active_thread_label: None,
             session_stats: None,
+            safety_approval_justification: None,
         },
         tools::UNIFIED_FILE,
         Some(&json!({"action": "write", "path": "notes.md", "content": "hello"})),
@@ -1110,6 +1124,7 @@ async fn active_agent_allow_default_keeps_protected_write_prompts() {
             auto_permission_runtime: None,
             active_thread_label: None,
             session_stats: None,
+            safety_approval_justification: None,
         },
         tools::UNIFIED_FILE,
         Some(&json!({"action": "write", "path": ".vtcode/settings.toml", "content": "hello"})),
@@ -1161,6 +1176,7 @@ async fn protected_write_prompts_without_matching_allow() {
             auto_permission_runtime: None,
             active_thread_label: None,
             session_stats: None,
+            safety_approval_justification: None,
         },
         tools::UNIFIED_FILE,
         Some(&json!({"action": "write", "path": ".vtcode/settings.toml", "content": "hello"})),
@@ -1213,6 +1229,7 @@ async fn matching_ask_rule_prompts_user() {
             auto_permission_runtime: None,
             active_thread_label: None,
             session_stats: None,
+            safety_approval_justification: None,
         },
         tools::UNIFIED_FILE,
         Some(&json!({"action": "write", "path": "docs/guide.md", "content": "hello"})),
@@ -1273,6 +1290,7 @@ async fn matching_deny_rule_denies_without_classifier_review() {
             }),
             active_thread_label: None,
             session_stats: Some(&mut session_stats),
+            safety_approval_justification: None,
         },
         tools::UNIFIED_EXEC,
         Some(&json!({"action": "run", "command": "echo hi"})),
@@ -1337,6 +1355,7 @@ async fn full_auto_active_agent_ask_routes_to_auto_review_without_prompt() {
             }),
             active_thread_label: None,
             session_stats: Some(&mut session_stats),
+            safety_approval_justification: None,
         },
         tools::UNIFIED_EXEC,
         Some(&json!({"action": "run", "command": "echo hi"})),
@@ -1399,6 +1418,7 @@ async fn full_auto_reviewer_error_blocks_without_prompt_fallback() {
             }),
             active_thread_label: None,
             session_stats: Some(&mut session_stats),
+            safety_approval_justification: None,
         },
         tools::UNIFIED_EXEC,
         Some(&json!({"action": "run", "command": "echo hi"})),
@@ -1467,6 +1487,7 @@ async fn full_auto_allowlist_does_not_bypass_tool_policy_deny() {
             }),
             active_thread_label: None,
             session_stats: Some(&mut session_stats),
+            safety_approval_justification: None,
         },
         tools::UNIFIED_EXEC,
         Some(&json!({"action": "run", "command": "echo hi"})),
@@ -1534,6 +1555,7 @@ async fn full_auto_allowlist_does_not_bypass_explicit_deny_rule() {
             }),
             active_thread_label: None,
             session_stats: Some(&mut session_stats),
+            safety_approval_justification: None,
         },
         tools::UNIFIED_EXEC,
         Some(&json!({"action": "run", "command": "echo hi"})),
@@ -1598,6 +1620,7 @@ async fn full_auto_allowlist_denies_outside_tools_before_auto_review() {
             }),
             active_thread_label: None,
             session_stats: Some(&mut session_stats),
+            safety_approval_justification: None,
         },
         tools::UNIFIED_EXEC,
         Some(&json!({"action": "run", "command": "echo hi"})),
@@ -1697,6 +1720,7 @@ async fn auto_permission_headless_fallback_returns_blocked_summary() {
             }),
             active_thread_label: None,
             session_stats: Some(&mut session_stats),
+            safety_approval_justification: None,
         },
         tools::UNIFIED_EXEC,
         Some(&json!({"action": "run", "command": "git push --force"})),
@@ -1775,6 +1799,7 @@ async fn auto_permission_interactive_fallback_notice_is_emitted_once() {
             }),
             active_thread_label: None,
             session_stats: Some(&mut session_stats),
+            safety_approval_justification: None,
         },
         tools::UNIFIED_EXEC,
         Some(&json!({"action": "run", "command": "git push --force"})),
@@ -1824,6 +1849,7 @@ async fn auto_permission_interactive_fallback_notice_is_emitted_once() {
             }),
             active_thread_label: None,
             session_stats: Some(&mut session_stats),
+            safety_approval_justification: None,
         },
         tools::UNIFIED_EXEC,
         Some(&json!({"action": "run", "command": "git push --force"})),
@@ -1833,4 +1859,61 @@ async fn auto_permission_interactive_fallback_notice_is_emitted_once() {
 
     assert_eq!(second_flow, ToolPermissionFlow::Denied);
     assert!(drain_appended_lines(&mut receiver).is_empty());
+}
+
+#[tokio::test]
+async fn skip_confirmations_does_not_bypass_safety_gateway_needs_approval() {
+    let temp_dir = tempfile::TempDir::new().expect("temp dir");
+    let mut registry = ToolRegistry::new(temp_dir.path().to_path_buf()).await;
+    let mut session = create_headless_session();
+    let handle = session.clone_inline_handle();
+    let mut renderer = AnsiRenderer::with_inline_ui(handle.clone(), Default::default());
+    let ctrl_c_state = Arc::new(crate::agent::runloop::unified::state::CtrlCState::new());
+    let ctrl_c_notify = Arc::new(Notify::new());
+    let permissions = PermissionsConfig {
+        ..PermissionsConfig::default()
+    };
+    let agent_permissions = AgentPermissionsConfig::new(PermissionDefault::Deny);
+
+    // Set the tool policy to Prompt so that policy_decision != Allow,
+    // which is required for safety_requires_prompt to be true.
+    registry.set_tool_policy(tools::UNIFIED_EXEC, ToolPolicy::Prompt);
+
+    // When safety_approval_justification is Some, it means the safety gateway
+    // flagged this tool call as requiring approval. Even with skip_confirmations
+    // set to true, the tool should NOT be auto-approved.
+    let flow = ensure_tool_permission(
+        ToolPermissionsContext {
+            tool_registry: &registry,
+            renderer: &mut renderer,
+            handle: &handle,
+            session: &mut session,
+            default_placeholder: None,
+            ctrl_c_state: &ctrl_c_state,
+            ctrl_c_notify: &ctrl_c_notify,
+            hooks: None,
+            justification: None,
+            approval_recorder: None,
+            decision_ledger: None,
+            tool_permission_cache: None,
+            permissions_state: None,
+            active_agent_permissions: Some(&agent_permissions),
+            hitl_notification_bell: false,
+            approval_policy: reject_all_approvals(),
+            skip_confirmations: true,
+            permissions_config: Some(&permissions),
+            auto_permission_runtime: None,
+            active_thread_label: None,
+            session_stats: None,
+            safety_approval_justification: Some("Destructive operation: rm -rf".to_string()),
+        },
+        tools::UNIFIED_EXEC,
+        Some(&json!({"action": "run", "command": "rm -rf /tmp/test"})),
+    )
+    .await
+    .expect("permission flow");
+
+    // The tool should be denied because the safety gateway requires approval,
+    // and skip_confirmations should not bypass this.
+    assert_eq!(flow, ToolPermissionFlow::Denied);
 }
