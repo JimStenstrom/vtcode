@@ -59,6 +59,44 @@ pub struct FeaturesConfig {
     pub memories: bool,
 }
 
+/// Workspace-level configuration controls.
+///
+/// Maps to `[workspace]` in `vtcode.toml`.
+/// When `use_root_config` is true, only the workspace root `vtcode.toml`
+/// is used as the active config layer (system, user, project, and
+/// dot-dir layers are discarded).
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+pub struct WorkspaceConfig {
+    /// When true, force the workspace root `vtcode.toml` as the sole
+    /// active config layer, discarding system, user, project, and
+    /// dot-dir layers.
+    #[serde(default)]
+    pub use_root_config: bool,
+
+    /// Include workspace context in messages.
+    #[serde(default = "default_true")]
+    pub include_context: bool,
+
+    /// Maximum size of workspace context to include (in bytes).
+    #[serde(default)]
+    pub max_context_size: Option<usize>,
+}
+
+impl Default for WorkspaceConfig {
+    fn default() -> Self {
+        Self {
+            use_root_config: false,
+            include_context: true,
+            max_context_size: None,
+        }
+    }
+}
+
+fn default_true() -> bool {
+    true
+}
+
 /// Main configuration structure for VT Code
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -209,6 +247,10 @@ pub struct VTCodeConfig {
     /// Dotfile protection configuration
     #[serde(default)]
     pub dotfile_protection: DotfileProtectionConfig,
+
+    /// Workspace-level configuration controls
+    #[serde(default)]
+    pub workspace: WorkspaceConfig,
 }
 
 impl Default for VTCodeConfig {
@@ -250,6 +292,7 @@ impl Default for VTCodeConfig {
             custom_providers: Vec::new(),
             output_style: OutputStyleConfig::default(),
             dotfile_protection: DotfileProtectionConfig::default(),
+            workspace: WorkspaceConfig::default(),
         }
     }
 }
@@ -490,6 +533,14 @@ impl VTCodeConfig {
 
 # Clickable file citation URI scheme ("vscode", "cursor", "windsurf", "vscode-insiders", "none")
 file_opener = "none"
+
+# Workspace-level configuration
+# [workspace]
+# When true, force workspace root vtcode.toml as the sole active config layer
+# (system, user, project, and dot-dir layers are discarded)
+# use_root_config = false
+# include_context = true
+# max_context_size = 1048576  # 1MB
 
 # Primary agent selected for new sessions when no explicit session selection is active
 default_primary_agent = "build"

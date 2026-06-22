@@ -96,8 +96,8 @@ pub use loader::layers::{
 };
 pub use loader::{
     ConfigBuilder, ConfigManager, ConfigWatcher, FeaturesConfig, SimpleConfigWatcher,
-    SyntaxHighlightingConfig, VTCodeConfig, fingerprint_str, fingerprint_toml_value,
-    merge_toml_values, merge_toml_values_with_origins,
+    SyntaxHighlightingConfig, VTCodeConfig, WorkspaceConfig, fingerprint_str,
+    fingerprint_toml_value, merge_toml_values, merge_toml_values_with_origins,
 };
 pub use mcp::{
     McpAllowListConfig, McpAllowListRules, McpClientConfig, McpHttpServerConfig,

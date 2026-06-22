@@ -141,12 +141,16 @@ top_p = 0.9                # Top-P sampling parameter
 
 ### workspace.settings
 
-Controls various workspace-specific settings for VT Code execution:
+Controls various workspace-specific settings for VT Code execution.
+
+> **Note:** The `[workspace]` section is now implemented. When `use_root_config = true`,
+> only the workspace root `vtcode.toml` is used as the active config layer; system,
+> user, project, and dot-dir layers are discarded.
 
 ```toml
 [workspace]
-# By default, VT Code will look for a vtcode.toml file in the root of your workspace
-# This determines the behavior when multiple workspaces exist
+# When true, force workspace root vtcode.toml as the sole active config layer
+# (system, user, project, and dot-dir layers are discarded)
 use_root_config = true
 
 # Controls whether to include workspace context in messages
@@ -553,6 +557,7 @@ If VT Code is not behaving as expected with your configuration:
 | `participants.timeout`                  | number                                            | Timeout for participant context (seconds).                         |
 | `automation.full_auto.enabled`          | boolean                                           | Enable full automation mode.                                       |
 | `automation.full_auto.allowed_tools`    | array                                             | Tools allowed in automation mode.                                  |
+| `workspace.use_root_config`             | boolean                                           | When true, force workspace root vtcode.toml as the sole active config layer.                                  |
 | `workspace.include_context`             | boolean                                           | Include workspace context.                                         |
 | `workspace.max_context_size`            | number                                            | Max size of workspace context (bytes).                             |
 | `execution.tool_timeout`                | number                                            | Timeout for tool executions (seconds).                             |

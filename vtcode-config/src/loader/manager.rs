@@ -118,6 +118,37 @@ impl ConfigManager {
             });
         }
 
+        // If the workspace root vtcode.toml sets workspace.use_root_config = true,
+        // discard all lower-precedence layers and re-merge with only the workspace
+        // root and runtime layers.
+        let use_root_config = layer_stack
+            .layers()
+            .iter()
+            .find(|l| {
+                matches!(
+                    &l.source,
+                    ConfigLayerSource::Workspace { file }
+                        if *file == workspace_config_path
+                )
+            })
+            .map(|l| Self::workspace_root_wants_root_config_only(&l.config))
+            .unwrap_or(false);
+        if use_root_config {
+            layer_stack.retain(|layer| {
+                matches!(
+                    &layer.source,
+                    ConfigLayerSource::Workspace { file }
+                        if *file == workspace_config_path
+                ) || matches!(&layer.source, ConfigLayerSource::Runtime)
+            });
+            if layer_stack.layers().is_empty() {
+                bail!(
+                    "workspace.use_root_config is true but no workspace root config was found at {}",
+                    workspace_config_path.display()
+                );
+            }
+        }
+
         if let Some((layer, error)) = layer_stack.first_layer_error() {
             bail!(
                 "Configuration layer '{}' failed to load: {}",
@@ -227,6 +258,18 @@ impl ConfigManager {
         ConfigLayerEntry::disabled(source, reason, format!("{:#}", error))
     }
 
+    /// Check whether a parsed TOML value has `workspace.use_root_config = true`.
+    ///
+    /// This is checked against the already-loaded workspace root layer config
+    /// to avoid a redundant file read.
+    fn workspace_root_wants_root_config_only(config: &toml::Value) -> bool {
+        config
+            .get("workspace")
+            .and_then(|v| v.get("use_root_config"))
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false)
+    }
+
     /// Load configuration from a specific file
     pub fn load_from_file(path: impl AsRef<Path>) -> Result<Self> {
         let path = path.as_ref();
@@ -272,6 +315,30 @@ impl ConfigManager {
                 },
                 error,
             )),
+        }
+
+        // If the provided file sets workspace.use_root_config = true, discard
+        // lower-precedence layers so only this file and runtime overrides apply.
+        let use_root_config = layer_stack
+            .layers()
+            .iter()
+            .find(|l| {
+                matches!(
+                    &l.source,
+                    ConfigLayerSource::Workspace { file }
+                        if *file == path
+                )
+            })
+            .map(|l| Self::workspace_root_wants_root_config_only(&l.config))
+            .unwrap_or(false);
+        if use_root_config {
+            layer_stack.retain(|layer| {
+                matches!(
+                    &layer.source,
+                    ConfigLayerSource::Workspace { file }
+                        if *file == path
+                ) || matches!(&layer.source, ConfigLayerSource::Runtime)
+            });
         }
 
         if let Some((layer, error)) = layer_stack.first_layer_error() {

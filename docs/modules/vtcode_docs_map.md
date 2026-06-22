@@ -680,9 +680,9 @@ This document serves as an index of all VT Code documentation. When users ask qu
   - **User Questions**: "What can you tell me about Hugging Face Inference Providers Integrations?", "How does Featured Integrations work?", "How does About This Directory work?"
 
 - **File**: `docs/project/TODO.md`
-  - **Content**: Implement `[workspace]` config section
-  - **Topics**: Problem, Plan, Key files to modify, Risk, Problem
-  - **User Questions**: "What can you tell me about Implement `[workspace]` config section?", "How does Problem work?", "How does Plan work?"
+  - **Content**: Implementation Plan: Custom model lists for built-in providers
+  - **Topics**: Problem, Proposed solution, Implementation steps, Key files to modify, Usage (after implementation)
+  - **User Questions**: "What can you tell me about Implementation Plan: Custom model lists for built-in providers?", "How does Problem work?", "How does Proposed solution work?"
 
 - **File**: `docs/installation/README.md`
   - **Content**: Installation Guide

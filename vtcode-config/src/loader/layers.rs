@@ -142,6 +142,11 @@ impl ConfigLayerStack {
         self.layers.push(layer);
     }
 
+    /// Retain only layers matching the predicate.
+    pub fn retain<F: FnMut(&ConfigLayerEntry) -> bool>(&mut self, mut f: F) {
+        self.layers.retain(|layer| f(layer));
+    }
+
     /// Merge all layers into a single effective configuration.
     pub fn effective_config(&self) -> TomlValue {
         self.effective_config_with_origins().0

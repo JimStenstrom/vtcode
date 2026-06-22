@@ -349,12 +349,16 @@ For the full shortcut list and tmux notes, see [Interactive Mode Reference](../u
 
 ### workspace.settings
 
-Controls various workspace-specific settings for VT Code execution:
+Controls various workspace-specific settings for VT Code execution.
+
+> **Note:** The `[workspace]` section is now implemented. When `use_root_config = true`,
+> only the workspace root `vtcode.toml` is used as the active config layer; system,
+> user, project, and dot-dir layers are discarded.
 
 ```toml
 [workspace]
-# By default, VT Code will look for a vtcode.toml file in the root of your workspace
-# This determines the behavior when multiple workspaces exist
+# When true, force workspace root vtcode.toml as the sole active config layer
+# (system, user, project, and dot-dir layers are discarded)
 use_root_config = true
 
 # Controls whether to include workspace context in messages
@@ -909,6 +913,7 @@ turn limits, and context reuse for long-running exec sessions.
 | `agent.harness.continuation_policy`     | `off` \| `exec_only` \| `all`                     | Controls when the harness may auto-continue after a completion attempt. Default: `all` in interactive and exec sessions; use `exec_only` to keep interactive sessions manual. |
 | `agent.harness.event_log_path`          | string \| null                                    | Optional JSONL sink for harness events in interactive and exec flows.                                                                                                         |
 | `sandbox.default_policy`                | `read_only` \| `workspace_write` \| `danger_full_access` \| `external` | Default sandbox policy.                                                                                                                                                      |
+| `workspace.use_root_config`             | boolean                                           | When true, force workspace root vtcode.toml as the sole active config layer (system, user, project, and dot-dir layers discarded).                                            |
 | `workspace.include_context`             | boolean                                           | Include workspace context.                                                                                                                                                    |
 | `workspace.max_context_size`            | number                                            | Max size of workspace context (bytes).                                                                                                                                        |
 | `execution.tool_timeout`                | number                                            | Timeout for tool executions (seconds).                                                                                                                                        |

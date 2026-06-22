@@ -5,6 +5,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use vtcode_commons::paths::WorkspacePaths;
+use vtcode_config::ConfigLayerSource;
 use vtcode_config::ConfigManager;
 use vtcode_config::constants::defaults;
 use vtcode_config::defaults::provider::with_config_defaults_provider_for_test;
@@ -218,6 +219,134 @@ fn load_canonicalizes_relative_workspace_paths() -> Result<()> {
     assert_eq!(
         manager.workspace_root(),
         Some(expected_workspace_root.as_path())
+    );
+
+    Ok(())
+}
+
+#[test]
+#[serial]
+fn use_root_config_discards_lower_precedence_layers() -> Result<()> {
+    let workspace = TempDir::new()?;
+    let workspace_root = workspace.path();
+    let config_dir = workspace_root.join(".vtcode");
+    fs::create_dir_all(&config_dir)?;
+
+    // Home config sets provider to "home"
+    let home_config = workspace_root.join("home").join("vtcode.toml");
+    write_config(&home_config, "home")?;
+
+    // Workspace root sets use_root_config = true and provider to "root"
+    let root_config = workspace_root.join("vtcode.toml");
+    fs::write(
+        &root_config,
+        "[workspace]\nuse_root_config = true\n\n[agent]\nprovider = \"root\"\nmax_conversation_turns = 5\n",
+    )?;
+
+    let manager = with_test_defaults(workspace_root, config_dir, vec![home_config], || {
+        ConfigManager::load_from_workspace(workspace_root)
+    })?;
+
+    // Only workspace root config should apply; home config discarded
+    assert_eq!(manager.config().agent.provider, "root");
+
+    // Only workspace root layer (+ any runtime) should remain
+    let layers = manager.layer_stack().layers();
+    assert!(
+        layers.iter().all(|l| matches!(
+            &l.source,
+            ConfigLayerSource::Workspace { .. } | ConfigLayerSource::Runtime
+        )),
+        "expected only workspace/runtime layers, got: {:?}",
+        layers.iter().map(|l| l.source.label()).collect::<Vec<_>>()
+    );
+
+    Ok(())
+}
+
+#[test]
+#[serial]
+fn use_root_config_false_preserves_normal_layering() -> Result<()> {
+    let workspace = TempDir::new()?;
+    let workspace_root = workspace.path();
+    let config_dir = workspace_root.join(".vtcode");
+    fs::create_dir_all(&config_dir)?;
+
+    let home_config = workspace_root.join("home").join("vtcode.toml");
+    write_config(&home_config, "home")?;
+
+    let root_config = workspace_root.join("vtcode.toml");
+    fs::write(
+        &root_config,
+        "[workspace]\nuse_root_config = false\n\n[agent]\nprovider = \"root\"\nmax_conversation_turns = 5\n",
+    )?;
+
+    let manager = with_test_defaults(workspace_root, config_dir, vec![home_config], || {
+        ConfigManager::load_from_workspace(workspace_root)
+    })?;
+
+    // Normal layering: workspace root wins over home
+    assert_eq!(manager.config().agent.provider, "root");
+    assert!(manager.layer_stack().layers().len() >= 2);
+
+    Ok(())
+}
+
+#[test]
+#[serial]
+fn use_root_config_absent_preserves_normal_layering() -> Result<()> {
+    let workspace = TempDir::new()?;
+    let workspace_root = workspace.path();
+    let config_dir = workspace_root.join(".vtcode");
+    fs::create_dir_all(&config_dir)?;
+
+    let home_config = workspace_root.join("home").join("vtcode.toml");
+    write_config(&home_config, "home")?;
+
+    let root_config = workspace_root.join("vtcode.toml");
+    fs::write(
+        &root_config,
+        "[agent]\nprovider = \"root\"\nmax_conversation_turns = 5\n",
+    )?;
+
+    let manager = with_test_defaults(workspace_root, config_dir, vec![home_config], || {
+        ConfigManager::load_from_workspace(workspace_root)
+    })?;
+
+    // Normal layering: workspace root wins over home
+    assert_eq!(manager.config().agent.provider, "root");
+    assert!(manager.layer_stack().layers().len() >= 2);
+
+    Ok(())
+}
+
+#[test]
+#[serial]
+fn use_root_config_from_file_discards_lower_precedence_layers() -> Result<()> {
+    let workspace = TempDir::new()?;
+    let workspace_root = workspace.path();
+
+    // Workspace root config with use_root_config = true
+    let root_config = workspace_root.join("vtcode.toml");
+    fs::write(
+        &root_config,
+        "[workspace]\nuse_root_config = true\n\n[agent]\nprovider = \"root\"\nmax_conversation_turns = 5\n",
+    )?;
+
+    // Load from file directly
+    let manager = ConfigManager::load_from_file(&root_config)?;
+
+    assert_eq!(manager.config().agent.provider, "root");
+
+    // Only workspace layer (+ any runtime) should remain; no system/user layers
+    let layers = manager.layer_stack().layers();
+    assert!(
+        layers.iter().all(|l| matches!(
+            &l.source,
+            ConfigLayerSource::Workspace { .. } | ConfigLayerSource::Runtime
+        )),
+        "expected only workspace/runtime layers, got: {:?}",
+        layers.iter().map(|l| l.source.label()).collect::<Vec<_>>()
     );
 
     Ok(())

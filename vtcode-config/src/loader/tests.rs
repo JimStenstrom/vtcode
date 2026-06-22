@@ -626,3 +626,37 @@ fn deprecated_permission_keys_are_rejected() {
         );
     }
 }
+
+#[test]
+fn workspace_config_parses_from_toml() {
+    let toml_str = r#"
+[workspace]
+use_root_config = true
+include_context = false
+max_context_size = 2097152
+"#;
+    let config: VTCodeConfig = toml::from_str(toml_str).expect("parse workspace config");
+    assert!(config.workspace.use_root_config);
+    assert!(!config.workspace.include_context);
+    assert_eq!(config.workspace.max_context_size, Some(2_097_152));
+}
+
+#[test]
+fn workspace_config_defaults_match_spec() {
+    let config = VTCodeConfig::default();
+    assert!(!config.workspace.use_root_config);
+    assert!(config.workspace.include_context);
+    assert_eq!(config.workspace.max_context_size, None);
+}
+
+#[test]
+fn workspace_config_partial_toml_uses_defaults() {
+    let toml_str = r#"
+[workspace]
+use_root_config = true
+"#;
+    let config: VTCodeConfig = toml::from_str(toml_str).expect("parse partial workspace config");
+    assert!(config.workspace.use_root_config);
+    assert!(config.workspace.include_context);
+    assert_eq!(config.workspace.max_context_size, None);
+}
