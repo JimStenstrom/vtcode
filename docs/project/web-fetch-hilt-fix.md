@@ -145,6 +145,87 @@ let max_bytes = args.max_bytes.map(|v| v.min(MAX_ALLOWED_BYTES)).unwrap_or(DEFAU
 let timeout_secs = args.timeout_secs.map(|v| v.min(MAX_ALLOWED_TIMEOUT_SECS)).unwrap_or(DEFAULT_TIMEOUT_SECS);
 ```
 
+### 6. Domain-Scoped Permanent Approval Caching
+
+When a user selects "Always approve and save to policy cache" for `web_fetch`, the approval is now scoped to the specific domain rather than the entire tool. This means:
+
+- Approving `https://example.com` does NOT auto-approve `https://other.com`
+- Approving `https://example.com` DOES auto-approve `https://example.com/any/path`
+
+#### Cache Key Generation
+
+**File**: `src/agent/runloop/unified/tool_routing/approval_cache.rs`
+
+Added `web_fetch_domain()` helper that extracts the hostname from the URL argument:
+
+```rust
+pub(super) fn web_fetch_domain(tool_args: Option<&Value>) -> Option<String> {
+    let url = tool_args?.as_object()?.get("url")?.as_str()?;
+    let parsed = Url::parse(url).ok()?;
+    let host = parsed.host_str()?;
+    if host.is_empty() { return None; }
+    Some(host.to_ascii_lowercase())
+}
+```
+
+Updated `cache_key()` to use domain-based keys for web_fetch:
+
+```rust
+if (tool_name == WEB_FETCH || tool_name == FETCH_URL)
+    && let Some(domain) = web_fetch_domain(tool_args)
+{
+    return format!("{tool_name}:{domain}");
+}
+```
+
+#### Approval Learning Target
+
+**File**: `src/agent/runloop/unified/tool_routing/shell_approval.rs`
+
+Updated `approval_learning_target()` to use domain-based keys:
+
+```rust
+if (tool_name == WEB_FETCH || tool_name == FETCH_URL)
+    && let Some(domain) = web_fetch_domain(tool_args)
+{
+    let approval_key = format!("{tool_name}:{domain}");
+    let display_label = format!("fetch from {domain}");
+    return ApprovalLearningTarget::new(approval_key, display_label);
+}
+```
+
+#### Persistent Approval Target
+
+Updated `persistent_approval_target()` to return `ExactInvocation` for web_fetch:
+
+```rust
+if (tool_name == WEB_FETCH || tool_name == FETCH_URL)
+    && let Some(domain) = web_fetch_domain(tool_args)
+{
+    return PersistentApprovalTarget::ExactInvocation {
+        display_label: format!("fetch from {domain}"),
+    };
+}
+```
+
+This ensures the HITL popup shows "Always approve and save to policy cache" with the subtitle "Remember approval for fetch from example.com in this workspace".
+
+#### Exact Shell Approval Target
+
+Updated `exact_shell_approval_target()` to return the domain-scoped target:
+
+```rust
+if (tool_name == WEB_FETCH || tool_name == FETCH_URL)
+    && let Some(domain) = web_fetch_domain(tool_args)
+{
+    let approval_key = format!("{tool_name}:{domain}");
+    let display_label = format!("fetch from {domain}");
+    return Some(ApprovalLearningTarget::new(approval_key, display_label));
+}
+```
+
+This ensures persisted approval lookups match the domain-specific key.
+
 ## Testing
 
 - All existing tests pass (0 failures)
@@ -162,6 +243,8 @@ let timeout_secs = args.timeout_secs.map(|v| v.min(MAX_ALLOWED_TIMEOUT_SECS)).un
 | `src/agent/runloop/unified/tool_pipeline/execution_run.rs` | Forward justification |
 | `src/agent/runloop/unified/turn/tool_outcomes/handlers/mod.rs` | Forward justification |
 | `src/agent/runloop/unified/turn/turn_processing/llm_request/copilot_runtime.rs` | Forward justification |
+| `src/agent/runloop/unified/tool_routing/approval_cache.rs` | Domain-based cache keys for web_fetch |
+| `src/agent/runloop/unified/tool_routing/shell_approval.rs` | Domain-scoped approval targets for web_fetch |
 
 ## How It Works Now
 
@@ -171,11 +254,18 @@ let timeout_secs = args.timeout_secs.map(|v| v.min(MAX_ALLOWED_TIMEOUT_SECS)).un
 4. `NeedsApproval` justification is returned
 5. Justification flows through to permission check
 6. `ToolPolicyGateway` evaluates policy (Prompt for web_fetch)
-7. HITL popup appears asking user to approve/deny
-8. User approves → tool executes; denies → tool blocked with user feedback
+7. HITL popup appears asking user to approve/deny with options:
+   - **Approve Once**: Allow this time only
+   - **Allow for Session**: Allow for current session
+   - **Always approve and save to policy cache**: Remember for `example.com` in this workspace
+   - **Deny Once**: Reject this time (ask again next time)
+8. User selects "Always approve" → approval cached under `web_fetch:example.com`
+9. Next call to `fetch https://example.com/other` → auto-approved (same domain)
+10. Call to `fetch https://other.com/` → still prompts (different domain)
 
 ## Notes
 
 - The `NeedsApproval` variant was already designed for this purpose but was being swallowed by error handling
 - Three execution paths needed fixes because vtcode has multiple code paths for tool invocation
-- The fix is minimal and targeted - no changes to the core safety logic, just proper error propagation
+- Domain-scoped caching prevents over-broad auto-approval while reducing prompt fatigue for trusted domains
+- The domain key is normalized to lowercase so `https://Example.COM/` and `https://example.com/` share one cache entry

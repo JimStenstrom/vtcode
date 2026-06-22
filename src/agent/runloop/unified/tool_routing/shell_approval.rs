@@ -1,4 +1,5 @@
 use serde_json::Value;
+use url::Url;
 
 use crate::agent::runloop::unified::tool_summary::{describe_tool_action, humanize_tool_name};
 
@@ -163,11 +164,38 @@ fn segmented_shell_learning_target(
     Some(ApprovalLearningTarget::new(key, label))
 }
 
+/// Extract the domain from a `web_fetch` / `fetch_url` URL argument.
+///
+/// Returns `Some("example.com")` for `https://example.com/path`. The domain is
+/// normalised to lowercase so that `https://Example.COM/` and `https://example.com/`
+/// share one cache entry.
+fn web_fetch_domain(tool_args: Option<&Value>) -> Option<String> {
+    let url = tool_args?.as_object()?.get("url")?.as_str()?;
+    let parsed = Url::parse(url).ok()?;
+    let host = parsed.host_str()?;
+    if host.is_empty() {
+        return None;
+    }
+    Some(host.to_ascii_lowercase())
+}
+
 pub(super) fn approval_learning_target(
     tool_name: &str,
     tool_args: Option<&Value>,
     default_learning_label: &str,
 ) -> ApprovalLearningTarget {
+    use vtcode_core::config::constants::tools::{FETCH_URL, WEB_FETCH};
+
+    // For web_fetch / fetch_url, key by domain so that permanent approval is
+    // scoped to the specific domain rather than the entire tool.
+    if (tool_name == WEB_FETCH || tool_name == FETCH_URL)
+        && let Some(domain) = web_fetch_domain(tool_args)
+    {
+        let approval_key = format!("{tool_name}:{domain}");
+        let display_label = format!("fetch from {domain}");
+        return ApprovalLearningTarget::new(approval_key, display_label);
+    }
+
     let pattern = learned_shell_pattern(tool_name, tool_args);
 
     if let Some(scope_signature) = extract_shell_permission_scope_signature(tool_name, tool_args) {
@@ -205,6 +233,18 @@ pub(super) fn exact_shell_approval_target(
     tool_args: Option<&Value>,
     default_learning_label: &str,
 ) -> Option<ApprovalLearningTarget> {
+    use vtcode_core::config::constants::tools::{FETCH_URL, WEB_FETCH};
+
+    // For web_fetch / fetch_url, return the domain-scoped target so that
+    // persisted approval lookups match the domain-specific key.
+    if (tool_name == WEB_FETCH || tool_name == FETCH_URL)
+        && let Some(domain) = web_fetch_domain(tool_args)
+    {
+        let approval_key = format!("{tool_name}:{domain}");
+        let display_label = format!("fetch from {domain}");
+        return Some(ApprovalLearningTarget::new(approval_key, display_label));
+    }
+
     // Exact persistent cache entries intentionally omit any broader pattern:
     // "always approve this exact invocation" must not silently widen its scope.
     exact_shell_learning_target(tool_name, tool_args, default_learning_label)
@@ -215,11 +255,22 @@ pub(super) fn persistent_approval_target(
     tool_args: Option<&Value>,
     default_learning_label: &str,
 ) -> PersistentApprovalTarget {
+    use vtcode_core::config::constants::tools::{FETCH_URL, WEB_FETCH};
+
     if let Some(prefix_rule) = extract_shell_persistent_approval_prefix_rule(tool_name, tool_args) {
         let rendered_prefix = render_shell_approval_command_words(&prefix_rule);
         return PersistentApprovalTarget::PrefixRule {
             prefix_rule,
             display_label: format!("commands starting with `{rendered_prefix}`"),
+        };
+    }
+
+    // For web_fetch / fetch_url, always offer domain-scoped permanent approval.
+    if (tool_name == WEB_FETCH || tool_name == FETCH_URL)
+        && let Some(domain) = web_fetch_domain(tool_args)
+    {
+        return PersistentApprovalTarget::ExactInvocation {
+            display_label: format!("fetch from {domain}"),
         };
     }
 

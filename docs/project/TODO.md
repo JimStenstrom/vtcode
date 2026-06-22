@@ -27,6 +27,8 @@ also: https://news.ycombinator.com/item?id=48628777
 
 ---
 
+address issue: https://github.com/vinhnx/VTCode/issues/676
+
 # Implement `[workspace]` config section
 
 **Filed:** 2026-06-22
@@ -103,6 +105,8 @@ example, but not wired to any Rust code. Users who set it get silent no-op.
   intuitive.
 
 ---
+
+https://github.com/vinhnx/VTCode/issues/675
 
 # Implementation Plan: Custom model lists for built-in providers
 

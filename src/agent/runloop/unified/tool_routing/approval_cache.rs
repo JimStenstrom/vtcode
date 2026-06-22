@@ -1,6 +1,7 @@
 use std::time::Duration;
 
 use serde_json::Value;
+use url::Url;
 use vtcode_core::tools::ApprovalRecorder;
 
 use super::shell_approval::ApprovalLearningTarget;
@@ -54,6 +55,21 @@ pub(super) async fn record_approval_blocking(
     }
 }
 
+/// Extract the domain from a `web_fetch` URL argument for cache key purposes.
+///
+/// Returns `Some("example.com")` for `https://example.com/path`, `None` if the
+/// URL is missing or unparseable. The domain is normalised to lowercase so that
+/// `https://Example.COM/` and `https://example.com/` share one cache entry.
+pub(super) fn web_fetch_domain(tool_args: Option<&Value>) -> Option<String> {
+    let url = tool_args?.as_object()?.get("url")?.as_str()?;
+    let parsed = Url::parse(url).ok()?;
+    let host = parsed.host_str()?;
+    if host.is_empty() {
+        return None;
+    }
+    Some(host.to_ascii_lowercase())
+}
+
 pub(super) fn cache_key(tool_name: &str, tool_args: Option<&Value>) -> String {
     // For non-shell tools, the shell suffix is None, so the key degrades to the
     // bare tool name. Qualify `unified_search` with its action to prevent
@@ -65,12 +81,21 @@ pub(super) fn cache_key(tool_name: &str, tool_args: Option<&Value>) -> String {
         return format!("{tool_name}:{suffix}");
     }
 
-    use vtcode_core::config::constants::tools::UNIFIED_SEARCH;
+    use vtcode_core::config::constants::tools::{FETCH_URL, UNIFIED_SEARCH, WEB_FETCH};
+
     if tool_name == UNIFIED_SEARCH
         && let Some(args) = tool_args
         && vtcode_core::tools::tool_intent::unified_search_action_is(args, "web")
     {
         return "unified_search:web".to_string();
+    }
+
+    // For web_fetch / fetch_url, key by domain so that approving
+    // `https://example.com` does not auto-approve `https://other.com`.
+    if (tool_name == WEB_FETCH || tool_name == FETCH_URL)
+        && let Some(domain) = web_fetch_domain(tool_args)
+    {
+        return format!("{tool_name}:{domain}");
     }
 
     tool_name.to_string()
