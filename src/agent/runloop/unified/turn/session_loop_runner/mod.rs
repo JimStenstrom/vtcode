@@ -13,6 +13,9 @@ use crate::agent::runloop::unified::turn::turn_loop::TurnLoopOutcome;
 use crate::agent::runloop::unified::turn::turn_loop::{
     POST_TOOL_TIMEOUT_RECOVERY_REASON, prepare_post_tool_tool_free_recovery,
 };
+use crate::agent::runloop::unified::inline_events::harness::{
+    prune_old_harness_logs, HARNESS_LOG_MAX_AGE_DAYS,
+};
 use crate::updater::{InlineUpdateOutcome, display_update_notice, run_inline_update_prompt};
 use vtcode_config::loader::SimpleConfigWatcher;
 use vtcode_core::core::agent::features::FeatureSet;
@@ -232,6 +235,16 @@ pub(super) async fn run_single_agent_loop_unified_impl(
             .filter(|path| !path.trim().is_empty())
             .cloned()
             .or_else(|| default_harness_log_dir().map(|dir| dir.to_string_lossy().into_owned()));
+        // Prune old harness event log files before creating a new emitter
+        if let Some(ref log_path) = effective_log_path {
+            let log_dir = std::path::Path::new(log_path);
+            let dir = if log_dir.extension().is_some() {
+                log_dir.parent().unwrap_or(log_dir)
+            } else {
+                log_dir
+            };
+            prune_old_harness_logs(dir, HARNESS_LOG_MAX_AGE_DAYS);
+        }
         let harness_emitter: Option<HarnessEventEmitter> =
             effective_log_path.as_deref().and_then(|path| {
                 let resolved = resolve_event_log_path(path, &turn_run_id);

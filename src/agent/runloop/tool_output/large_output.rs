@@ -30,8 +30,8 @@ use anyhow::{Context, Result};
 use sha2::{Digest, Sha256};
 use std::fs;
 use std::io::Write;
-use std::path::PathBuf;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::path::{Path, PathBuf};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use vtcode_commons::fs::ensure_dir_exists_sync;
 #[cfg(test)]
 use vtcode_commons::fs::read_file_with_context_sync;
@@ -352,4 +352,50 @@ pub(crate) fn format_spool_notification(result: &SpoolResult) -> String {
     }
 
     lines.join("\n")
+}
+
+/// Clean up old spooled output directories under `base_dir` (typically `~/.vtcode/tmp/`).
+/// Removes session subdirectories whose modification time exceeds `max_age_secs`.
+pub(crate) fn cleanup_old_temp_spools(base_dir: &Path, max_age_secs: u64) -> Result<usize> {
+    if max_age_secs == 0 || !base_dir.exists() {
+        return Ok(0);
+    }
+
+    let cutoff = SystemTime::now()
+        .checked_sub(Duration::from_secs(max_age_secs))
+        .unwrap_or(UNIX_EPOCH);
+
+    let mut removed = 0;
+    let entries = match fs::read_dir(base_dir) {
+        Ok(e) => e,
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(0),
+        Err(err) => return Err(err).context("Failed to read temp spool directory"),
+    };
+
+    for entry in entries {
+        let entry = match entry {
+            Ok(e) => e,
+            Err(_) => continue,
+        };
+        let path = entry.path();
+        if !path.is_dir() {
+            continue;
+        }
+        let metadata = match entry.metadata() {
+            Ok(m) => m,
+            Err(_) => continue,
+        };
+        let modified = metadata.modified().unwrap_or(UNIX_EPOCH);
+        if modified <= cutoff {
+            if fs::remove_dir_all(&path).is_ok() {
+                removed += 1;
+            }
+        }
+    }
+
+    if removed > 0 {
+        tracing::info!(count = removed, dir = %base_dir.display(), "Cleaned up old temp spool directories");
+    }
+
+    Ok(removed)
 }

@@ -1,13 +1,12 @@
 use anyhow::{Context, Result};
 use serde_json::Value;
-use std::fs::{File, OpenOptions};
+use std::fs::{self, File, OpenOptions};
 use std::io::{BufWriter, Write};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use chrono::Utc;
-#[cfg(test)]
-use std::path::Path;
 use vtcode_config::OpenResponsesConfig;
 use vtcode_core::core::agent::events::{
     tool_invocation_completed_event as shared_tool_invocation_completed_event,
@@ -29,6 +28,60 @@ use vtcode_core::open_responses::{OpenResponsesIntegration, SequencedEvent};
 use vtcode_core::utils::file_utils::ensure_dir_exists_sync;
 
 use crate::agent::runloop::unified::run_loop_context::TurnRunId;
+
+/// Default maximum age in days for harness event log files before pruning.
+pub(crate) const HARNESS_LOG_MAX_AGE_DAYS: u64 = 30;
+
+/// Prefix for harness event log files.
+const HARNESS_LOG_PREFIX: &str = "harness-";
+
+/// Seconds per day.
+const SECONDS_PER_DAY: u64 = 86400;
+
+/// Prune harness event log files older than `max_age_days` from the given directory.
+/// Only removes files matching the `harness-*.jsonl` pattern.
+pub(crate) fn prune_old_harness_logs(log_dir: &Path, max_age_days: u64) {
+    if max_age_days == 0 {
+        return;
+    }
+
+    let cutoff = match SystemTime::now()
+        .checked_sub(Duration::from_secs(max_age_days.saturating_mul(SECONDS_PER_DAY)))
+    {
+        Some(t) => t,
+        None => return,
+    };
+
+    let entries = match fs::read_dir(log_dir) {
+        Ok(e) => e,
+        Err(_) => return,
+    };
+
+    for entry in entries {
+        let entry = match entry {
+            Ok(e) => e,
+            Err(_) => continue,
+        };
+        let path = entry.path();
+        if !path.is_file() {
+            continue;
+        }
+        let Some(name) = path.file_name().and_then(|n| n.to_str()) else {
+            continue;
+        };
+        if !name.starts_with(HARNESS_LOG_PREFIX) || !name.ends_with(".jsonl") {
+            continue;
+        }
+        let metadata = match entry.metadata() {
+            Ok(m) => m,
+            Err(_) => continue,
+        };
+        let modified = metadata.modified().unwrap_or(UNIX_EPOCH);
+        if modified <= cutoff {
+            let _ = fs::remove_file(&path);
+        }
+    }
+}
 
 #[derive(Clone)]
 pub(crate) struct HarnessEventEmitter {
@@ -171,7 +224,7 @@ impl HarnessEventEmitter {
         if let Some(parent) = state.output_path.parent() {
             let _ = ensure_dir_exists_sync(parent);
         }
-        if let Err(err) = std::fs::write(&state.output_path, json) {
+        if let Err(err) = fs::write(&state.output_path, json) {
             tracing::debug!(
                 error = %err,
                 path = %state.output_path.display(),
@@ -428,7 +481,7 @@ mod tests {
 
         emitter.emit(turn_started_event()).expect("emit");
 
-        let payload = std::fs::read_to_string(&path).expect("read log");
+        let payload = fs::read_to_string(&path).expect("read log");
         let line = payload.lines().next().expect("line");
         let value: Value = serde_json::from_str(line).expect("json");
 
@@ -483,12 +536,12 @@ mod tests {
         emitter.finish_open_responses();
 
         // Verify harness log
-        let harness_content = std::fs::read_to_string(&harness_path).expect("read harness");
+        let harness_content = fs::read_to_string(&harness_path).expect("read harness");
         assert!(harness_content.contains("thread.started"));
         assert!(harness_content.contains("turn.started"));
 
         // Verify Open Responses log
-        let or_content = std::fs::read_to_string(&or_path).expect("read OR");
+        let or_content = fs::read_to_string(&or_path).expect("read OR");
         assert!(or_content.contains("response.created"));
         assert!(or_content.contains("response.completed"));
         assert!(or_content.contains("[DONE]"));

@@ -171,7 +171,7 @@ impl PodManager {
         }
 
         let launch_command = format!(
-            "mkdir -p ~/{DEFAULT_LOG_DIR} && setsid {wrapper_path} >/dev/null 2>&1 < /dev/null & echo $!"
+            "mkdir -p ~/{DEFAULT_LOG_DIR} && find ~/{DEFAULT_LOG_DIR} -name '*.log.old' -mtime +90 -delete 2>/dev/null; setsid {wrapper_path} >/dev/null 2>&1 < /dev/null & echo $!"
         );
         let launch = self
             .transport
@@ -535,7 +535,17 @@ fn render_run_script(
 
 fn render_wrapper_script(run_path: &str, log_path: &str) -> String {
     format!(
-        "#!/usr/bin/env bash\nset -euo pipefail\nmkdir -p ~/.vllm_logs\nscript -q -f -c {run_path} {log_path}\n"
+        r#"#!/usr/bin/env bash
+set -euo pipefail
+mkdir -p ~/.vllm_logs
+LOG_PATH={log_path}
+# Rotate log if it exceeds 100MB to prevent unbounded disk usage
+MAX_LOG_BYTES=104857600
+if [ -f "$LOG_PATH" ] && [ "$(stat -f%z "$LOG_PATH" 2>/dev/null || echo 0)" -ge $MAX_LOG_BYTES ] 2>/dev/null; then
+    mv "$LOG_PATH" "$LOG_PATH.old" 2>/dev/null || true
+fi
+script -q -f -c {run_path} "$LOG_PATH"
+"#
     )
 }
 

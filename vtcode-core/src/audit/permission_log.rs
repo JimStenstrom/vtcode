@@ -1,16 +1,28 @@
 //! Permission audit logging system
 //! Tracks all permission decisions (allow/deny/prompt) with context
 //! Writes to ~/.vtcode/audit/permissions-{date}.log in JSON format
+//! Old audit logs are pruned after DEFAULT_AUDIT_LOG_MAX_AGE_DAYS days.
 
 use crate::utils::error_messages::ERR_CREATE_AUDIT_DIR;
 use crate::utils::file_utils::ensure_dir_exists_sync;
 use anyhow::{Context, Result};
 use chrono::{DateTime, Local};
 use serde::{Deserialize, Serialize};
+use std::fs;
 use std::fs::OpenOptions;
 use std::io::BufWriter;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tracing::info;
+
+/// Default maximum age in days for audit log files before they are pruned.
+pub const DEFAULT_AUDIT_LOG_MAX_AGE_DAYS: u64 = 90;
+
+/// Prefix for permission audit log files.
+const PERMISSION_LOG_PREFIX: &str = "permissions-";
+
+/// Seconds per day constant (avoiding dependency on core crate).
+const SECONDS_PER_DAY: u64 = 86400;
 
 /// Record of a single permission decision
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -77,7 +89,7 @@ pub struct PermissionAuditLog {
     log_path: PathBuf,
 
     /// Writer for the log file
-    writer: Option<BufWriter<std::fs::File>>,
+    writer: Option<BufWriter<fs::File>>,
 
     /// Count of events logged this session
     event_count: usize,
@@ -88,6 +100,11 @@ impl PermissionAuditLog {
     pub fn new(audit_dir: PathBuf) -> Result<Self> {
         // Create audit directory if needed
         ensure_dir_exists_sync(&audit_dir).context(ERR_CREATE_AUDIT_DIR)?;
+
+        // Prune old audit logs
+        if let Err(err) = cleanup_old_audit_logs(&audit_dir, DEFAULT_AUDIT_LOG_MAX_AGE_DAYS) {
+            tracing::warn!(error = %err, "Failed to prune old audit logs");
+        }
 
         // Use today's date in filename
         let date = Local::now().format("%Y-%m-%d");
@@ -159,7 +176,7 @@ impl PermissionAuditLog {
         self.record(event)
     }
 
-    fn writer_mut(&mut self) -> Result<&mut BufWriter<std::fs::File>> {
+    fn writer_mut(&mut self) -> Result<&mut BufWriter<fs::File>> {
         if self.writer.is_none() {
             let file = OpenOptions::new()
                 .create(true)
@@ -173,6 +190,61 @@ impl PermissionAuditLog {
             .as_mut()
             .context("audit log writer was not initialized")
     }
+}
+
+/// Prune audit log files older than `max_age_days` from the given directory.
+/// Only removes files matching the `permissions-YYYY-MM-DD.log` pattern.
+fn cleanup_old_audit_logs(audit_dir: &Path, max_age_days: u64) -> Result<()> {
+    if max_age_days == 0 {
+        return Ok(());
+    }
+
+    let cutoff = SystemTime::now()
+        .checked_sub(Duration::from_secs(max_age_days.saturating_mul(SECONDS_PER_DAY)))
+        .unwrap_or(UNIX_EPOCH);
+
+    let entries = match fs::read_dir(audit_dir) {
+        Ok(e) => e,
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(err) => {
+            return Err(err).with_context(|| {
+                format!("Failed to read audit log directory {}", audit_dir.display())
+            });
+        }
+    };
+
+    for entry in entries {
+        let entry = match entry {
+            Ok(e) => e,
+            Err(_) => continue,
+        };
+        let path = entry.path();
+        if !path.is_file() {
+            continue;
+        }
+        let Some(name) = path.file_name().and_then(|n| n.to_str()) else {
+            continue;
+        };
+        if !name.starts_with(PERMISSION_LOG_PREFIX) || !name.ends_with(".log") {
+            continue;
+        }
+        let metadata = match entry.metadata() {
+            Ok(m) => m,
+            Err(_) => continue,
+        };
+        let modified = metadata.modified().unwrap_or(UNIX_EPOCH);
+        if modified <= cutoff {
+            if let Err(err) = fs::remove_file(&path) {
+                tracing::warn!(
+                    path = %path.display(),
+                    error = %err,
+                    "Failed to remove expired audit log"
+                );
+            }
+        }
+    }
+
+    Ok(())
 }
 
 /// Generate a human-readable summary of permission decisions
@@ -224,5 +296,25 @@ mod tests {
         assert_eq!(log.event_count(), 1);
         assert!(log.log_path().exists());
         Ok(())
+    }
+
+    #[test]
+    fn test_cleanup_ignores_non_audit_files() -> Result<()> {
+        let dir = TempDir::new()?;
+
+        fs::write(dir.path().join("not-audit.log"), "noise")?;
+        fs::write(dir.path().join("other.txt"), "noise")?;
+
+        cleanup_old_audit_logs(dir.path(), 1)?;
+
+        assert!(dir.path().join("not-audit.log").exists());
+        assert!(dir.path().join("other.txt").exists());
+        Ok(())
+    }
+
+    #[test]
+    fn test_cleanup_noop_on_missing_dir() {
+        let result = cleanup_old_audit_logs(Path::new("/nonexistent/audit"), 90);
+        assert!(result.is_ok());
     }
 }
