@@ -162,6 +162,43 @@ model = "gpt-5.4"
 
 These entries are editable from `/config`, and they show up in the model picker using `display_name` so you can toggle between multiple custom endpoints without losing track of the active one.
 
+### providers (model list overrides)
+
+Use `[providers.<name>]` to extend a built-in provider's model list with additional custom models. This is useful when you want to add models to an existing provider (e.g., OpenCode Zen, OpenCode Go) without creating an entirely new custom provider.
+
+```toml
+[providers.opencode-zen]
+models = ["gpt-5.4", "claude-sonnet-4-6", "glm-5.1"]
+base_url = "https://custom-endpoint.example.com"   # optional
+api_key_env = "MY_CUSTOM_KEY"                        # optional
+```
+
+Each `[providers.<name>]` section supports:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `models` | `string[]` | Yes | List of model identifiers to add to the provider's model picker. |
+| `base_url` | `string` | No | Override the provider's default API endpoint. |
+| `api_key_env` | `string` | No | Override the provider's default API key environment variable. |
+
+The provider key must match a built-in provider (e.g., `opencode-zen`, `opencode-go`, `openai`, `anthropic`). Custom models appear in the `/model` picker alongside the provider's built-in entries.
+
+**Example: Adding fine-tuned models to OpenAI**
+
+```toml
+[providers.openai]
+models = ["ft:gpt-5.4:my-org:custom-model:v1"]
+```
+
+**Example: Overriding OpenCode Zen endpoint**
+
+```toml
+[providers.opencode-zen]
+models = ["gpt-5.4", "claude-sonnet-4-6"]
+base_url = "https://my-proxy.example.com/v1"
+api_key_env = "MY_PROXY_KEY"
+```
+
 ### Model-specific settings
 
 You can also configure model-specific behavior:
@@ -930,3 +967,6 @@ turn limits, and context reuse for long-running exec sessions.
 | `profiles.*.agent.provider`             | string                                            | Provider override for a profile.                                                                                                                                              |
 | `profiles.*.security.human_in_the_loop` | boolean                                           | Security setting override for a profile.                                                                                                                                      |
 | `profiles.*.tools.policies.*`           | `ask` \| `allow` \| `deny`                        | Tool policy override for a profile.                                                                                                                                           |
+| `providers.<name>.models`               | array                                             | Additional model identifiers to add to a built-in provider's model picker.                                                                                                    |
+| `providers.<name>.base_url`             | string                                            | Override the provider's default API endpoint.                                                                                                                                  |
+| `providers.<name>.api_key_env`          | string                                            | Override the provider's default API key environment variable.                                                                                                                  |
