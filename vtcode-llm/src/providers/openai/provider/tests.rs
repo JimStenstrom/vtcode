@@ -312,6 +312,7 @@ fn without_responses_backend_fields(mut payload: Value) -> Value {
         "prompt_cache_retention",
         "sampling_parameters",
         "store",
+        "text",
     ] {
         map.remove(field);
     }
