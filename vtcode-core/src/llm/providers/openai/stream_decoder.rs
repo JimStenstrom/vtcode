@@ -21,7 +21,7 @@ use futures::StreamExt;
 use serde_json::{Value, json};
 use std::time::Instant;
 
-use super::responses_adapter::{OpenAIResponsesStreamAdapter, ResponsesStreamEvent};
+use super::responses_adapter::{ResponsesStreamAdapter, ResponsesStreamEvent};
 use super::responses_api::parse_responses_payload;
 use super::streaming::OpenAIStreamTelemetry;
 
@@ -243,7 +243,7 @@ pub(crate) fn create_responses_stream(
                         break;
                     }
 
-                    match OpenAIResponsesStreamAdapter::parse_sse_data(trimmed_payload)? {
+                    match ResponsesStreamAdapter::parse_sse_data(trimmed_payload)? {
                         ResponsesStreamEvent::TextDelta { delta } => {
                             telemetry.on_content_delta(&delta);
 

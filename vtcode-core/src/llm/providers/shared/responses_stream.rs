@@ -1,7 +1,7 @@
 use crate::llm::error_display;
 use crate::llm::provider::{LLMError, LLMNormalizedStream, LLMResponse, NormalizedStreamEvent};
 use crate::llm::providers::openai::responses_adapter::{
-    OpenAIResponsesStreamAdapter, ResponsesStreamEvent,
+    ResponsesStreamAdapter, ResponsesStreamEvent,
 };
 use crate::llm::providers::shared::{Utf8StreamDecoder, extract_data_payload, find_sse_boundary};
 use async_stream::try_stream;
@@ -12,7 +12,7 @@ use serde_json::{Value, json};
 use super::{StreamAggregator, parse_cached_prompt_tokens_from_usage};
 
 // Retained shared Responses stream processor.
-// Rig 0.38.2 can consume SSE, but VTCode needs a provider-agnostic
+// Rig 0.39 can consume SSE, but VTCode needs a provider-agnostic
 // NormalizedStreamEvent contract: text/refusal/reasoning deltas, tool-call
 // start and argument deltas, tolerant empty-final-response recovery, and
 // backend error text. Protected by this module's `responses_stream` tests.
@@ -60,7 +60,7 @@ where
     }
 
     fn handle_payload(&mut self, payload: Value) -> Result<Vec<NormalizedStreamEvent>, LLMError> {
-        let event = OpenAIResponsesStreamAdapter::parse_payload_for_provider(
+        let event = ResponsesStreamAdapter::parse_payload_for_provider(
             self.options.provider_name,
             payload,
         )?;

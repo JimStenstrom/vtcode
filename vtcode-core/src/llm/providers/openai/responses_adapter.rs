@@ -100,9 +100,9 @@ pub(crate) enum ResponsesLifecycleEvent {
     InProgress,
 }
 
-pub(crate) struct OpenAIResponsesStreamAdapter;
+pub(crate) struct ResponsesStreamAdapter;
 
-impl OpenAIResponsesStreamAdapter {
+impl ResponsesStreamAdapter {
     pub(crate) fn parse_sse_data(data: &str) -> Result<ResponsesStreamEvent, LLMError> {
         Self::parse_sse_data_for_provider("OpenAI", data)
     }
@@ -473,8 +473,8 @@ fn response_error_message(payload: &Value) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::{
-        OpenAIResponsesStreamAdapter, PromptCacheOverlay, ResponsesItemAdapterOptions,
-        ResponsesLifecycleEvent, ResponsesStreamEvent, apply_prompt_cache_overlay,
+        PromptCacheOverlay, ResponsesItemAdapterOptions, ResponsesLifecycleEvent,
+        ResponsesStreamAdapter, ResponsesStreamEvent, apply_prompt_cache_overlay,
         clear_rig_chatgpt_unsupported_parameters, map_include_fields,
         map_request_items_to_responses, rig_chatgpt_default_parameters,
         rig_supported_state_parameters, strip_assistant_phase_overlay,
@@ -662,8 +662,7 @@ mod tests {
     }
 
     fn event_fixture(payload: Value) -> ResponsesStreamEvent {
-        OpenAIResponsesStreamAdapter::parse_sse_data(&payload.to_string())
-            .expect("fixture should parse")
+        ResponsesStreamAdapter::parse_sse_data(&payload.to_string()).expect("fixture should parse")
     }
 
     #[test]

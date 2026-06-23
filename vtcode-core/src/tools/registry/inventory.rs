@@ -84,6 +84,8 @@ impl RigToolDyn for RigRegistrationTool {
 pub(super) struct ToolInventory {
     workspace_root: PathBuf,
     tools: Arc<RwLock<FxHashMap<String, Arc<ToolCacheEntry>>>>,
+    /// Rig owns deterministic registration order and duplicate replacement.
+    /// VTCode still owns policy checks, permissions, and runtime dispatch.
     rig_tool_set: Arc<RwLock<RigToolSet>>,
     state: Arc<RwLock<ToolInventoryState>>,
     /// Track alias usage for analytics and debugging
