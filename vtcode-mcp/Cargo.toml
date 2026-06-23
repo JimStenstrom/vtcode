@@ -46,6 +46,7 @@ vtcode-commons = { path = "../vtcode-commons", version = "0.133.5" }
 vtcode-config = { path = "../vtcode-config", version = "0.133.5" }
 vtcode-utility-tool-specs = { path = "../vtcode-utility-tool-specs", version = "0.133.5", features = ["mcp"] }
 schemars = { workspace = true, optional = true }
+strsim = { workspace = true }
 
 [features]
 default = []

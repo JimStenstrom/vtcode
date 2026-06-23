@@ -13,113 +13,9 @@ use smallvec::SmallVec;
 ///
 /// Preferred over Levenshtein for short strings (tool arguments) because it
 /// rewards matching prefixes, which is common in tool argument patterns.
+/// Delegates to the battle-tested [`strsim`](https://docs.rs/strsim) implementation.
 pub fn jaro_winkler_similarity(s1: &str, s2: &str) -> f32 {
-    if s1 == s2 {
-        return 1.0;
-    }
-    if s1.is_empty() || s2.is_empty() {
-        return 0.0;
-    }
-
-    let jaro = jaro_similarity(s1, s2);
-
-    // Common prefix length, capped at 4 (standard Winkler constant).
-    let prefix_len = s1
-        .chars()
-        .zip(s2.chars())
-        .take_while(|(a, b)| a == b)
-        .take(4)
-        .count();
-
-    // Winkler boost: p = 0.1 (standard scaling factor).
-    jaro + (prefix_len as f32 * 0.1 * (1.0 - jaro))
-}
-
-/// Collect matched characters for Jaro similarity.
-/// Returns the number of matches found.
-fn jaro_collect_matches(
-    s1c: &[char],
-    s2c: &[char],
-    s1_matched: &mut [bool],
-    s2_matched: &mut [bool],
-    window: usize,
-) -> usize {
-    let len2 = s2c.len();
-    let mut matches = 0usize;
-
-    for (i, &c1) in s1c.iter().enumerate() {
-        let lo = i.saturating_sub(window);
-        let hi = (i + window + 1).min(len2);
-        if lo >= len2 {
-            continue;
-        }
-        // Reslice to the search window so LLVM sees the exact bounds.
-        for (s2_char, s2_m) in s2c[lo..hi].iter().zip(s2_matched[lo..hi].iter_mut()) {
-            if !*s2_m && c1 == *s2_char {
-                s1_matched[i] = true;
-                *s2_m = true;
-                matches += 1;
-                break;
-            }
-        }
-    }
-
-    matches
-}
-
-/// Count transpositions between matched character pairs.
-fn jaro_count_transpositions(
-    s1c: &[char],
-    s2c: &[char],
-    s1_matched: &[bool],
-    s2_matched: &[bool],
-) -> usize {
-    let mut transpositions = 0usize;
-
-    let mut s2_matched_iter = s2c.iter().zip(s2_matched.iter()).filter(|&(_, &m)| m);
-
-    for (&a, _) in s1c.iter().zip(s1_matched.iter()).filter(|&(_, &m)| m) {
-        if let Some((&b, _)) = s2_matched_iter.next() {
-            if a != b {
-                transpositions += 1;
-            }
-        } else {
-            break;
-        }
-    }
-
-    transpositions / 2
-}
-
-/// Jaro similarity in [0.0, 1.0].
-fn jaro_similarity(s1: &str, s2: &str) -> f32 {
-    // Use SmallVec to avoid heap allocation for common short strings.
-    let s1c: SmallVec<[char; 64]> = s1.chars().collect();
-    let s2c: SmallVec<[char; 64]> = s2.chars().collect();
-    let len1 = s1c.len();
-    let len2 = s2c.len();
-
-    if len1 == 0 && len2 == 0 {
-        return 1.0;
-    }
-    if len1 == 0 || len2 == 0 {
-        return 0.0;
-    }
-
-    let window = (len1.max(len2) >> 1).saturating_sub(1);
-
-    let mut s1_matched = SmallVec::<[bool; 64]>::from_elem(false, len1);
-    let mut s2_matched = SmallVec::<[bool; 64]>::from_elem(false, len2);
-    let matches = jaro_collect_matches(&s1c, &s2c, &mut s1_matched, &mut s2_matched, window);
-
-    if matches == 0 {
-        return 0.0;
-    }
-
-    let transpositions = jaro_count_transpositions(&s1c, &s2c, &s1_matched, &s2_matched);
-
-    let m = matches as f32;
-    (m / len1 as f32 + m / len2 as f32 + (m - transpositions as f32) / m) / 3.0
+    strsim::jaro_winkler(s1, s2) as f32
 }
 
 // ── Time-decay scoring ────────────────────────────────────────────────────────
@@ -209,10 +105,7 @@ pub struct ToolCallRecord {
 /// # Why a free function?
 /// The logic is stateless — `window_size` is the only parameter. A wrapper
 /// struct added no encapsulation and hurt discoverability (KISS).
-pub fn detect_pattern(
-    history: &[ToolCallRecord],
-    window_size: usize,
-) -> PatternState {
+pub fn detect_pattern(history: &[ToolCallRecord], window_size: usize) -> PatternState {
     if history.is_empty() {
         return PatternState::Single;
     }
@@ -229,7 +122,10 @@ pub fn detect_pattern(
     let first = &recent[0];
 
     // --- Exact duplicates ---
-    if recent.iter().all(|r| r.tool == first.tool && r.args_hash == first.args_hash) {
+    if recent
+        .iter()
+        .all(|r| r.tool == first.tool && r.args_hash == first.args_hash)
+    {
         return if recent.len() >= 3 {
             PatternState::Loop
         } else {
@@ -386,9 +282,21 @@ mod tests {
     #[test]
     fn test_detect_pattern_loop() {
         let history = vec![
-            ToolCallRecord { tool: "grep".into(), args_hash: "pattern1".into(), quality: 0.5 },
-            ToolCallRecord { tool: "grep".into(), args_hash: "pattern1".into(), quality: 0.5 },
-            ToolCallRecord { tool: "grep".into(), args_hash: "pattern1".into(), quality: 0.5 },
+            ToolCallRecord {
+                tool: "grep".into(),
+                args_hash: "pattern1".into(),
+                quality: 0.5,
+            },
+            ToolCallRecord {
+                tool: "grep".into(),
+                args_hash: "pattern1".into(),
+                quality: 0.5,
+            },
+            ToolCallRecord {
+                tool: "grep".into(),
+                args_hash: "pattern1".into(),
+                quality: 0.5,
+            },
         ];
         assert_eq!(detect_pattern(&history, 10), PatternState::Loop);
     }
@@ -396,9 +304,21 @@ mod tests {
     #[test]
     fn test_detect_pattern_refinement() {
         let history = vec![
-            ToolCallRecord { tool: "grep".into(), args_hash: "pat1".into(), quality: 0.3 },
-            ToolCallRecord { tool: "grep".into(), args_hash: "pat2".into(), quality: 0.5 },
-            ToolCallRecord { tool: "grep".into(), args_hash: "pat3".into(), quality: 0.8 },
+            ToolCallRecord {
+                tool: "grep".into(),
+                args_hash: "pat1".into(),
+                quality: 0.3,
+            },
+            ToolCallRecord {
+                tool: "grep".into(),
+                args_hash: "pat2".into(),
+                quality: 0.5,
+            },
+            ToolCallRecord {
+                tool: "grep".into(),
+                args_hash: "pat3".into(),
+                quality: 0.8,
+            },
         ];
         assert_eq!(detect_pattern(&history, 10), PatternState::RefinementChain);
     }
@@ -406,15 +326,35 @@ mod tests {
     #[test]
     fn test_detect_pattern_near_loop_requires_three_entries() {
         let two_entries = vec![
-            ToolCallRecord { tool: "grep".into(), args_hash: "pattern-one".into(), quality: 0.4 },
-            ToolCallRecord { tool: "grep".into(), args_hash: "pattern-two".into(), quality: 0.45 },
+            ToolCallRecord {
+                tool: "grep".into(),
+                args_hash: "pattern-one".into(),
+                quality: 0.4,
+            },
+            ToolCallRecord {
+                tool: "grep".into(),
+                args_hash: "pattern-two".into(),
+                quality: 0.45,
+            },
         ];
         assert_eq!(detect_pattern(&two_entries, 10), PatternState::Single);
 
         let three_entries = vec![
-            ToolCallRecord { tool: "grep".into(), args_hash: "pattern-one".into(), quality: 0.4 },
-            ToolCallRecord { tool: "grep".into(), args_hash: "pattern-two".into(), quality: 0.45 },
-            ToolCallRecord { tool: "grep".into(), args_hash: "pattern-three".into(), quality: 0.5 },
+            ToolCallRecord {
+                tool: "grep".into(),
+                args_hash: "pattern-one".into(),
+                quality: 0.4,
+            },
+            ToolCallRecord {
+                tool: "grep".into(),
+                args_hash: "pattern-two".into(),
+                quality: 0.45,
+            },
+            ToolCallRecord {
+                tool: "grep".into(),
+                args_hash: "pattern-three".into(),
+                quality: 0.5,
+            },
         ];
         assert_eq!(detect_pattern(&three_entries, 10), PatternState::NearLoop);
     }

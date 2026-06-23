@@ -277,11 +277,10 @@ impl EntityResolver {
                 continue;
             }
 
-            // Fuzzy match using Levenshtein distance
+            // Fuzzy match using Damerau-Levenshtein distance
             let distance = levenshtein_distance(term, &entity_lower);
             if distance <= 2 {
-                let confidence =
-                    1.0 - (distance as f32 / term.len().max(entity_lower.len()) as f32);
+                let confidence = strsim::normalized_damerau_levenshtein(term, &entity_lower) as f32;
                 matches.push(EntityMatch {
                     entity: entity.clone(),
                     locations: locations.clone(),
@@ -352,40 +351,13 @@ impl EntityResolver {
     }
 }
 
-/// Calculate Levenshtein distance between two strings
+/// Calculate Damerau-Levenshtein distance between two strings.
+///
+/// Like Levenshtein but also handles transpositions, which improves entity
+/// matching for real-world typos (e.g. "hte" ↔ "the").
+/// Delegates to the battle-tested [`strsim`](https://docs.rs/strsim) implementation.
 fn levenshtein_distance(a: &str, b: &str) -> usize {
-    let a_chars: Vec<char> = a.chars().collect();
-    let b_chars: Vec<char> = b.chars().collect();
-    let a_len = a_chars.len();
-    let b_len = b_chars.len();
-
-    if a_len == 0 {
-        return b_len;
-    }
-    if b_len == 0 {
-        return a_len;
-    }
-
-    // Keep only two rows to reduce memory traffic and allocations.
-    let mut prev_row: Vec<usize> = (0..=b_len).collect();
-    let mut curr_row = vec![0usize; b_len + 1];
-
-    for (i, a_char) in a_chars.iter().enumerate() {
-        // Reslice to the known length so LLVM can elide bounds checks
-        // on all four indexed accesses inside the inner loop.
-        let n = b_len;
-        let (prev, curr) = (&prev_row[..=n], &mut curr_row[..=n]);
-        curr[0] = i + 1;
-
-        for j in 0..n {
-            let cost = usize::from(*a_char != b_chars[j]);
-            curr[j + 1] = (prev[j + 1] + 1).min(curr[j] + 1).min(prev[j] + cost);
-        }
-
-        std::mem::swap(&mut prev_row, &mut curr_row);
-    }
-
-    prev_row[b_len]
+    strsim::damerau_levenshtein(a, b)
 }
 
 #[cfg(test)]

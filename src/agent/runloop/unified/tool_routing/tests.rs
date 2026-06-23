@@ -1864,7 +1864,7 @@ async fn auto_permission_interactive_fallback_notice_is_emitted_once() {
 #[tokio::test]
 async fn skip_confirmations_does_not_bypass_safety_gateway_needs_approval() {
     let temp_dir = tempfile::TempDir::new().expect("temp dir");
-    let mut registry = ToolRegistry::new(temp_dir.path().to_path_buf()).await;
+    let registry = ToolRegistry::new(temp_dir.path().to_path_buf()).await;
     let mut session = create_headless_session();
     let handle = session.clone_inline_handle();
     let mut renderer = AnsiRenderer::with_inline_ui(handle.clone(), Default::default());
@@ -1877,7 +1877,9 @@ async fn skip_confirmations_does_not_bypass_safety_gateway_needs_approval() {
 
     // Set the tool policy to Prompt so that policy_decision != Allow,
     // which is required for safety_requires_prompt to be true.
-    registry.set_tool_policy(tools::UNIFIED_EXEC, ToolPolicy::Prompt);
+    let _ = registry
+        .set_tool_policy(tools::UNIFIED_EXEC, ToolPolicy::Prompt)
+        .await;
 
     // When safety_approval_justification is Some, it means the safety gateway
     // flagged this tool call as requiring approval. Even with skip_confirmations

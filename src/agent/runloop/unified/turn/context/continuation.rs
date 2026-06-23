@@ -1052,32 +1052,32 @@ mod tests {
 
         // Should continue with budget = 0
         assert!(
-            evaluate_interim_text_continuation(true, false, &history, &long_analysis, 0)
+            evaluate_interim_text_continuation(true, false, &history, long_analysis, 0)
                 .should_continue
         );
 
         // Should continue with budget = 1 (still under limit)
         assert!(
-            evaluate_interim_text_continuation(true, false, &history, &long_analysis, 1)
+            evaluate_interim_text_continuation(true, false, &history, long_analysis, 1)
                 .should_continue
         );
 
         // Should continue with budget = 2 (still under limit)
         assert!(
-            evaluate_interim_text_continuation(true, false, &history, &long_analysis, 2)
+            evaluate_interim_text_continuation(true, false, &history, long_analysis, 2)
                 .should_continue
         );
 
         // Should NOT continue with budget = 3 (at limit)
         assert!(
-            !evaluate_interim_text_continuation(true, false, &history, &long_analysis, 3)
+            !evaluate_interim_text_continuation(true, false, &history, long_analysis, 3)
                 .should_continue,
             "Relaxed continuation should stop after MAX_CONSECUTIVE_RELAXED_CONTINuations"
         );
 
         // Should NOT continue with budget = 4 (over limit)
         assert!(
-            !evaluate_interim_text_continuation(true, false, &history, &long_analysis, 4)
+            !evaluate_interim_text_continuation(true, false, &history, long_analysis, 4)
                 .should_continue
         );
     }

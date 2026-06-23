@@ -61,19 +61,19 @@ impl ProviderOverrideConfig {
                 ));
             }
         }
-        if let Some(base_url) = &self.base_url {
-            if base_url.trim().is_empty() {
-                return Err(format!(
-                    "providers[{provider_name}]: `base_url` must not be empty"
-                ));
-            }
+        if let Some(base_url) = &self.base_url
+            && base_url.trim().is_empty()
+        {
+            return Err(format!(
+                "providers[{provider_name}]: `base_url` must not be empty"
+            ));
         }
-        if let Some(api_key_env) = &self.api_key_env {
-            if api_key_env.trim().is_empty() {
-                return Err(format!(
-                    "providers[{provider_name}]: `api_key_env` must not be empty"
-                ));
-            }
+        if let Some(api_key_env) = &self.api_key_env
+            && api_key_env.trim().is_empty()
+        {
+            return Err(format!(
+                "providers[{provider_name}]: `api_key_env` must not be empty"
+            ));
         }
         Ok(())
     }

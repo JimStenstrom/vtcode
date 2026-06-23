@@ -41,6 +41,28 @@ const REENTRANCY_STACK_DEPTH_LIMIT: usize = 64;
 // on alias/self-recursion bugs with minimal extra work.
 const REENTRANCY_PER_TOOL_LIMIT: usize = 1;
 
+fn structured_tool_output_error(value: &Value) -> Option<String> {
+    let obj = value.as_object()?;
+    if obj.get("success").and_then(Value::as_bool) == Some(false) {
+        return obj
+            .get("error")
+            .map(tool_error_value_to_string)
+            .or_else(|| Some("tool reported success=false".to_string()));
+    }
+
+    obj.get("error").map(tool_error_value_to_string)
+}
+
+fn tool_error_value_to_string(value: &Value) -> String {
+    if let Some(message) = value.as_str() {
+        return message.to_string();
+    }
+    if let Some(message) = value.get("message").and_then(Value::as_str) {
+        return message.to_string();
+    }
+    value.to_string()
+}
+
 /// Global reentrancy stacks for tokio tasks.
 ///
 /// Uses `std::sync::Mutex` because:
@@ -1717,26 +1739,45 @@ impl ToolRegistry {
                     .process_tool_output(&tool_name_owned, value, is_mcp_tool)
                     .await;
                 let normalized_value = normalize_tool_output(processed_value);
+                let structured_error = structured_tool_output_error(&normalized_value);
 
                 if !readonly_classification {
                     self.execution_history.clear();
                 }
 
-                self.execution_history
-                    .add_record(ToolExecutionRecord::success(
-                        tool_name_owned,
-                        requested_name,
-                        is_mcp_tool,
-                        mcp_provider,
-                        args_for_recording,
-                        normalized_value.clone(),
-                        context_snapshot.clone(),
-                        timeout_category_label.clone(),
-                        base_timeout_ms,
-                        adaptive_timeout_ms,
-                        effective_timeout_ms,
-                        false,
-                    ));
+                if let Some(error_msg) = structured_error {
+                    self.execution_history
+                        .add_record(ToolExecutionRecord::failure(
+                            tool_name_owned,
+                            requested_name,
+                            is_mcp_tool,
+                            mcp_provider,
+                            args_for_recording,
+                            error_msg,
+                            context_snapshot.clone(),
+                            timeout_category_label.clone(),
+                            base_timeout_ms,
+                            adaptive_timeout_ms,
+                            effective_timeout_ms,
+                            false,
+                        ));
+                } else {
+                    self.execution_history
+                        .add_record(ToolExecutionRecord::success(
+                            tool_name_owned,
+                            requested_name,
+                            is_mcp_tool,
+                            mcp_provider,
+                            args_for_recording,
+                            normalized_value.clone(),
+                            context_snapshot.clone(),
+                            timeout_category_label.clone(),
+                            base_timeout_ms,
+                            adaptive_timeout_ms,
+                            effective_timeout_ms,
+                            false,
+                        ));
+                }
 
                 Ok(normalized_value)
             }

@@ -247,38 +247,28 @@ impl ToolDiscovery {
             return 0.5 * name_fuzzy;
         }
 
+        // Fuzzy fallback for partial description matches
         let desc_fuzzy = self.fuzzy_score(&tool.description.to_lowercase(), &keyword_lower);
-        if desc_fuzzy > 0.3 {
+        if desc_fuzzy > 0.2 {
             return 0.3 * desc_fuzzy;
         }
 
         0.0
     }
 
-    /// Simple fuzzy matching score (0.0 to 1.0).
+    /// Sørensen-Dice bigram similarity score (0.0 to 1.0).
+    ///
+    /// Uses the battle-tested [`strsim`](https://docs.rs/strsim) implementation.
+    /// Handles partial and fuzzy matches more accurately than simple subsequence
+    /// matching for keywords in tool names and descriptions.
     fn fuzzy_score(&self, haystack: &str, needle: &str) -> f32 {
         if needle.is_empty() {
             return 1.0;
         }
-
         if haystack.is_empty() {
             return 0.0;
         }
-
-        let mut score = 0.0;
-        let mut haystack_idx = 0;
-
-        for needle_char in needle.chars() {
-            if let Some(pos) = haystack[haystack_idx..].find(needle_char) {
-                haystack_idx += pos + 1;
-                score += 1.0;
-            } else {
-                return 0.0;
-            }
-        }
-
-        // Normalize score by needle length
-        score / needle.len() as f32
+        strsim::sorensen_dice(haystack, needle) as f32
     }
 }
 
@@ -304,9 +294,10 @@ mod tests {
 
     #[test]
     fn fuzzy_score_partial_match() {
+        // Sørensen-Dice for "read_file" vs "read": 3 shared bigrams / 11 total = 0.55
         let discovery = ToolDiscovery::new(Arc::new(MockMcpClient::default()));
-        let score = discovery.fuzzy_score("read_file_contents", "read");
-        assert!(score > 0.5 && score <= 1.0);
+        let score = discovery.fuzzy_score("read_file", "read");
+        assert!(score > 0.5 && score <= 1.0, "expected >0.5, got {score}");
     }
 
     #[test]

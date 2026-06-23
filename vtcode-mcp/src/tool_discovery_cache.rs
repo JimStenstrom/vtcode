@@ -491,6 +491,16 @@ impl CachedToolDiscovery {
             score += 0.2;
         }
 
+        // Fuzzy fallback using Sørensen-Dice for partial keyword matches
+        if score == 0.0 {
+            let sd_name = strsim::sorensen_dice(&name_lower, keyword);
+            let sd_desc = strsim::sorensen_dice(&description_lower, keyword);
+            let max_sd = sd_name.max(sd_desc);
+            if max_sd > 0.3 {
+                score = max_sd * 0.5;
+            }
+        }
+
         score.min(1.0)
     }
 

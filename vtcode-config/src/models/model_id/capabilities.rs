@@ -192,14 +192,14 @@ impl ModelId {
                 .map(|(_, models)| {
                     models
                         .iter()
-                        .cloned()
-                        .filter(|candidate| candidate != self)
-                        .filter(|candidate| {
+                        .filter(|&candidate| candidate != self)
+                        .filter(|&candidate| {
                             candidate
                                 .openrouter_metadata()
                                 .map(|other| !other.reasoning)
                                 .unwrap_or(false)
                         })
+                        .cloned()
                         .collect()
                 })
                 .unwrap_or_default();

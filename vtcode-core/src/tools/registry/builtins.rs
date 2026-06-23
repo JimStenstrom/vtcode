@@ -370,7 +370,7 @@ fn register_web_fetch(_plan_state: Option<&PlanningWorkflowState>) -> ToolRegist
             },
             "max_bytes": {
                 "type": "integer",
-                "description": "Maximum response body size in bytes (default: 500000)"
+                "description": "Maximum response body size in bytes (default: 500000). The default is generous — most pages including llms.txt fit easily. Only set this if you need to cap a very large page."
             },
             "timeout_secs": {
                 "type": "integer",
