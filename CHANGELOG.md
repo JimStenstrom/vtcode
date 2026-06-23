@@ -2,6 +2,26 @@
 
 All notable changes to vtcode will be documented in this file.
 ## v0.73.2 - 2026-01-29
+## 0.133.6 - 2026-06-23
+
+### Highlights
+#### Bug Fixes
+
+- Address turn_525 planning-mode loop issues (3e165b98) 
+### Other Changes
+#### Other
+
+- Exclude TODO (6c3c1fb9) (@vinhnx)
+- Update docs on provider config schema (a65c6e56) (@vinhnx)
+- Exclude TODO from docs map (8069bf01) (@vinhnx)
+- Add Z.ai GLM Coding Plan section to README (5d34b122) (@vinhnx)
+- Enhance pattern detection with explicit ToolCallRecord struct and update feature vector documentation (12b26ed5) 
+- Refactor web fetch tool description and add tests for description validation (9958eb2e) 
+- Add strsim dependency and improve fuzzy matching in tool discovery (6f93ba51) 
+- Add structured error handling and content truncation for web fetch tool (ccb2a1cc) 
+- Implement cleanup functions for old temp spools and audit logs to manage disk usage (d4486c25) 
+- Refactor concurrency limits and cleanup functions for improved log management (3cc14f3b) 
+- Implement age-based cleanup for temp files in web fetch tool and update tests (786fc39d) 
 ## 0.133.5 - 2026-06-22
 
 ### Highlights
