@@ -36,6 +36,7 @@ EXCLUDE_FILES = [
     "docs/CONTRIBUTING.md",
     "docs/CODE_OF_CONDUCT.md",
     "docs/FAQ.md",
+    "docs/project/TODO.md",
 ]
 
 # Directories to exclude from the map
