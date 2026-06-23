@@ -167,7 +167,9 @@ where
             ResponsesStreamEvent::Error { message } => {
                 return Err(provider_error(self.options.provider_name, message));
             }
-            ResponsesStreamEvent::Lifecycle { .. } | ResponsesStreamEvent::Unknown => {}
+            ResponsesStreamEvent::Lifecycle { .. }
+            | ResponsesStreamEvent::ProviderValueBearingRigGap { .. }
+            | ResponsesStreamEvent::Unknown => {}
         }
 
         Ok(events)

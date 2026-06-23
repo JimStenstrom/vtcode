@@ -325,7 +325,9 @@ pub(crate) fn create_responses_stream(
                                 metadata: None,
                             })?;
                         }
-                        ResponsesStreamEvent::Lifecycle { .. } | ResponsesStreamEvent::Unknown => {}
+                        ResponsesStreamEvent::Lifecycle { .. }
+                        | ResponsesStreamEvent::ProviderValueBearingRigGap { .. }
+                        | ResponsesStreamEvent::Unknown => {}
                     }
                 }
 

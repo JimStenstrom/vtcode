@@ -91,6 +91,14 @@ pub(crate) enum ResponsesStreamEvent {
     CompletedResponse {
         response: Value,
     },
+    ProviderValueBearingRigGap {
+        event_type: String,
+        item_id: Option<String>,
+        call_id: Option<String>,
+        output_index: Option<usize>,
+        sequence_number: Option<u64>,
+        payload: Value,
+    },
     Error {
         message: String,
     },
@@ -440,12 +448,7 @@ fn adapt_policy_payload(
         }
         ResponsesStreamEventPolicy::DocumentedStatusMarkerNoop => Ok(ResponsesStreamEvent::Unknown),
         ResponsesStreamEventPolicy::DocumentedValueBearingRigGap => {
-            // These documented events carry provider-side values, but this
-            // adapter has no streaming runtime surface for provider-hosted MCP,
-            // code-interpreter, image, annotation, or custom-tool partials.
-            // Keep them separate from status no-ops; completed response parsing
-            // remains responsible for durable provider output items.
-            Ok(ResponsesStreamEvent::Unknown)
+            adapt_value_bearing_rig_gap(payload)
         }
         ResponsesStreamEventPolicy::Unsupported => {
             Err(StreamAssemblyError::InvalidPayload(format!(
@@ -467,6 +470,51 @@ fn adapt_policy_payload(
             ))
             .into_llm_error(provider_name))
         }
+    }
+}
+
+fn adapt_value_bearing_rig_gap(payload: Value) -> Result<ResponsesStreamEvent, LLMError> {
+    let event_type = payload
+        .get("type")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+
+    match event_type {
+        "response.code_interpreter_call_code.delta"
+        | "response.code_interpreter_call_code.done"
+        | "response.mcp_call_arguments.delta"
+        | "response.mcp_call_arguments.done"
+        | "response.image_generation_call.partial_image"
+        | "response.output_text.annotation.added" => {
+            // VTCode has no runtime surface for provider-hosted code execution,
+            // provider-side MCP dispatch, partial image rendering, or streamed
+            // annotation metadata. Keep the documented value-bearing payload
+            // distinct from status no-ops and retain reconciliation fields here;
+            // downstream processors intentionally ignore this internal event.
+            Ok(ResponsesStreamEvent::ProviderValueBearingRigGap {
+                event_type: event_type.to_string(),
+                item_id: payload
+                    .get("item_id")
+                    .and_then(Value::as_str)
+                    .map(ToOwned::to_owned),
+                call_id: payload
+                    .get("call_id")
+                    .and_then(Value::as_str)
+                    .map(ToOwned::to_owned),
+                output_index: payload
+                    .get("output_index")
+                    .and_then(Value::as_u64)
+                    .and_then(|value| usize::try_from(value).ok()),
+                sequence_number: payload.get("sequence_number").and_then(Value::as_u64),
+                payload,
+            })
+        }
+        // Slice 5 owns the detailed custom tool streaming decision. Keep custom
+        // tool input excluded from status-only no-ops without adding semantics here.
+        "response.custom_tool_call_input.delta" | "response.custom_tool_call_input.done" => {
+            Ok(ResponsesStreamEvent::Unknown)
+        }
+        _ => Ok(ResponsesStreamEvent::Unknown),
     }
 }
 
@@ -818,6 +866,32 @@ mod tests {
         ResponsesStreamAdapter::parse_sse_data(&payload.to_string()).expect("fixture should parse")
     }
 
+    fn assert_provider_value_bearing_rig_gap(
+        payload: Value,
+        expected_event_type: &str,
+        expected_call_id: Option<&str>,
+    ) -> Value {
+        let event = event_fixture(payload);
+        let ResponsesStreamEvent::ProviderValueBearingRigGap {
+            event_type,
+            item_id,
+            call_id,
+            output_index,
+            sequence_number,
+            payload,
+        } = event
+        else {
+            panic!("expected provider value-bearing Rig-gap event");
+        };
+
+        assert_eq!(event_type, expected_event_type);
+        assert_eq!(item_id.as_deref(), Some("item_1"));
+        assert_eq!(call_id.as_deref(), expected_call_id);
+        assert_eq!(output_index, Some(2));
+        assert_eq!(sequence_number, Some(10));
+        payload
+    }
+
     #[test]
     fn stream_event_policy_separates_rig_overlay_noop_value_and_unsupported() {
         use super::ResponsesStreamEventPolicy as Policy;
@@ -1030,6 +1104,124 @@ mod tests {
                 "{event_type} should be an explicit status/marker no-op"
             );
         }
+    }
+
+    #[test]
+    fn value_bearing_code_interpreter_code_events_preserve_payload_identity_and_sequence() {
+        let delta_payload = assert_provider_value_bearing_rig_gap(
+            json!({
+                "type": "response.code_interpreter_call_code.delta",
+                "sequence_number": 10,
+                "item_id": "item_1",
+                "call_id": "call_1",
+                "output_index": 2,
+                "code_index": 0,
+                "delta": "print('hello')\n"
+            }),
+            "response.code_interpreter_call_code.delta",
+            Some("call_1"),
+        );
+        assert_eq!(delta_payload["delta"], "print('hello')\n");
+        assert_eq!(delta_payload["code_index"], 0);
+
+        let done_payload = assert_provider_value_bearing_rig_gap(
+            json!({
+                "type": "response.code_interpreter_call_code.done",
+                "sequence_number": 10,
+                "item_id": "item_1",
+                "output_index": 2,
+                "code": "print('hello')\n"
+            }),
+            "response.code_interpreter_call_code.done",
+            None,
+        );
+        assert_eq!(done_payload["code"], "print('hello')\n");
+    }
+
+    #[test]
+    fn value_bearing_mcp_argument_events_preserve_payload_identity_and_sequence() {
+        let delta_payload = assert_provider_value_bearing_rig_gap(
+            json!({
+                "type": "response.mcp_call_arguments.delta",
+                "sequence_number": 10,
+                "item_id": "item_1",
+                "output_index": 2,
+                "delta": "{\"path\":\"src"
+            }),
+            "response.mcp_call_arguments.delta",
+            None,
+        );
+        assert_eq!(delta_payload["delta"], "{\"path\":\"src");
+
+        let done_payload = assert_provider_value_bearing_rig_gap(
+            json!({
+                "type": "response.mcp_call_arguments.done",
+                "sequence_number": 10,
+                "item_id": "item_1",
+                "output_index": 2,
+                "arguments": "{\"path\":\"src/main.rs\"}"
+            }),
+            "response.mcp_call_arguments.done",
+            None,
+        );
+        assert_eq!(done_payload["arguments"], "{\"path\":\"src/main.rs\"}");
+    }
+
+    #[test]
+    fn value_bearing_image_partial_event_preserves_payload_identity_and_sequence() {
+        let payload = assert_provider_value_bearing_rig_gap(
+            json!({
+                "type": "response.image_generation_call.partial_image",
+                "sequence_number": 10,
+                "item_id": "item_1",
+                "output_index": 2,
+                "partial_image_index": 0,
+                "partial_image_b64": "iVBORw0KGgo="
+            }),
+            "response.image_generation_call.partial_image",
+            None,
+        );
+        assert_eq!(payload["partial_image_index"], 0);
+        assert_eq!(payload["partial_image_b64"], "iVBORw0KGgo=");
+    }
+
+    #[test]
+    fn value_bearing_output_text_annotation_event_preserves_metadata_identity_and_sequence() {
+        let payload = assert_provider_value_bearing_rig_gap(
+            json!({
+                "type": "response.output_text.annotation.added",
+                "sequence_number": 10,
+                "item_id": "item_1",
+                "output_index": 2,
+                "content_index": 0,
+                "annotation_index": 0,
+                "annotation": {
+                    "type": "text_annotation",
+                    "text": "see docs",
+                    "start": 0,
+                    "end": 8
+                }
+            }),
+            "response.output_text.annotation.added",
+            None,
+        );
+        assert_eq!(payload["annotation_index"], 0);
+        assert_eq!(payload["annotation"]["text"], "see docs");
+    }
+
+    #[test]
+    fn custom_tool_input_remains_excluded_from_status_noops_without_slice_four_semantics() {
+        assert_eq!(
+            event_fixture(json!({
+                "type": "response.custom_tool_call_input.delta",
+                "sequence_number": 10,
+                "item_id": "ct_1",
+                "call_id": "call_custom_1",
+                "output_index": 2,
+                "delta": "raw"
+            })),
+            ResponsesStreamEvent::Unknown
+        );
     }
 
     #[test]
