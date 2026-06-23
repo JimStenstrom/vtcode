@@ -87,35 +87,44 @@ fn extract_constraints_from_summary(text: Option<&str>) -> Vec<String> {
 fn derive_continuity_summary(
     history: &[Message],
     prior_envelope: Option<&SessionMemoryEnvelope>,
+    task_snapshot: &TaskTrackerSnapshot,
 ) -> String {
-    let mut recent = history
+    // Prefer the current objective from the task tracker, falling back to the prior
+    // envelope so the summary stays task-oriented rather than a dump of recent messages.
+    let objective = task_snapshot
+        .objective
+        .as_deref()
+        .or_else(|| prior_envelope.and_then(|e| e.objective.as_deref()))
+        .filter(|s| !s.is_empty());
+
+    // Find the single most recent meaningful user or assistant message. Tool
+    // responses are intentionally skipped because they are usually raw JSON and
+    // make the summary noisy.
+    let latest = history
         .iter()
         .rev()
         .filter(|message| {
-            !(message.role == MessageRole::System
-                && message
-                    .content
-                    .as_text()
-                    .starts_with(MEMORY_ENVELOPE_HEADER))
+            message.role == MessageRole::User || message.role == MessageRole::Assistant
         })
-        .filter_map(|message| {
+        .find_map(|message| {
             let trimmed = normalize_whitespace(message.content.as_text().as_ref());
-            (!trimmed.is_empty()).then_some(format!(
-                "{}: {}",
+            (!trimmed.is_empty()).then_some((
                 message.role.as_generic_str(),
-                truncate_for_fact(&trimmed, 160)
+                truncate_for_fact(&trimmed, 140),
             ))
-        })
-        .take(4)
-        .collect::<Vec<_>>();
-    recent.reverse();
+        });
 
-    if recent.is_empty() {
-        prior_envelope
+    match (objective, latest) {
+        (Some(obj), Some((role, text))) => {
+            format!("Working on: {}. Latest {} action: {}.", obj, role, text)
+        }
+        (Some(obj), None) => format!("Working on: {}. Session continuity preserved.", obj),
+        (None, Some((role, text))) => {
+            format!("Latest {} action: {}.", role, text)
+        }
+        (None, None) => prior_envelope
             .map(|envelope| envelope.summary.clone())
-            .unwrap_or_else(|| "Session continuity facts preserved.".to_string())
-    } else {
-        format!("Recent session context: {}", recent.join(" | "))
+            .unwrap_or_else(|| "Session continuity facts preserved.".to_string()),
     }
 }
 
@@ -318,12 +327,22 @@ pub(crate) fn refresh_session_memory_envelope(
         workspace_root,
         history,
         &touched_files,
-        derive_continuity_summary(history, prior.as_ref()),
+        derive_continuity_summary(history, prior.as_ref(), &task_snapshot),
         None,
         prior.as_ref(),
         &task_snapshot,
         envelope_update,
     );
+
+    // Throttle: if nothing meaningful changed, keep the existing envelope and
+    // avoid inserting another large system message into the history.
+    if prior
+        .as_ref()
+        .is_some_and(|prior_envelope| prior_envelope.is_content_equivalent_to(&envelope))
+    {
+        return Ok(None);
+    }
+
     let path = latest_memory_envelope_path_for_session(workspace_root, session_id)
         .unwrap_or_else(|| default_memory_envelope_path_for_session(workspace_root, session_id));
     write_memory_envelope_to_path(&path, &envelope)?;

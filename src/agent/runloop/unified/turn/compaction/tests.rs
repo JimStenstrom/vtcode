@@ -1248,6 +1248,134 @@ fn refresh_session_memory_envelope_prefers_structured_verify_metadata() {
         .contains("- cargo test -p vtcode --bin vtcode agent::runloop::unified::turn::compaction::tests::refresh_session_memory_envelope_prefers_structured_verify_metadata -- --exact"));
 }
 
+#[test]
+fn refresh_session_memory_envelope_is_throttled_when_nothing_changes() {
+    let temp = tempdir().expect("tempdir");
+    let history_dir = temp.path().join(".vtcode").join("history");
+    fs::create_dir_all(&history_dir).expect("history dir");
+    fs::create_dir_all(temp.path().join(".vtcode").join("tasks")).expect("tasks dir");
+    fs::write(
+        temp.path()
+            .join(".vtcode")
+            .join("tasks")
+            .join("current_task.md"),
+        "# Ship compaction cleanup\n- [ ] Run cargo nextest\n",
+    )
+    .expect("write task");
+
+    let prior_envelope = SessionMemoryEnvelope {
+        session_id: "session-alpha".to_string(),
+        schema_version: Some(SESSION_MEMORY_ENVELOPE_SCHEMA_VERSION),
+        summary: "Prior summary".to_string(),
+        objective: Some("Keep continuity".to_string()),
+        task_summary: Some("Ship compaction cleanup: - [ ] Run cargo nextest".to_string()),
+        spec_summary: None,
+        evaluation_summary: None,
+        verification_summary: None,
+        constraints: vec![],
+        grounded_facts: vec![],
+        touched_files: vec![],
+        open_questions: vec![],
+        verification_todo: vec![],
+        delegation_notes: vec![],
+        history_artifact_path: None,
+        generated_at: "2026-03-14T00:00:00Z".to_string(),
+    };
+    fs::write(
+        history_dir.join("session-alpha.memory.json"),
+        serde_json::to_string_pretty(&prior_envelope).expect("serialize envelope"),
+    )
+    .expect("write envelope");
+
+    let mut history = vec![Message::user("Continue the compaction work.".to_string())];
+    let session_stats = SessionStats::default();
+
+    // First refresh with matching state should still write once because the
+    // summary derived from history differs from the prior one. After that, an
+    // identical refresh must be throttled.
+    let first = super::refresh_session_memory_envelope(
+        temp.path(),
+        "session-alpha",
+        Some(&VTCodeConfig::default()),
+        &mut history,
+        &session_stats,
+        None,
+    )
+    .expect("refresh succeeds");
+    assert!(first.is_some(), "first refresh should produce an envelope");
+    let history_len_after_first = history.len();
+
+    let second = super::refresh_session_memory_envelope(
+        temp.path(),
+        "session-alpha",
+        Some(&VTCodeConfig::default()),
+        &mut history,
+        &session_stats,
+        None,
+    )
+    .expect("refresh succeeds");
+    assert!(
+        second.is_none(),
+        "second identical refresh should be throttled"
+    );
+    assert_eq!(
+        history.len(),
+        history_len_after_first,
+        "history should not grow when refresh is throttled"
+    );
+}
+
+#[test]
+fn refresh_session_memory_envelope_summary_is_concise() {
+    let temp = tempdir().expect("tempdir");
+    let history_dir = temp.path().join(".vtcode").join("history");
+    fs::create_dir_all(&history_dir).expect("history dir");
+    fs::create_dir_all(temp.path().join(".vtcode").join("tasks")).expect("tasks dir");
+    fs::write(
+        temp.path()
+            .join(".vtcode")
+            .join("tasks")
+            .join("current_task.md"),
+        "# Audit agent loop\n- [ ] Reduce duplicated work\n",
+    )
+    .expect("write task");
+
+    let mut history = vec![
+        Message::user("Check the log and reduce repeated duplicated work.".to_string()),
+        Message::assistant("I will audit the agent loop.".to_string()),
+        Message::tool_response(
+            "call_1".to_string(),
+            json!({"error": "some tool error"}).to_string(),
+        ),
+    ];
+    let session_stats = SessionStats::default();
+
+    let envelope = super::refresh_session_memory_envelope(
+        temp.path(),
+        "session-alpha",
+        Some(&VTCodeConfig::default()),
+        &mut history,
+        &session_stats,
+        None,
+    )
+    .expect("refresh succeeds")
+    .expect("envelope should be refreshed");
+
+    assert!(
+        !envelope.summary.contains("{\"error\""),
+        "summary should not contain raw JSON tool output"
+    );
+    assert!(
+        envelope.summary.len() < 300,
+        "summary should be concise, got: {}",
+        envelope.summary
+    );
+    assert!(
+        envelope.summary.contains("Audit agent loop"),
+        "summary should reference the objective"
+    );
+}
+
 #[tokio::test]
 async fn provider_compaction_error_preserves_existing_history() {
     let temp = tempdir().expect("tempdir");

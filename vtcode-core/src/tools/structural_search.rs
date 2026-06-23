@@ -1430,19 +1430,19 @@ async fn execute_structural_query(
     let command_path = search_path.command_arg.clone();
 
     if let Some(debug_query) = &request.debug_query {
+        let pattern = request
+            .pattern()
+            .ok_or_else(|| anyhow!("pattern is required for debug query"))?;
+        let lang = request
+            .lang
+            .as_deref()
+            .filter(|l| !l.trim().is_empty())
+            .ok_or_else(|| anyhow!("lang is required for debug query"))?;
         let mut command = ast_grep_command(ast_grep, workspace_root, "run");
         command
-            .arg(format!(
-                "--pattern={}",
-                request.pattern().expect("query pattern validated")
-            ))
+            .arg(format!("--pattern={}", pattern))
             .arg("--lang")
-            .arg(
-                request
-                    .lang
-                    .as_deref()
-                    .expect("validated lang for debug query"),
-            )
+            .arg(lang)
             .arg(format!("--debug-query={}", debug_query.as_str()))
             .arg(&command_path);
 
@@ -1757,18 +1757,16 @@ async fn execute_structural_rewrite(
 
     // Simple string rewrite via `sg run --rewrite`.
     let command_path = search_path.command_arg.clone();
+    let pattern = request
+        .pattern()
+        .ok_or_else(|| anyhow!("pattern is required for rewrite"))?;
+    let template = request
+        .effective_rewrite_template()
+        .ok_or_else(|| anyhow!("rewrite template is required"))?;
     let mut command = ast_grep_command(ast_grep, workspace_root, "run");
     command
-        .arg(format!(
-            "--pattern={}",
-            request.pattern().expect("rewrite pattern validated")
-        ))
-        .arg(format!(
-            "--rewrite={}",
-            request
-                .effective_rewrite_template()
-                .expect("rewrite template validated")
-        ))
+        .arg(format!("--pattern={}", pattern))
+        .arg(format!("--rewrite={}", template))
         .arg("--json=compact")
         .arg("--color=never");
 
@@ -2436,8 +2434,10 @@ async fn execute_fixconfig_rewrite_to_matches(
     let fix_config = request
         .fix_config
         .as_ref()
-        .expect("fix_config validated present");
-    let pattern = request.pattern().expect("rewrite pattern validated");
+        .ok_or_else(|| anyhow!("fix_config is required for fixconfig rewrite"))?;
+    let pattern = request
+        .pattern()
+        .ok_or_else(|| anyhow!("pattern is required for fixconfig rewrite"))?;
     let lang = request
         .lang
         .as_deref()
@@ -2558,8 +2558,10 @@ async fn execute_fixconfig_rewrite(
     let fix_config = request
         .fix_config
         .as_ref()
-        .expect("fix_config validated present");
-    let pattern = request.pattern().expect("rewrite pattern validated");
+        .ok_or_else(|| anyhow!("fix_config is required for fixconfig rewrite"))?;
+    let pattern = request
+        .pattern()
+        .ok_or_else(|| anyhow!("pattern is required for fixconfig rewrite"))?;
     let lang = request
         .lang
         .as_deref()
@@ -3179,19 +3181,17 @@ async fn execute_structural_apply(
         execute_fixconfig_rewrite_to_matches(workspace_root, request, ast_grep, &search_path)
             .await?
     } else {
+        let pattern = request
+            .pattern()
+            .ok_or_else(|| anyhow!("pattern is required for apply"))?;
+        let template = request
+            .effective_rewrite_template()
+            .ok_or_else(|| anyhow!("rewrite template is required for apply"))?;
         let command_path = search_path.command_arg.clone();
         let mut command = ast_grep_command(ast_grep, workspace_root, "run");
         command
-            .arg(format!(
-                "--pattern={}",
-                request.pattern().expect("apply pattern validated")
-            ))
-            .arg(format!(
-                "--rewrite={}",
-                request
-                    .effective_rewrite_template()
-                    .expect("apply rewrite template validated")
-            ))
+            .arg(format!("--pattern={}", pattern))
+            .arg(format!("--rewrite={}", template))
             .arg("--json=compact")
             .arg("--color=never");
 
@@ -4110,7 +4110,12 @@ fn looks_like_ruby_block_fragment(pattern: &str) -> bool {
 }
 
 fn fragment_pattern_hint(request: &StructuralSearchRequest, language: AstGrepLanguage) -> String {
-    let trimmed = request.pattern().expect("query pattern validated");
+    let Some(trimmed) = request.pattern() else {
+        return format!(
+            "Pattern is required for {} syntax queries.",
+            language.display_name()
+        );
+    };
     let mut message = format!(
         "Pattern looks like a code fragment, not standalone parseable {} syntax for `action='structural'`.",
         language.display_name()

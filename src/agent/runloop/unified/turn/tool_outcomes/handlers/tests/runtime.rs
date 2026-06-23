@@ -737,3 +737,64 @@ async fn end_to_end_blocked_calls_do_not_burn_budget_before_valid_call() {
                 .contains("\"continue\" or provide a new instruction")
     }));
 }
+
+#[tokio::test]
+async fn repeated_read_only_guard_dedups_plan_file_in_planning_mode() {
+    let mut backing = TestContextBacking::new(4).await;
+    backing.select_build_primary_agent();
+
+    // Create a plan file inside the temporary workspace.
+    let workspace = backing.sample_file.parent().unwrap().to_path_buf();
+    let plans_dir = workspace.join("plans");
+    std::fs::create_dir_all(&plans_dir).expect("create plans dir");
+    let plan_path = plans_dir.join("modular-dreaming-pixel.md");
+    let plan_content = "# Plan\n\n1. Fix planning-mode clarity\n2. Throttle memory envelopes\n";
+    std::fs::write(&plan_path, plan_content).expect("write plan file");
+
+    let mut ctx = backing.turn_processing_context();
+    ctx.tool_registry.enable_planning();
+
+    let args = json!({
+        "action": "read",
+        "path": plan_path.to_string_lossy()
+    });
+
+    let mut repeated_tool_attempts = LoopTracker::new();
+    let mut turn_modified_files = BTreeSet::new();
+    let mut outcome_ctx = ToolOutcomeContext {
+        ctx: &mut ctx,
+        repeated_tool_attempts: &mut repeated_tool_attempts,
+        turn_modified_files: &mut turn_modified_files,
+    };
+
+    let first = handle_single_tool_call(
+        &mut outcome_ctx,
+        "read_plan_1",
+        tool_names::UNIFIED_FILE,
+        args.clone(),
+    )
+    .await
+    .expect("first plan-file read should succeed");
+    assert!(first.is_none(), "first read should execute normally");
+
+    let second = handle_single_tool_call(
+        &mut outcome_ctx,
+        "read_plan_2",
+        tool_names::UNIFIED_FILE,
+        args,
+    )
+    .await
+    .expect("second plan-file read should be deduplicated");
+    assert!(
+        second.is_none(),
+        "duplicate read should be handled by guard"
+    );
+
+    assert!(outcome_ctx.ctx.working_history.iter().any(|message| {
+        message.role == uni::MessageRole::Tool
+            && message
+                .content
+                .as_text()
+                .contains("\"reused_recent_result\":true")
+    }));
+}

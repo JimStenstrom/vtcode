@@ -61,21 +61,30 @@ impl CommandPolicyEvaluator {
     fn cached_decision(&self, command_text: &str) -> Option<bool> {
         self.cache
             .lock()
-            .unwrap_or_else(PoisonError::into_inner)
+            .unwrap_or_else(|poisoned| {
+                warn!("command_policy: permission cache mutex poisoned; recovering");
+                poisoned.into_inner()
+            })
             .get(command_text)
     }
 
     fn resolve_path(&self, command_text: &str) -> Option<PathBuf> {
         self.resolver
             .lock()
-            .unwrap_or_else(PoisonError::into_inner)
+            .unwrap_or_else(|poisoned| {
+                warn!("command_policy: command resolver mutex poisoned; recovering");
+                poisoned.into_inner()
+            })
             .resolve(command_text)
             .resolved_path
             .clone()
     }
 
     fn cache_decision(&self, command_text: &str, allowed: bool, reason: &str) {
-        let mut cache = self.cache.lock().unwrap_or_else(PoisonError::into_inner);
+        let mut cache = self.cache.lock().unwrap_or_else(|poisoned| {
+            warn!("command_policy: permission cache mutex poisoned; recovering");
+            poisoned.into_inner()
+        });
         cache.put(command_text, allowed, reason);
     }
 

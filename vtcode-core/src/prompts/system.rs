@@ -25,8 +25,7 @@ pub const PLANNING_WORKFLOW_READ_ONLY_HEADER: &str = "# PLANNING WORKFLOW (READ-
 /// Shared Planning workflow notice line describing strict read-only enforcement.
 pub const PLANNING_WORKFLOW_READ_ONLY_NOTICE_LINE: &str = "Planning workflow is active. Only mutating tools (write_file, edit_file, apply_patch, unified_file:write/create/edit) are blocked. You CAN and SHOULD: read files (unified_file:read), run readonly commands (cargo check, cargo test, git status, ls, grep, find, diff), search code (unified_search), and use task_tracker. Plan artifact writes under `.vtcode/plans/` are also allowed.";
 /// Shared Planning workflow instruction line for transitioning to implementation.
-pub const PLANNING_WORKFLOW_EXIT_INSTRUCTION_LINE: &str =
-    "Call `finish_planning` when ready to transition to implementation.";
+pub const PLANNING_WORKFLOW_EXIT_INSTRUCTION_LINE: &str = "Call `finish_planning` to present the plan for user approval. Planning workflow remains active and mutating tools stay disabled until the user explicitly approves the plan.";
 /// Shared Planning workflow instruction line for decision-complete planning output.
 pub const PLANNING_WORKFLOW_PLAN_QUALITY_LINE: &str = "Explore repository facts first, ask only material blocking questions, keep planning read-only, and emit exactly one decision-complete `<proposed_plan>` block with a summary, implementation steps, test cases, and assumptions/defaults. If something is still unresolved, end with `Next open decision: ...`.";
 /// Shared Planning workflow policy line requiring context-aware interview closure before final plans.
@@ -44,7 +43,7 @@ pub const PLANNING_WORKFLOW_HINT: &str = "Planning workflow is active. Type `imp
 pub const PLANNING_WORKFLOW_TASK_TRACKER_LINE: &str =
     "`task_tracker` remains available while planning.";
 /// Shared reminder appended when presenting plans while still in Planning workflow.
-pub const PLANNING_WORKFLOW_IMPLEMENT_REMINDER: &str = "• Planning workflow is active with read-only permissions. Say “implement” to execute, or “stay in planning workflow” to revise. If automatic planning handoff fails, call `finish_planning` to present the plan again.";
+pub const PLANNING_WORKFLOW_IMPLEMENT_REMINDER: &str = "• Planning workflow is active with read-only permissions. Say “implement” to present the plan for user approval, or “stay in planning workflow” to revise. Calling `finish_planning` only presents the plan; mutating tools stay disabled until the user approves the plan. If a write tool is unavailable because planning workflow is active, do not emit the full artifact content in the chat. Instead, summarize the blocker briefly and ask the user to save the content, or call `finish_planning` to present the plan for approval.";
 
 const PROMPT_TITLE: &str = "# VT Code";
 const PROMPT_INTRO: &str = "VT Code. Be concise and safe.";

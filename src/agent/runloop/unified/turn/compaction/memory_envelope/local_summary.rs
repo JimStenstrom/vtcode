@@ -69,7 +69,13 @@ pub(crate) fn build_zero_cost_summarized_fork_history(
     let summary = source_envelope
         .map(|envelope| normalize_whitespace(&envelope.summary))
         .filter(|summary| !summary.is_empty())
-        .unwrap_or_else(|| derive_continuity_summary(source_history, source_envelope));
+        .unwrap_or_else(|| {
+            derive_continuity_summary(
+                source_history,
+                source_envelope,
+                &TaskTrackerSnapshot::default(),
+            )
+        });
 
     let retained_users = collect_zero_cost_retained_user_messages(
         source_history,

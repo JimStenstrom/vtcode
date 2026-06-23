@@ -1393,10 +1393,11 @@ impl Tool for FinishPlanningTool {
             "plan_content": plan_content,
             "plan_summary": plan_summary,
             "next_steps": [
-                "User will see the Implementation Blueprint panel",
-                "User can choose: Execute or Stay in Planning workflow",
-                "If approved, Planning workflow will be disabled and mutating tools will be enabled",
-                "Execute the plan step by step after approval"
+                "Planning workflow is STILL ACTIVE until the user explicitly confirms the plan.",
+                "Mutating tools (write_file, edit_file, apply_patch, unified_file:write/create/edit, shell commands that touch files) remain DISABLED.",
+                "Do not attempt to write or edit files now; wait for the user to approve the plan in the UI.",
+                "User can choose: Execute (exit planning and enable mutating tools) or Stay in Planning workflow (revise the plan).",
+                "If the user says 'implement', 'yes', 'go', or 'start', the plan will be presented for confirmation automatically."
             ],
             "requires_confirmation": true,
             "draft_incomplete": false

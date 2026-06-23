@@ -479,37 +479,49 @@ pub fn spawn_openai_compatible_stream(
         tokio::sync::mpsc::unbounded_channel::<Result<LLMStreamEvent, LLMError>>();
     let tx = event_tx.clone();
 
+    // Timeout for the entire streaming task (5 minutes).
+    // Prevents indefinite hangs when upstream server stops responding.
+    let stream_timeout = std::time::Duration::from_secs(300);
     tokio::spawn(async move {
         let aggregator_model = model.clone();
         let mut aggregator = crate::llm::providers::shared::StreamAggregator::new(aggregator_model);
 
-        let result = crate::llm::providers::shared::process_openai_stream(
-            bytes_stream,
-            provider_name,
-            model,
-            |value| {
-                crate::llm::providers::shared::handle_openai_compatible_chunk(
-                    &value,
-                    &mut aggregator,
-                    &tx,
-                    reasoning_fields,
-                    delta_order,
-                    include_cache_metrics,
-                );
-                Ok(())
-            },
+        let result = tokio::time::timeout(
+            stream_timeout,
+            crate::llm::providers::shared::process_openai_stream(
+                bytes_stream,
+                provider_name,
+                model,
+                |value| {
+                    crate::llm::providers::shared::handle_openai_compatible_chunk(
+                        &value,
+                        &mut aggregator,
+                        &tx,
+                        reasoning_fields,
+                        delta_order,
+                        include_cache_metrics,
+                    );
+                    Ok(())
+                },
+            ),
         )
         .await;
 
         match result {
-            Ok(_) => {
+            Ok(Ok(_)) => {
                 let response = aggregator.finalize();
                 let _ = tx.send(Ok(LLMStreamEvent::Completed {
                     response: Box::new(response),
                 }));
             }
-            Err(err) => {
+            Ok(Err(err)) => {
                 let _ = tx.send(Err(err));
+            }
+            Err(_elapsed) => {
+                let _ = tx.send(Err(LLMError::Provider {
+                    message: format!("{}: streaming timed out after 5 minutes", provider_name),
+                    metadata: None,
+                }));
             }
         }
     });

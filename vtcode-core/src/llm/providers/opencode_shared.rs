@@ -209,58 +209,72 @@ impl LLMProvider for OpenCodeCompatibleProvider {
 
         let model_clone = model.clone();
         let provider_name = self.provider_name;
+        // Timeout for the entire streaming task (5 minutes).
+        // Prevents indefinite hangs when upstream server stops responding.
+        let stream_timeout = std::time::Duration::from_secs(300);
         tokio::spawn(async move {
             let mut aggregator =
                 crate::llm::providers::shared::StreamAggregator::new(model_clone.clone());
 
-            let result = crate::llm::providers::shared::process_openai_stream(
-                bytes_stream,
-                provider_name,
-                model_clone,
-                |value| {
-                    if let Some(choices) = value
-                        .get("choices")
-                        .and_then(|candidate| candidate.as_array())
-                        && let Some(choice) = choices.first()
-                    {
-                        if let Some(delta) = choice.get("delta")
-                            && let Some(content) = delta
-                                .get("content")
-                                .and_then(|candidate| candidate.as_str())
+            let result = tokio::time::timeout(
+                stream_timeout,
+                crate::llm::providers::shared::process_openai_stream(
+                    bytes_stream,
+                    provider_name,
+                    model_clone,
+                    |value| {
+                        if let Some(choices) = value
+                            .get("choices")
+                            .and_then(|candidate| candidate.as_array())
+                            && let Some(choice) = choices.first()
                         {
-                            for event in aggregator.handle_content(content) {
-                                let _ = tx.send(Ok(event));
+                            if let Some(delta) = choice.get("delta")
+                                && let Some(content) = delta
+                                    .get("content")
+                                    .and_then(|candidate| candidate.as_str())
+                            {
+                                for event in aggregator.handle_content(content) {
+                                    let _ = tx.send(Ok(event));
+                                }
+                            }
+
+                            if let Some(reason) = choice
+                                .get("finish_reason")
+                                .and_then(|candidate| candidate.as_str())
+                            {
+                                aggregator.set_finish_reason(map_finish_reason_common(reason));
                             }
                         }
 
-                        if let Some(reason) = choice
-                            .get("finish_reason")
-                            .and_then(|candidate| candidate.as_str())
+                        if value.get("usage").is_some()
+                            && let Some(usage) =
+                                crate::llm::providers::common::parse_usage_openai_format(
+                                    &value, false,
+                                )
                         {
-                            aggregator.set_finish_reason(map_finish_reason_common(reason));
+                            aggregator.set_usage(usage);
                         }
-                    }
-
-                    if value.get("usage").is_some()
-                        && let Some(usage) =
-                            crate::llm::providers::common::parse_usage_openai_format(&value, false)
-                    {
-                        aggregator.set_usage(usage);
-                    }
-                    Ok(())
-                },
+                        Ok(())
+                    },
+                ),
             )
             .await;
 
             match result {
-                Ok(_) => {
+                Ok(Ok(_)) => {
                     let response = aggregator.finalize();
                     let _ = tx.send(Ok(LLMStreamEvent::Completed {
                         response: Box::new(response),
                     }));
                 }
-                Err(error) => {
+                Ok(Err(error)) => {
                     let _ = tx.send(Err(error));
+                }
+                Err(_elapsed) => {
+                    let _ = tx.send(Err(LLMError::Provider {
+                        message: format!("{}: streaming timed out after 5 minutes", provider_name),
+                        metadata: None,
+                    }));
                 }
             }
         });

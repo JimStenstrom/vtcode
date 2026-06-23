@@ -175,6 +175,28 @@ pub(crate) struct SessionMemoryEnvelope {
     pub generated_at: String,
 }
 
+impl SessionMemoryEnvelope {
+    /// Returns true if this envelope carries the same meaningful content as
+    /// `other`. Generated timestamps and history artifact paths are ignored
+    /// because they change even when the underlying session state does not.
+    pub(crate) fn is_content_equivalent_to(&self, other: &SessionMemoryEnvelope) -> bool {
+        self.session_id == other.session_id
+            && self.schema_version == other.schema_version
+            && self.summary == other.summary
+            && self.objective == other.objective
+            && self.task_summary == other.task_summary
+            && self.spec_summary == other.spec_summary
+            && self.evaluation_summary == other.evaluation_summary
+            && self.verification_summary == other.verification_summary
+            && self.constraints == other.constraints
+            && self.grounded_facts == other.grounded_facts
+            && self.touched_files == other.touched_files
+            && self.open_questions == other.open_questions
+            && self.verification_todo == other.verification_todo
+            && self.delegation_notes == other.delegation_notes
+    }
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub(crate) struct SessionMemoryEnvelopeUpdate {
     pub objective: Option<String>,

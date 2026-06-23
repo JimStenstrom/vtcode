@@ -191,6 +191,21 @@ fn extract_read_path(args: &Value) -> Option<String> {
         .map(|s| s.to_string())
 }
 
+/// Returns the path if this is a read of a planning artifact (a plan file or
+/// directory) while planning mode is active.
+fn is_plan_artifact_read(canonical_tool_name: &str, args: &Value) -> Option<String> {
+    if !is_read_action(canonical_tool_name, args) {
+        return None;
+    }
+    let path = extract_read_path(args)?;
+    let lower = path.to_ascii_lowercase();
+    if lower.contains("plan") || lower.ends_with(".md") {
+        Some(path)
+    } else {
+        None
+    }
+}
+
 #[cold]
 fn build_read_after_write_error(path: &str) -> String {
     super::super::execution_result::build_error_content(
@@ -301,6 +316,34 @@ pub(super) fn enforce_repeated_read_only_call_guard(
             }
             ctx.push_tool_response(tool_call_id, reused_value.to_string());
             return Some(ValidationResult::Handled);
+        }
+    }
+
+    // Planning-mode-specific guard: repeated plan-file reads across turns.
+    // Plan files tend to be re-read with slightly different pagination while
+    // the agent drafts a plan; path-based dedup keeps the agent from churning.
+    if ctx.tool_registry.is_planning_active() {
+        if let Some(plan_path) = is_plan_artifact_read(canonical_tool_name, effective_args) {
+            if let Some(mut reused_value) = ctx.tool_registry.find_recent_successful_by_read_target(
+                canonical_tool_name,
+                effective_args,
+                ctx.harness_state.max_tool_wall_clock,
+            ) {
+                if let Some(obj) = reused_value.as_object_mut() {
+                    obj.insert(
+                        "loop_detected_note".to_string(),
+                        json!(format!(
+                            "Planning mode: plan file '{}' was already read. Stop re-reading and finalize the plan.",
+                            plan_path
+                        )),
+                    );
+                    super::apply_reused_read_only_loop_metadata(obj);
+                }
+                ctx.push_tool_response(tool_call_id, reused_value.to_string());
+                ctx.harness_state
+                    .record_successful_readonly_signature(signature);
+                return Some(ValidationResult::Handled);
+            }
         }
     }
 
