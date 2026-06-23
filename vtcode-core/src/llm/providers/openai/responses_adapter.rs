@@ -98,6 +98,15 @@ pub(crate) enum ResponsesStreamEvent {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ResponsesStreamEventPolicy {
+    RigSupportedTyped,
+    VtcodeOverlayConversion,
+    DocumentedStatusMarkerNoop,
+    DocumentedValueBearingRigGap,
+    Unsupported,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum ResponsesLifecycleEvent {
     Created,
     InProgress,
@@ -130,13 +139,16 @@ impl ResponsesStreamAdapter {
             });
         }
 
+        let policy = response_stream_event_policy(&raw_payload)
+            .map_err(|err| err.into_llm_error(provider_name))?;
+
         let parsed = match serde_json::from_str::<RigResponsesStreamingChunk>(trimmed) {
             Ok(parsed) => parsed,
-            Err(err) if is_known_rig_stream_event(&raw_payload) => {
+            Err(err) if policy == ResponsesStreamEventPolicy::RigSupportedTyped => {
                 return Err(StreamAssemblyError::InvalidPayload(err.to_string())
                     .into_llm_error(provider_name));
             }
-            Err(_) => return adapt_overlay_payload(raw_payload),
+            Err(_) => return adapt_policy_payload(provider_name, raw_payload),
         };
 
         Self::adapt_rig_chunk(provider_name, parsed, raw_payload)
@@ -221,7 +233,7 @@ impl ResponsesStreamAdapter {
                             output_index,
                         })
                     }
-                    _ => adapt_overlay_payload(raw_payload),
+                    _ => adapt_policy_payload(provider_name, raw_payload),
                 }
             }
         }
@@ -415,49 +427,184 @@ fn adapt_output_item(
     }
 }
 
-fn adapt_overlay_payload(payload: Value) -> Result<ResponsesStreamEvent, LLMError> {
+fn adapt_policy_payload(
+    provider_name: &str,
+    payload: Value,
+) -> Result<ResponsesStreamEvent, LLMError> {
+    let policy =
+        response_stream_event_policy(&payload).map_err(|err| err.into_llm_error(provider_name))?;
+
+    match policy {
+        ResponsesStreamEventPolicy::VtcodeOverlayConversion => {
+            adapt_overlay_conversion(provider_name, &payload)
+        }
+        ResponsesStreamEventPolicy::DocumentedStatusMarkerNoop => Ok(ResponsesStreamEvent::Unknown),
+        ResponsesStreamEventPolicy::DocumentedValueBearingRigGap => {
+            // These documented events carry provider-side values, but this
+            // adapter has no streaming runtime surface for provider-hosted MCP,
+            // code-interpreter, image, annotation, or custom-tool partials.
+            // Keep them separate from status no-ops; completed response parsing
+            // remains responsible for durable provider output items.
+            Ok(ResponsesStreamEvent::Unknown)
+        }
+        ResponsesStreamEventPolicy::Unsupported => {
+            Err(StreamAssemblyError::InvalidPayload(format!(
+                "unsupported Responses stream event type `{}`",
+                payload
+                    .get("type")
+                    .and_then(Value::as_str)
+                    .unwrap_or("<missing>")
+            ))
+            .into_llm_error(provider_name))
+        }
+        ResponsesStreamEventPolicy::RigSupportedTyped => {
+            Err(StreamAssemblyError::InvalidPayload(format!(
+                "Rig-supported Responses stream event `{}` reached overlay fallback",
+                payload
+                    .get("type")
+                    .and_then(Value::as_str)
+                    .unwrap_or("<missing>")
+            ))
+            .into_llm_error(provider_name))
+        }
+    }
+}
+
+fn adapt_overlay_conversion(
+    provider_name: &str,
+    payload: &Value,
+) -> Result<ResponsesStreamEvent, LLMError> {
     match payload.get("type").and_then(Value::as_str) {
         // VTCode overlay: Rig 0.39 models reasoning summary deltas, while some
         // OpenAI-compatible endpoints still emit reasoning_text deltas.
         Some("response.reasoning_text.delta") | Some("response.reasoning_content.delta") => {
             Ok(ResponsesStreamEvent::ReasoningDelta {
-                delta: payload
-                    .get("delta")
-                    .and_then(Value::as_str)
-                    .unwrap_or_default()
-                    .to_string(),
+                delta: required_string_field(provider_name, payload, "delta")?,
             })
         }
-        Some("response.function_call_arguments.done") => Ok(ResponsesStreamEvent::Unknown),
-        _ => Ok(ResponsesStreamEvent::Unknown),
+        Some("response.reasoning_text.done") => {
+            let text = optional_string_field(provider_name, payload, "text")?;
+            let delta = optional_string_field(provider_name, payload, "delta")?;
+            if let Some(text) = text.or(delta) {
+                Ok(ResponsesStreamEvent::ReasoningDelta { delta: text })
+            } else {
+                Ok(ResponsesStreamEvent::Unknown)
+            }
+        }
+        _ => Err(
+            StreamAssemblyError::InvalidPayload("unsupported overlay conversion".to_string())
+                .into_llm_error(provider_name),
+        ),
     }
 }
 
-fn is_known_rig_stream_event(payload: &Value) -> bool {
-    matches!(
-        payload.get("type").and_then(Value::as_str),
-        Some(
-            "response.created"
-                | "response.in_progress"
-                | "response.completed"
-                | "response.failed"
-                | "response.incomplete"
-                | "response.output_item.added"
-                | "response.output_item.done"
-                | "response.content_part.added"
-                | "response.content_part.done"
-                | "response.output_text.delta"
-                | "response.output_text.done"
-                | "response.refusal.delta"
-                | "response.refusal.done"
-                | "response.function_call_arguments.delta"
-                | "response.function_call_arguments.done"
-                | "response.reasoning_summary_part.added"
-                | "response.reasoning_summary_part.done"
-                | "response.reasoning_summary_text.delta"
-                | "response.reasoning_summary_text.done"
-        )
-    )
+fn response_stream_event_policy(
+    payload: &Value,
+) -> Result<ResponsesStreamEventPolicy, StreamAssemblyError> {
+    let Some(event_type) = payload.get("type") else {
+        return Err(StreamAssemblyError::InvalidPayload(
+            "missing Responses stream event type".to_string(),
+        ));
+    };
+    let Some(event_type) = event_type.as_str() else {
+        return Err(StreamAssemblyError::InvalidPayload(
+            "Responses stream event type must be a string".to_string(),
+        ));
+    };
+
+    Ok(response_stream_event_policy_for_type(event_type))
+}
+
+fn response_stream_event_policy_for_type(event_type: &str) -> ResponsesStreamEventPolicy {
+    match event_type {
+        "response.created"
+        | "response.in_progress"
+        | "response.completed"
+        | "response.failed"
+        | "response.incomplete"
+        | "response.output_item.added"
+        | "response.output_item.done"
+        | "response.output_text.delta"
+        | "response.refusal.delta"
+        | "response.function_call_arguments.delta"
+        | "response.reasoning_summary_text.delta" => ResponsesStreamEventPolicy::RigSupportedTyped,
+        "response.reasoning_text.delta"
+        | "response.reasoning_text.done"
+        | "response.reasoning_content.delta" => ResponsesStreamEventPolicy::VtcodeOverlayConversion,
+        "response.queued"
+        | "response.content_part.added"
+        | "response.content_part.done"
+        | "response.output_text.done"
+        | "response.refusal.done"
+        | "response.function_call_arguments.done"
+        | "response.reasoning_summary_part.added"
+        | "response.reasoning_summary_part.done"
+        | "response.reasoning_summary_text.done"
+        | "response.file_search_call.in_progress"
+        | "response.file_search_call.searching"
+        | "response.file_search_call.completed"
+        | "response.web_search_call.in_progress"
+        | "response.web_search_call.searching"
+        | "response.web_search_call.completed"
+        | "response.image_generation_call.in_progress"
+        | "response.image_generation_call.generating"
+        | "response.image_generation_call.completed"
+        | "response.mcp_call.in_progress"
+        | "response.mcp_call.completed"
+        | "response.mcp_list_tools.in_progress"
+        | "response.mcp_list_tools.completed"
+        | "response.code_interpreter_call.in_progress"
+        | "response.code_interpreter_call.interpreting"
+        | "response.code_interpreter_call.completed" => {
+            ResponsesStreamEventPolicy::DocumentedStatusMarkerNoop
+        }
+        "response.code_interpreter_call_code.delta"
+        | "response.code_interpreter_call_code.done"
+        | "response.mcp_call_arguments.delta"
+        | "response.mcp_call_arguments.done"
+        | "response.image_generation_call.partial_image"
+        | "response.custom_tool_call_input.delta"
+        | "response.custom_tool_call_input.done"
+        | "response.output_text.annotation.added" => {
+            ResponsesStreamEventPolicy::DocumentedValueBearingRigGap
+        }
+        _ => ResponsesStreamEventPolicy::Unsupported,
+    }
+}
+
+fn required_string_field(
+    provider_name: &str,
+    payload: &Value,
+    field: &'static str,
+) -> Result<String, LLMError> {
+    match payload.get(field) {
+        Some(value) => value.as_str().map(ToOwned::to_owned).ok_or_else(|| {
+            StreamAssemblyError::InvalidPayload(format!(
+                "field `{field}` in stream payload must be a string"
+            ))
+            .into_llm_error(provider_name)
+        }),
+        None => Err(StreamAssemblyError::MissingField(field).into_llm_error(provider_name)),
+    }
+}
+
+fn optional_string_field(
+    provider_name: &str,
+    payload: &Value,
+    field: &'static str,
+) -> Result<Option<String>, LLMError> {
+    match payload.get(field) {
+        Some(value) => value
+            .as_str()
+            .map(|value| Some(value.to_string()))
+            .ok_or_else(|| {
+                StreamAssemblyError::InvalidPayload(format!(
+                    "field `{field}` in stream payload must be a string"
+                ))
+                .into_llm_error(provider_name)
+            }),
+        None => Ok(None),
+    }
 }
 
 fn response_error_message(payload: &Value) -> Option<String> {
@@ -669,6 +816,136 @@ mod tests {
 
     fn event_fixture(payload: Value) -> ResponsesStreamEvent {
         ResponsesStreamAdapter::parse_sse_data(&payload.to_string()).expect("fixture should parse")
+    }
+
+    #[test]
+    fn stream_event_policy_separates_rig_overlay_noop_value_and_unsupported() {
+        use super::ResponsesStreamEventPolicy as Policy;
+
+        assert_eq!(
+            super::response_stream_event_policy_for_type("response.output_text.delta"),
+            Policy::RigSupportedTyped
+        );
+        assert_eq!(
+            super::response_stream_event_policy_for_type("response.reasoning_text.delta"),
+            Policy::VtcodeOverlayConversion
+        );
+        assert_eq!(
+            super::response_stream_event_policy_for_type("response.queued"),
+            Policy::DocumentedStatusMarkerNoop
+        );
+
+        for event_type in [
+            "response.code_interpreter_call_code.delta",
+            "response.mcp_call_arguments.delta",
+            "response.image_generation_call.partial_image",
+            "response.custom_tool_call_input.delta",
+            "response.reasoning_text.done",
+        ] {
+            assert_ne!(
+                super::response_stream_event_policy_for_type(event_type),
+                Policy::DocumentedStatusMarkerNoop,
+                "{event_type} must not be classified as a status-only no-op"
+            );
+        }
+
+        assert_eq!(
+            super::response_stream_event_policy_for_type(
+                "response.code_interpreter_call_code.delta"
+            ),
+            Policy::DocumentedValueBearingRigGap
+        );
+        assert_eq!(
+            super::response_stream_event_policy_for_type("response.not_a_real_event"),
+            Policy::Unsupported
+        );
+    }
+
+    #[test]
+    fn documented_status_marker_noops_without_rig_coverage_do_not_fatal() {
+        for payload in [
+            json!({
+                "type": "response.queued",
+                "sequence_number": 0,
+                "response": {
+                    "id": "resp_queued",
+                    "status": "queued"
+                }
+            }),
+            json!({
+                "type": "response.file_search_call.searching",
+                "sequence_number": 1,
+                "item_id": "fs_1",
+                "output_index": 0
+            }),
+        ] {
+            assert_eq!(event_fixture(payload), ResponsesStreamEvent::Unknown);
+        }
+    }
+
+    #[test]
+    fn documented_overlay_and_noop_rig_failures_do_not_become_invalid_payload() {
+        assert_eq!(
+            event_fixture(json!({
+                "type": "response.reasoning_text.delta",
+                "sequence_number": 1,
+                "item_id": "rs_1",
+                "output_index": 0,
+                "delta": "private chain summary"
+            })),
+            ResponsesStreamEvent::ReasoningDelta {
+                delta: "private chain summary".to_string()
+            }
+        );
+
+        assert_eq!(
+            event_fixture(json!({
+                "type": "response.reasoning_text.done",
+                "sequence_number": 2,
+                "item_id": "rs_1",
+                "output_index": 0
+            })),
+            ResponsesStreamEvent::Unknown
+        );
+
+        assert_eq!(
+            event_fixture(json!({
+                "type": "response.reasoning_text.done",
+                "sequence_number": 3,
+                "item_id": "rs_1",
+                "output_index": 0,
+                "text": "final reasoning text"
+            })),
+            ResponsesStreamEvent::ReasoningDelta {
+                delta: "final reasoning text".to_string()
+            }
+        );
+    }
+
+    #[test]
+    fn overlay_conversion_shapes_remain_strict() {
+        assert!(
+            ResponsesStreamAdapter::parse_sse_data(
+                &json!({
+                    "type": "response.reasoning_text.delta",
+                    "sequence_number": 1,
+                    "delta": 42
+                })
+                .to_string()
+            )
+            .is_err()
+        );
+
+        assert!(
+            ResponsesStreamAdapter::parse_sse_data(
+                &json!({
+                    "type": "response.not_a_real_event",
+                    "sequence_number": 1
+                })
+                .to_string()
+            )
+            .is_err()
+        );
     }
 
     #[test]
