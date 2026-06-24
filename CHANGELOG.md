@@ -2,6 +2,22 @@
 
 All notable changes to vtcode will be documented in this file.
 ## v0.73.2 - 2026-01-29
+## 0.133.10 - 2026-06-24
+
+### Highlights
+#### Bug Fixes
+
+- Prevent false loop detection when read extent differs (26113d9c) (@vinhnx)
+- Add read-extent check to find_duplicate_in_history (fde336dc) (@vinhnx)
+- Prevent false loop detection when read extent differs (823825a6) (@vinhnx)
+- Surface edit-size limits, fix error messages, and improve task tracker continuity (80d1585a) 
+#### Documentation
+
+- Track Rig upstream PRs and update stale version references (1431c9aa) 
+### Other Changes
+#### Other
+
+- Update TODO (b31383a4) (@vinhnx)
 ## 0.133.9 - 2026-06-24
 
 ### Highlights
