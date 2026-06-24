@@ -50,7 +50,7 @@ const VALID_REPORT_STYLE_VALUES: &[&str] = &["rich", "medium", "short"];
 const VALID_BUILTIN_RULES: &[&str] = &["unused-suppression", "no-suppress-all"];
 const MAX_THREADS: u32 = 256;
 static AST_GREP_METAVARIABLE_RE: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r"\$\$?[A-Za-z_][A-Za-z0-9_]*").expect("ast-grep metavariable regex must compile")
+    Regex::new(r"\$\$?\$?[A-Za-z_][A-Za-z0-9_]*").expect("ast-grep metavariable regex must compile")
 });
 /// Valid ast-grep metavariable: `$` or `$$` followed by uppercase/startunderscore,
 /// then uppercase/digits/underscores. Multi-metavariable `$$$` is also valid.
@@ -2680,10 +2680,10 @@ fn build_fixconfig_rule_yaml(
     yaml.push_str("rule:\n");
 
     if let Some(selector) = selector.filter(|s| !s.trim().is_empty()) {
-        yaml.push_str(&format!("  pattern: {pattern}\n"));
-        yaml.push_str(&format!("  selector: {selector}\n"));
+        yaml.push_str(&format!("  pattern: {}\n", yaml_escape_scalar(pattern)));
+        yaml.push_str(&format!("  selector: {}\n", yaml_escape_scalar(selector)));
     } else {
-        yaml.push_str(&format!("  pattern: {pattern}\n"));
+        yaml.push_str(&format!("  pattern: {}\n", yaml_escape_scalar(pattern)));
     }
 
     // Emit transform pipeline before fix so that transformed variables
@@ -3479,10 +3479,10 @@ fn sanitize_pattern_for_tree_sitter(pattern: &str) -> (String, bool) {
     let sanitized =
         AST_GREP_METAVARIABLE_RE.replace_all(pattern, |captures: &regex::Captures<'_>| {
             contains_metavariables = true;
-            if captures
-                .get(0)
-                .is_some_and(|matched| matched.as_str().starts_with("$$"))
-            {
+            let matched = captures.get(0).map(|m| m.as_str()).unwrap_or("");
+            // `$$$NAME` (multi-metavariable) and `$$NAME` (unnamed node)
+            // both need multiple placeholders; `$NAME` (named node) gets one.
+            if matched.starts_with("$$") {
                 "placeholders"
             } else {
                 "placeholder"
@@ -3495,7 +3495,7 @@ fn sanitize_pattern_for_tree_sitter(pattern: &str) -> (String, bool) {
 /// Validate metavariable syntax in an ast-grep pattern.
 fn validate_metavariable_syntax(pattern: &str) -> Result<()> {
     static AST_GREP_DOLLAR_TOKEN_RE: Lazy<Regex> = Lazy::new(|| {
-        Regex::new(r"\$\$?[A-Za-z0-9_]+").expect("ast-grep dollar token regex must compile")
+        Regex::new(r"\$\$?\$?[A-Za-z0-9_]+").expect("ast-grep dollar token regex must compile")
     });
 
     for mat in AST_GREP_DOLLAR_TOKEN_RE.find_iter(pattern) {
@@ -4109,6 +4109,46 @@ fn looks_like_ruby_block_fragment(pattern: &str) -> bool {
     false
 }
 
+/// Detect patterns that look like Rust method calls without a receiver,
+/// e.g. `unwrap_or($T::default())`, `map_err($E)`, `and_then($C)`.
+/// These fail tree-sitter preflight because `.method()` calls require a
+/// receiver in Rust syntax. The correct ast-grep form is `$X.method($A)`.
+///
+/// This only fires when the full pattern contains metavariables, because
+/// plain `foo()` parses fine as a function call and never reaches this
+/// code path.
+fn looks_like_rust_method_call_fragment(pattern: &str) -> bool {
+    let trimmed = pattern.trim();
+    // Must not start with `$` — that would already be a receiver.
+    if trimmed.starts_with('$') {
+        return false;
+    }
+    // Must end with `)` to look like a call.
+    if !trimmed.ends_with(')') {
+        return false;
+    }
+    // Must contain a metavariable — otherwise it's a plain expression
+    // that tree-sitter can parse and this code path is never reached.
+    if !trimmed.contains('$') {
+        return false;
+    }
+    let Some(paren) = trimmed.find('(') else {
+        return false;
+    };
+    if paren == 0 {
+        return false;
+    }
+    let callee = &trimmed[..paren];
+    // Callee must be a simple identifier — no dots (receiver.method or
+    // path::method) and no colons (associated function Type::method).
+    !callee.is_empty()
+        && !callee.contains('.')
+        && !callee.contains("::")
+        && callee
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '_')
+}
+
 fn fragment_pattern_hint(request: &StructuralSearchRequest, language: AstGrepLanguage) -> String {
     let Some(trimmed) = request.pattern() else {
         return format!(
@@ -4128,6 +4168,13 @@ fn fragment_pattern_hint(request: &StructuralSearchRequest, language: AstGrepLan
     {
         message.push_str(
             " For Result return-type queries, anchor it in a full signature like `fn $NAME($$ARGS) -> Result<$T> { $$BODY }`.",
+        );
+    } else if language == AstGrepLanguage::Rust && looks_like_rust_method_call_fragment(trimmed) {
+        message.push_str(
+            " In Rust, method calls like `unwrap_or($T)` need a receiver. \
+             Use `$X.unwrap_or($T::default())` to match method calls on any receiver, \
+             where `$X` captures the receiver expression. \
+             For associated functions like `Type::method($A)`, use the full qualified path in the pattern.",
         );
     } else if language == AstGrepLanguage::Go && looks_like_go_call_pattern(trimmed) {
         message.push_str(

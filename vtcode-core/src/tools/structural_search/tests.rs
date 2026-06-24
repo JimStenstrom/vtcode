@@ -742,6 +742,22 @@ fn structural_pattern_preflight_accepts_supported_metavariable_patterns() {
 }
 
 #[test]
+fn structural_pattern_preflight_accepts_multi_metavariable_patterns() {
+    let request = StructuralSearchRequest::from_args(&json!({
+        "action": "structural",
+        "pattern": "fn $NAME($$$ARGS) {}",
+        "lang": "rust"
+    }))
+    .expect("valid request");
+
+    assert!(
+        preflight_parseable_pattern(&request)
+            .expect("multi-metavariable pattern should preflight")
+            .is_none()
+    );
+}
+
+#[test]
 fn structural_pattern_preflight_guides_result_type_fragments() {
     let request = StructuralSearchRequest::from_args(&json!({
         "action": "structural",
@@ -779,6 +795,50 @@ fn structural_pattern_preflight_guides_return_arrow_fragments() {
     assert!(hint.contains("Result return-type queries"), "{hint}");
     assert!(
         hint.contains("fn $NAME($$ARGS) -> Result<$T> { $$BODY }"),
+        "{hint}"
+    );
+}
+
+#[test]
+fn looks_like_rust_method_call_fragment_detects_bare_method_calls() {
+    assert!(super::looks_like_rust_method_call_fragment(
+        "unwrap_or($T::default())"
+    ));
+    assert!(super::looks_like_rust_method_call_fragment("map_err($E)"));
+    assert!(super::looks_like_rust_method_call_fragment("and_then($C)"));
+    assert!(super::looks_like_rust_method_call_fragment("unwrap_or($T)"));
+    // Has receiver — not a fragment.
+    assert!(!super::looks_like_rust_method_call_fragment(
+        "$X.unwrap_or($T)"
+    ));
+    // Associated function — not a bare method call.
+    assert!(!super::looks_like_rust_method_call_fragment(
+        "Type::method($A)"
+    ));
+    // Function call, not method call.
+    assert!(!super::looks_like_rust_method_call_fragment("foo()"));
+    // Not a call at all.
+    assert!(!super::looks_like_rust_method_call_fragment("Result<$T>"));
+    // Empty callee.
+    assert!(!super::looks_like_rust_method_call_fragment("($T)"));
+}
+
+#[test]
+fn structural_pattern_preflight_guides_rust_method_call_fragments() {
+    let request = StructuralSearchRequest::from_args(&json!({
+        "action": "structural",
+        "pattern": "unwrap_or($T::default())",
+        "lang": "rust"
+    }))
+    .expect("valid request");
+
+    let hint = preflight_parseable_pattern(&request)
+        .expect("fragment hint should be returned")
+        .expect("expected guidance");
+    assert!(hint.contains("method calls"), "{hint}");
+    assert!(hint.contains("$X.unwrap_or"), "{hint}");
+    assert!(
+        hint.contains("Do not retry the same fragment with grep"),
         "{hint}"
     );
 }
@@ -3295,7 +3355,7 @@ fn build_fixconfig_rule_yaml_generates_correct_structure() {
     assert!(yaml.contains("id: fixconfig-rewrite"), "yaml: {yaml}");
     assert!(yaml.contains("language: javascript"), "yaml: {yaml}");
     assert!(yaml.contains("severity: info"), "yaml: {yaml}");
-    assert!(yaml.contains("pattern: $KEY: $VAL"), "yaml: {yaml}");
+    assert!(yaml.contains("pattern: '$KEY: $VAL'"), "yaml: {yaml}");
     assert!(yaml.contains("template: ''"), "yaml: {yaml}");
     assert!(yaml.contains("expandEnd:"), "yaml: {yaml}");
     assert!(yaml.contains("regex: ','"), "yaml: {yaml}");
@@ -3334,6 +3394,42 @@ fn build_fixconfig_rule_yaml_includes_selector() {
     // `(` and `)` are not special YAML characters, so they are not quoted.
     assert!(yaml.contains("kind: ("), "yaml: {yaml}");
     assert!(yaml.contains("kind: )"), "yaml: {yaml}");
+}
+
+#[test]
+fn build_fixconfig_rule_yaml_escapes_pattern_with_special_chars() {
+    let fix_config = FixConfig {
+        template: "$VAR".to_string(),
+        expand_start: None,
+        expand_end: None,
+    };
+
+    // Pattern contains `:` which is a YAML special character.
+    let yaml = build_fixconfig_rule_yaml("$KEY: $VAL", "javascript", &fix_config, None, None);
+    assert!(
+        yaml.contains("pattern: '$KEY: $VAL'"),
+        "pattern with colon should be quoted: {yaml}"
+    );
+
+    // Pattern with `#` (YAML comment character).
+    let yaml = build_fixconfig_rule_yaml("$A # $B", "javascript", &fix_config, None, None);
+    assert!(
+        yaml.contains("pattern: '$A # $B'"),
+        "pattern with hash should be quoted: {yaml}"
+    );
+
+    // Selector is also escaped.
+    let yaml = build_fixconfig_rule_yaml(
+        "foo($A)",
+        "javascript",
+        &fix_config,
+        Some("call: expression"),
+        None,
+    );
+    assert!(
+        yaml.contains("selector: 'call: expression'"),
+        "selector with colon should be quoted: {yaml}"
+    );
 }
 
 #[test]
