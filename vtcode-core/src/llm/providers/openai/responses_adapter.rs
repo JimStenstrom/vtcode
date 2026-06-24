@@ -153,6 +153,9 @@ impl ResponsesStreamAdapter {
         let parsed = match serde_json::from_str::<RigResponsesStreamingChunk>(trimmed) {
             Ok(parsed) => parsed,
             Err(err) if policy == ResponsesStreamEventPolicy::RigSupportedTyped => {
+                if let Some(event) = adapt_rig_supported_envelope_fallback(&raw_payload) {
+                    return Ok(event);
+                }
                 return Err(StreamAssemblyError::InvalidPayload(err.to_string())
                     .into_llm_error(provider_name));
             }
@@ -216,12 +219,20 @@ impl ResponsesStreamAdapter {
                     RigResponsesItemChunkKind::ReasoningSummaryTextDelta(delta) => {
                         Ok(ResponsesStreamEvent::ReasoningDelta { delta: delta.delta })
                     }
-                    RigResponsesItemChunkKind::OutputItemAdded(output) => {
-                        adapt_output_item(provider_name, output.item, output_index, true)
-                    }
-                    RigResponsesItemChunkKind::OutputItemDone(output) => {
-                        adapt_output_item(provider_name, output.item, output_index, false)
-                    }
+                    RigResponsesItemChunkKind::OutputItemAdded(output) => adapt_output_item(
+                        provider_name,
+                        output.item,
+                        output_index,
+                        true,
+                        &raw_payload,
+                    ),
+                    RigResponsesItemChunkKind::OutputItemDone(output) => adapt_output_item(
+                        provider_name,
+                        output.item,
+                        output_index,
+                        false,
+                        &raw_payload,
+                    ),
                     RigResponsesItemChunkKind::FunctionCallArgsDelta(delta) => {
                         let item_id = item_id.or_else(|| {
                             raw_payload
@@ -408,6 +419,7 @@ fn adapt_output_item(
     item: RigResponsesOutput,
     output_index: Option<usize>,
     emit_completed_arguments: bool,
+    raw_payload: &Value,
 ) -> Result<ResponsesStreamEvent, LLMError> {
     match item {
         RigResponsesOutput::FunctionCall(function_call) => {
@@ -440,6 +452,14 @@ fn adapt_output_item(
                 })
             }
         }
+        RigResponsesOutput::Unknown => adapt_rig_gap_output_item_envelope(raw_payload)
+            .ok_or_else(|| {
+                StreamAssemblyError::InvalidPayload(
+                    "Rig returned an unknown Responses output item without eligible raw fallback evidence"
+                        .to_string(),
+                )
+                .into_llm_error(provider_name)
+            }),
         _ => Ok(ResponsesStreamEvent::Unknown),
     }
 }
@@ -526,6 +546,85 @@ fn adapt_value_bearing_rig_gap(payload: Value) -> Result<ResponsesStreamEvent, L
         }
         _ => Ok(ResponsesStreamEvent::Unknown),
     }
+}
+
+fn adapt_rig_supported_envelope_fallback(payload: &Value) -> Option<ResponsesStreamEvent> {
+    let event_type = payload.get("type").and_then(Value::as_str)?;
+
+    match event_type {
+        "response.completed" => {
+            let response = payload.get("response")?;
+            if raw_response_has_rig_unknown_output_item(response) {
+                Some(ResponsesStreamEvent::CompletedResponse {
+                    response: response.clone(),
+                })
+            } else {
+                None
+            }
+        }
+        "response.output_item.added" | "response.output_item.done" => {
+            adapt_rig_gap_output_item_envelope(payload)
+        }
+        _ => None,
+    }
+}
+
+fn adapt_rig_gap_output_item_envelope(payload: &Value) -> Option<ResponsesStreamEvent> {
+    let event_type = payload.get("type").and_then(Value::as_str)?;
+    let item = payload.get("item")?;
+    if !raw_output_item_is_rig_unknown(item) {
+        return None;
+    }
+
+    // TODO: Rig 0.39 cannot preserve valid Responses envelopes with newly added
+    // nested output item types when it rejects them or reduces them to a lossy
+    // unknown item. When https://github.com/0xPlaygrounds/rig/pull/1855 lands
+    // and VTCode updates to an `Output::Unknown(Value)`-capable Rig, reduce or
+    // remove this constrained raw fallback. When
+    // https://github.com/0xPlaygrounds/rig/pull/1830 lands, remove local
+    // `prompt_cache_key` and `prompt_cache_retention` overlays if still present.
+    Some(ResponsesStreamEvent::ProviderValueBearingRigGap {
+        event_type: event_type.to_string(),
+        item_id: payload
+            .get("item_id")
+            .and_then(Value::as_str)
+            .or_else(|| item.get("id").and_then(Value::as_str))
+            .map(ToOwned::to_owned),
+        call_id: payload
+            .get("call_id")
+            .and_then(Value::as_str)
+            .or_else(|| item.get("call_id").and_then(Value::as_str))
+            .map(ToOwned::to_owned),
+        output_index: payload
+            .get("output_index")
+            .and_then(Value::as_u64)
+            .and_then(|value| usize::try_from(value).ok()),
+        sequence_number: payload.get("sequence_number").and_then(Value::as_u64),
+        payload: payload.clone(),
+    })
+}
+
+fn raw_response_has_rig_unknown_output_item(response: &Value) -> bool {
+    let Some(response) = response.as_object() else {
+        return false;
+    };
+
+    response
+        .get("output")
+        .and_then(Value::as_array)
+        .is_some_and(|output_items| output_items.iter().any(raw_output_item_is_rig_unknown))
+}
+
+fn raw_output_item_is_rig_unknown(item: &Value) -> bool {
+    let Some(item_type) = item.get("type").and_then(Value::as_str) else {
+        return false;
+    };
+
+    !is_rig_modelled_output_item_type(item_type)
+}
+
+fn is_rig_modelled_output_item_type(item_type: &str) -> bool {
+    matches!(item_type, "message" | "function_call" | "reasoning")
 }
 
 fn adapt_overlay_conversion(
@@ -876,6 +975,15 @@ mod tests {
         ResponsesStreamAdapter::parse_sse_data(&payload.to_string()).expect("fixture should parse")
     }
 
+    fn assert_invalid_stream_payload(payload: Value) {
+        let err = ResponsesStreamAdapter::parse_sse_data(&payload.to_string())
+            .expect_err("fixture should be rejected as invalid stream payload");
+        assert!(
+            err.to_string().contains("invalid stream payload"),
+            "unexpected error: {err}"
+        );
+    }
+
     fn assert_provider_value_bearing_rig_gap(
         payload: Value,
         expected_event_type: &str,
@@ -947,6 +1055,201 @@ mod tests {
             super::response_stream_event_policy_for_type("response.not_a_real_event"),
             Policy::Unsupported
         );
+    }
+
+    #[test]
+    fn completed_response_with_custom_tool_call_uses_raw_envelope_fallback() {
+        let raw_response = json!({
+            "id": "resp_custom_tool",
+            "object": "response",
+            "created_at": 1,
+            "status": "completed",
+            "error": null,
+            "incomplete_details": null,
+            "instructions": null,
+            "max_output_tokens": null,
+            "model": "gpt-5",
+            "usage": {
+                "input_tokens": 11,
+                "output_tokens": 7,
+                "total_tokens": 18
+            },
+            "output": [{
+                "type": "custom_tool_call",
+                "id": "ctc_1",
+                "call_id": "call_custom_1",
+                "name": "apply_patch",
+                "input": "*** Begin Patch\n*** End Patch\n",
+                "status": "completed"
+            }],
+            "tools": [],
+            "vtcode_overlay": {"preserved": true}
+        });
+
+        let event = event_fixture(json!({
+            "type": "response.completed",
+            "sequence_number": 20,
+            "response": raw_response.clone()
+        }));
+
+        let ResponsesStreamEvent::CompletedResponse { response } = event else {
+            panic!("expected completed response fallback");
+        };
+        assert_eq!(response, raw_response);
+    }
+
+    #[test]
+    fn output_item_added_with_mcp_call_uses_raw_envelope_fallback() {
+        let payload = json!({
+            "type": "response.output_item.added",
+            "sequence_number": 21,
+            "item_id": "mcp_1",
+            "output_index": 3,
+            "item": {
+                "type": "mcp_call",
+                "id": "mcp_1",
+                "call_id": "call_mcp_1",
+                "server_label": "workspace",
+                "name": "read_file",
+                "arguments": "{\"path\":\"src/main.rs\"}",
+                "status": "in_progress"
+            }
+        });
+
+        let event = event_fixture(payload.clone());
+        let ResponsesStreamEvent::ProviderValueBearingRigGap {
+            event_type,
+            item_id,
+            call_id,
+            output_index,
+            sequence_number,
+            payload: preserved_payload,
+        } = event
+        else {
+            panic!("expected provider value-bearing Rig-gap fallback");
+        };
+
+        assert_eq!(event_type, "response.output_item.added");
+        assert_eq!(item_id.as_deref(), Some("mcp_1"));
+        assert_eq!(call_id.as_deref(), Some("call_mcp_1"));
+        assert_eq!(output_index, Some(3));
+        assert_eq!(sequence_number, Some(21));
+        assert_eq!(preserved_payload, payload);
+    }
+
+    #[test]
+    fn output_item_done_with_code_interpreter_call_uses_raw_envelope_fallback() {
+        let payload = json!({
+            "type": "response.output_item.done",
+            "sequence_number": 22,
+            "item_id": "ci_1",
+            "output_index": 4,
+            "item": {
+                "type": "code_interpreter_call",
+                "id": "ci_1",
+                "call_id": "call_ci_1",
+                "code": "print('hello')",
+                "status": "completed",
+                "outputs": [{
+                    "type": "logs",
+                    "logs": "hello\n"
+                }]
+            }
+        });
+
+        let event = event_fixture(payload.clone());
+        let ResponsesStreamEvent::ProviderValueBearingRigGap {
+            event_type,
+            item_id,
+            call_id,
+            output_index,
+            sequence_number,
+            payload: preserved_payload,
+        } = event
+        else {
+            panic!("expected provider value-bearing Rig-gap fallback");
+        };
+
+        assert_eq!(event_type, "response.output_item.done");
+        assert_eq!(item_id.as_deref(), Some("ci_1"));
+        assert_eq!(call_id.as_deref(), Some("call_ci_1"));
+        assert_eq!(output_index, Some(4));
+        assert_eq!(sequence_number, Some(22));
+        assert_eq!(preserved_payload, payload);
+    }
+
+    #[test]
+    fn malformed_known_rig_stream_events_remain_invalid_payload() {
+        assert_invalid_stream_payload(json!({
+            "type": "response.output_text.delta",
+            "item_id": "msg_1",
+            "output_index": 0,
+            "content_index": 0,
+            "sequence_number": 23,
+            "delta": 42
+        }));
+
+        assert_invalid_stream_payload(json!({
+            "type": "response.output_item.done",
+            "item_id": "fc_1",
+            "output_index": 0,
+            "sequence_number": 24,
+            "item": {
+                "type": "function_call",
+                "id": "fc_1",
+                "call_id": "call_1",
+                "arguments": "{}",
+                "status": "completed"
+            }
+        }));
+    }
+
+    #[test]
+    fn raw_envelope_fallback_requires_nested_unknown_output_item_evidence() {
+        for payload in [
+            json!({
+                "type": "response.completed",
+                "sequence_number": 25,
+                "output": [{
+                    "type": "custom_tool_call",
+                    "id": "ctc_missing_response"
+                }]
+            }),
+            json!({
+                "type": "response.output_item.added",
+                "sequence_number": 26,
+                "item_id": "item_missing_type",
+                "output_index": 0,
+                "item": {
+                    "id": "item_missing_type"
+                }
+            }),
+            json!({
+                "type": "response.output_item.done",
+                "sequence_number": 27,
+                "item_id": "item_non_string_type",
+                "output_index": 0,
+                "item": {
+                    "type": 42,
+                    "id": "item_non_string_type"
+                }
+            }),
+            json!({
+                "type": "response.output_item.added",
+                "sequence_number": 28,
+                "item_id": "fc_2",
+                "output_index": 0,
+                "item": {
+                    "type": "function_call",
+                    "id": "fc_2",
+                    "call_id": "call_2",
+                    "arguments": "{}",
+                    "status": "in_progress"
+                }
+            }),
+        ] {
+            assert_invalid_stream_payload(payload);
+        }
     }
 
     #[test]
