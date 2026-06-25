@@ -1118,6 +1118,7 @@ fn refresh_session_memory_envelope_merges_existing_continuity_fields() {
         Message::user("Continue the compaction work.".to_string()),
         Message::assistant("I will update the local compaction path.".to_string()),
     ];
+    let original_history = history.clone();
     let mut session_stats = SessionStats::default();
     session_stats.record_touched_files(["src/new.rs".to_string()]);
 
@@ -1191,13 +1192,17 @@ fn refresh_session_memory_envelope_merges_existing_continuity_fields() {
     );
     assert!(envelope.touched_files.contains(&"src/new.rs".to_string()));
     assert!(envelope.touched_files.contains(&"src/child.rs".to_string()));
-    assert!(
-        history[0]
-            .content
-            .as_text()
-            .contains("[Session Memory Envelope]")
+    assert_eq!(
+        history, original_history,
+        "ordinary refresh should not mutate live history"
     );
-    assert!(history[0].content.as_text().contains("Verification Status"));
+
+    let persisted_path = latest_memory_envelope_path_for_session(temp.path(), "session-alpha")
+        .expect("persisted envelope path");
+    let persisted: SessionMemoryEnvelope =
+        serde_json::from_str(&fs::read_to_string(persisted_path).expect("read persisted envelope"))
+            .expect("deserialize persisted envelope");
+    assert_eq!(persisted, envelope);
 }
 
 #[test]
@@ -1216,6 +1221,7 @@ fn refresh_session_memory_envelope_prefers_structured_verify_metadata() {
     .expect("write task");
 
     let mut history = vec![Message::user("Continue the compaction work.".to_string())];
+    let original_history = history.clone();
     let session_stats = SessionStats::default();
 
     let envelope = super::refresh_session_memory_envelope(
@@ -1235,17 +1241,29 @@ fn refresh_session_memory_envelope_prefers_structured_verify_metadata() {
             "- cargo check -p vtcode\n- cargo test -p vtcode --bin vtcode agent::runloop::unified::turn::compaction::tests::refresh_session_memory_envelope_prefers_structured_verify_metadata -- --exact"
         )
     );
-    assert!(history[0].content.as_text().contains("Verification Status"));
-    assert!(
-        history[0]
-            .content
-            .as_text()
-            .contains("- cargo check -p vtcode")
+    assert_eq!(
+        history, original_history,
+        "ordinary refresh should not mutate live history"
     );
-    assert!(history[0]
-        .content
-        .as_text()
-        .contains("- cargo test -p vtcode --bin vtcode agent::runloop::unified::turn::compaction::tests::refresh_session_memory_envelope_prefers_structured_verify_metadata -- --exact"));
+    let persisted_path = latest_memory_envelope_path_for_session(temp.path(), "session-alpha")
+        .expect("persisted envelope path");
+    let persisted: SessionMemoryEnvelope =
+        serde_json::from_str(&fs::read_to_string(persisted_path).expect("read persisted envelope"))
+            .expect("deserialize persisted envelope");
+    assert_eq!(persisted, envelope);
+    assert!(
+        persisted
+            .verification_summary
+            .as_deref()
+            .is_some_and(|summary| summary.contains("- cargo check -p vtcode"))
+    );
+    let focused_regression = "- cargo test -p vtcode --bin vtcode agent::runloop::unified::turn::compaction::tests::refresh_session_memory_envelope_prefers_structured_verify_metadata -- --exact";
+    assert!(
+        persisted
+            .verification_summary
+            .as_deref()
+            .is_some_and(|summary| summary.contains(focused_regression))
+    );
 }
 
 #[test]
@@ -1288,6 +1306,7 @@ fn refresh_session_memory_envelope_is_throttled_when_nothing_changes() {
     .expect("write envelope");
 
     let mut history = vec![Message::user("Continue the compaction work.".to_string())];
+    let original_history = history.clone();
     let session_stats = SessionStats::default();
 
     // First refresh with matching state should still write once because the
@@ -1303,6 +1322,10 @@ fn refresh_session_memory_envelope_is_throttled_when_nothing_changes() {
     )
     .expect("refresh succeeds");
     assert!(first.is_some(), "first refresh should produce an envelope");
+    assert_eq!(
+        history, original_history,
+        "ordinary refresh should not mutate live history"
+    );
     let history_len_after_first = history.len();
 
     let second = super::refresh_session_memory_envelope(
@@ -1322,6 +1345,10 @@ fn refresh_session_memory_envelope_is_throttled_when_nothing_changes() {
         history.len(),
         history_len_after_first,
         "history should not grow when refresh is throttled"
+    );
+    assert_eq!(
+        history, original_history,
+        "throttled refresh should leave live history unchanged"
     );
 }
 
@@ -1348,6 +1375,7 @@ fn refresh_session_memory_envelope_summary_is_concise() {
             json!({"error": "some tool error"}).to_string(),
         ),
     ];
+    let original_history = history.clone();
     let session_stats = SessionStats::default();
 
     let envelope = super::refresh_session_memory_envelope(
@@ -1373,6 +1401,10 @@ fn refresh_session_memory_envelope_summary_is_concise() {
     assert!(
         envelope.summary.contains("Audit agent loop"),
         "summary should reference the objective"
+    );
+    assert_eq!(
+        history, original_history,
+        "ordinary refresh should not mutate live history"
     );
 }
 
