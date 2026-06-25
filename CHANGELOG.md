@@ -2,6 +2,22 @@
 
 All notable changes to vtcode will be documented in this file.
 ## v0.73.2 - 2026-01-29
+## 0.133.11 - 2026-06-25
+
+### Highlights
+#### Bug Fixes
+
+- Shell policy byte-offset panic, glob compilation, and structural fallback bugs (a6c8ce38) (@vinhnx)
+- Security hardening, concurrency fixes, and async I/O improvements (e0fcd0fa) (@vinhnx)
+- Stop memory envelope refresh mutating live history (172fc2ed) (@kernitus)
+- Make memory envelope refresh history-immutable (6f33e7dc) (@kernitus)
+- Preserve full resume history verbatim (5d967855) (@kernitus)
+- Resume progress archives from full history (b506f33a) (@kernitus)
+- Refine validation for format, report_style, and builtin_rules in scan workflow (2edbfd55) (@vinhnx)
+### Other Changes
+#### Other
+
+- Update gitignore (ab279a6d) (@vinhnx)
 ## 0.133.10 - 2026-06-24
 
 ### Highlights
