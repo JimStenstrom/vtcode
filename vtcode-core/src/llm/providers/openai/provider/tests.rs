@@ -1939,6 +1939,17 @@ fn compatible_responses_payload_includes_previous_response_id() {
 }
 
 #[test]
+fn compatible_responses_payload_preserves_requested_store_true() {
+    let provider = compatible_endpoint_provider(models::openai::GPT_5, "https://compat.example/v1");
+    let mut request = sample_request(models::openai::GPT_5);
+    request.response_store = Some(true);
+    let payload = provider
+        .convert_to_openai_responses_format(&request)
+        .expect("conversion should succeed");
+    assert_eq!(payload.get("store").and_then(Value::as_bool), Some(true));
+}
+
+#[test]
 fn responses_payload_serializes_user_input_file_by_id() {
     let provider = native_openai_provider(models::openai::GPT_5);
     let request = provider::LLMRequest {

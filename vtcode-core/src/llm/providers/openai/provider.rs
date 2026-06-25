@@ -748,7 +748,8 @@ impl OpenAIProvider {
         Self::validate_inline_file_inputs(request)?;
 
         let is_native_openai = self.is_native_openai_api();
-        let prompt_cache_key = if is_native_openai {
+        let is_chatgpt_backend = self.is_chatgpt_backend();
+        let prompt_cache_key = if is_native_openai || is_chatgpt_backend {
             request.prompt_cache_key.as_deref()
         } else {
             None
@@ -758,9 +759,8 @@ impl OpenAIProvider {
         } else {
             None
         };
-        let is_chatgpt_backend = self.is_chatgpt_backend();
         let backend_defaults = self.backend_setup.responses_defaults();
-        let supports_responses_continuation = !is_chatgpt_backend
+        let supports_responses_continuation = !(is_native_openai || is_chatgpt_backend)
             && !matches!(
                 self.responses_api_state(&request.model),
                 ResponsesApiState::Disabled

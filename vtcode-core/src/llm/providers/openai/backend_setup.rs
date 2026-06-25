@@ -193,6 +193,8 @@ impl OpenAIBackendSetup {
         refresh_behaviour: OpenAIBackendRefreshBehaviour,
     ) -> Self {
         let is_chatgpt_codex_backend = matches!(kind, OpenAIBackendKind::ChatGptSubscription(_));
+        let is_native_openai_api_key =
+            matches!(kind, OpenAIBackendKind::ApiKey) && base_url.contains("api.openai.com");
         Self {
             kind,
             base_url: Arc::from(base_url.as_str()),
@@ -203,7 +205,7 @@ impl OpenAIBackendSetup {
                 responses_compaction_endpoint: !is_chatgpt_codex_backend,
             },
             responses_defaults: OpenAIBackendResponsesDefaults {
-                force_store_false: is_chatgpt_codex_backend,
+                force_store_false: is_native_openai_api_key || is_chatgpt_codex_backend,
                 include_output_types: !is_chatgpt_codex_backend,
                 include_sampling_parameters: !is_chatgpt_codex_backend,
                 include_prompt_cache_retention: !is_chatgpt_codex_backend,

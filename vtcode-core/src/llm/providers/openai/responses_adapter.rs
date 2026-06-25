@@ -321,7 +321,6 @@ pub(crate) fn clear_rig_chatgpt_unsupported_parameters(openai_request: &mut Valu
         "output_types",
         "parallel_tool_calls",
         "parallel_tool_config",
-        "prompt_cache_key",
         "prompt_cache_retention",
         "sampling_parameters",
         "service_tier",
@@ -947,7 +946,6 @@ mod tests {
             "output_types",
             "parallel_tool_calls",
             "parallel_tool_config",
-            "prompt_cache_key",
             "prompt_cache_retention",
             "sampling_parameters",
             "service_tier",
@@ -958,6 +956,11 @@ mod tests {
         ] {
             assert!(request.get(field).is_none(), "{field} should be cleared");
         }
+
+        assert_eq!(
+            request.get("prompt_cache_key").and_then(Value::as_str),
+            Some("session")
+        );
     }
 
     fn event_fixture(payload: Value) -> ResponsesStreamEvent {
