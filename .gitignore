@@ -842,6 +842,7 @@ GEMINI.md
 vtcode.toml
 
 plans/
+.vtcode/reviews/
 .vtcode/tool-policy.json
 .vtcode/state/
 .vtcode/tasks/
