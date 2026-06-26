@@ -12,9 +12,10 @@ use self::persistence::{
     should_persist_memory_envelope, write_memory_envelope_to_path,
 };
 pub(crate) use self::persistence::{
-    has_latest_memory_envelope, inject_latest_memory_envelope,
-    latest_memory_envelope_path_for_session,
+    has_latest_memory_envelope, latest_memory_envelope_path_for_session,
 };
+#[cfg(test)]
+pub(crate) use self::persistence::inject_latest_memory_envelope;
 pub(super) use self::persistence::{
     insert_memory_envelope_message, load_latest_memory_envelope, strip_existing_memory_envelope,
 };

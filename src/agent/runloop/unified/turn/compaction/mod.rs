@@ -10,9 +10,9 @@ use self::memory_envelope::{
     insert_memory_envelope_message, load_latest_memory_envelope, local_compaction_config,
     persist_memory_envelope, strip_existing_memory_envelope,
 };
-pub(crate) use self::memory_envelope::{
-    has_latest_memory_envelope, inject_latest_memory_envelope, refresh_session_memory_envelope,
-};
+pub(crate) use self::memory_envelope::{has_latest_memory_envelope, refresh_session_memory_envelope};
+#[cfg(test)]
+pub(crate) use self::memory_envelope::inject_latest_memory_envelope;
 pub(crate) use self::recovery_preview::build_recovery_context_previews_with_workspace;
 
 use anyhow::{Context, Result};
