@@ -24,6 +24,7 @@ Keep this file concise and under 150 lines. Root guidance belongs here; detailed
 - Tools/security: [docs/development/grep-tool-guide.md](docs/development/grep-tool-guide.md), [docs/development/grep-quick-reference.md](docs/development/grep-quick-reference.md), [docs/development/COMMAND_SECURITY_MODEL.md](docs/development/COMMAND_SECURITY_MODEL.md), [docs/guides/security.md](docs/guides/security.md).
 - Harness/agent behavior: [docs/guides/agent-loop-contract.md](docs/guides/agent-loop-contract.md), [docs/harness/INDEX.md](docs/harness/INDEX.md), [docs/harness/CORE_BELIEFS.md](docs/harness/CORE_BELIEFS.md), [docs/harness/ARCHITECTURAL_INVARIANTS.md](docs/harness/ARCHITECTURAL_INVARIANTS.md), [docs/harness/AGENT_LEGIBILITY_GUIDE.md](docs/harness/AGENT_LEGIBILITY_GUIDE.md).
 - Planning and automation: [docs/guides/planning-workflow.md](docs/guides/planning-workflow.md), [docs/guides/full-automation.md](docs/guides/full-automation.md), [docs/development/EXECUTION_POLICY.md](docs/development/EXECUTION_POLICY.md).
+- Loop engineering: [docs/project/PLAN-loop-engineering.md](docs/project/PLAN-loop-engineering.md) — worktree isolation, propose/verify sub-agents, loop state persistence, cost guardrails.
 - Models/providers: [docs/development/ADDING_MODELS.md](docs/development/ADDING_MODELS.md), [docs/development/MODEL_ADDITION_WORKFLOW.md](docs/development/MODEL_ADDITION_WORKFLOW.md), [docs/development/MODEL_ADDITION_CHECKLIST.md](docs/development/MODEL_ADDITION_CHECKLIST.md).
 
 ## Workspace

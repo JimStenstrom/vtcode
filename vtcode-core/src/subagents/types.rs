@@ -250,6 +250,9 @@ pub struct ChildRecord {
     pub(crate) thread_handle: Option<ThreadRuntimeHandle>,
     pub(crate) handle: Option<JoinHandle<()>>,
     pub(crate) notify: Arc<Notify>,
+    /// Optional worktree path for isolated subagents. When set, the child
+    /// agent runs in this worktree instead of the parent workspace root.
+    pub(crate) worktree_path: Option<PathBuf>,
 }
 
 pub(crate) struct ChildRunRequest {
@@ -407,9 +410,13 @@ impl ChildRecord {
                     SubagentStatus::Failed
                 };
                 self.summary = Some(result.summary);
-                self.error = match result.outcome {
-                    TaskOutcome::Failed { reason } => Some(reason),
-                    _ => None,
+                // Store error info for all non-success outcomes, not just Failed.
+                // This ensures budget/turn/tool-loop limits and other terminations
+                // carry a diagnostic message for debugging.
+                self.error = if result.outcome.is_success() {
+                    None
+                } else {
+                    Some(result.outcome.description())
                 };
                 self.transcript_path = result.transcript_path;
                 self.stored_messages = result.messages;

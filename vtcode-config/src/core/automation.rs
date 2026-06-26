@@ -12,6 +12,9 @@ pub struct AutomationConfig {
     /// Session and durable scheduled task controls.
     #[serde(default)]
     pub scheduled_tasks: ScheduledTasksConfig,
+    /// Loop engineering controls for external scheduler integration.
+    #[serde(default)]
+    pub loop_engine: LoopEngineConfig,
 }
 
 /// Controls for the built-in scheduled task subsystem.
@@ -54,6 +57,13 @@ pub struct FullAutoConfig {
     /// Optional path to a profile describing acceptable behaviors.
     #[serde(default)]
     pub profile_path: Option<PathBuf>,
+
+    /// Run a read-only verifier sub-agent after each mutating tool call.
+    /// When enabled, the harness spawns a verifier that re-reads the diff
+    /// and either approves or rejects the change before it is committed.
+    /// This doubles cost on mutating calls but catches propose-side errors.
+    #[serde(default)]
+    pub verify_mutations: bool,
 }
 
 impl Default for FullAutoConfig {
@@ -64,6 +74,7 @@ impl Default for FullAutoConfig {
             allowed_tools: default_full_auto_allowed_tools(),
             require_profile_ack: default_require_profile_ack(),
             profile_path: None,
+            verify_mutations: false,
         }
     }
 }
@@ -89,4 +100,53 @@ fn default_require_profile_ack() -> bool {
 
 fn default_full_auto_max_turns() -> usize {
     defaults::DEFAULT_FULL_AUTO_MAX_TURNS
+}
+
+/// Controls for loop engineering — running vtcode from an external scheduler.
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct LoopEngineConfig {
+    /// Enable loop engineering mode. When false, loop-specific features
+    /// (reconciler, per-iteration skills) are inactive.
+    #[serde(default)]
+    pub enabled: bool,
+
+    /// Optional circuit breaker: maximum loop iterations before the harness
+    /// refuses further runs. `None` means unlimited.
+    #[serde(default)]
+    pub max_iterations: Option<usize>,
+
+    /// After a worktree-isolated subagent completes, run the reconciler
+    /// (diff → verify → merge) automatically.
+    #[serde(default = "default_reconcile_on_complete")]
+    pub reconcile_on_complete: bool,
+
+    /// Skill names to preload into the agent context at the start of each
+    /// loop iteration. Empty means no per-iteration skill injection.
+    #[serde(default)]
+    pub preload_skills: Vec<String>,
+}
+
+impl Default for LoopEngineConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            max_iterations: None,
+            reconcile_on_complete: default_reconcile_on_complete(),
+            preload_skills: Vec::new(),
+        }
+    }
+}
+
+fn default_reconcile_on_complete() -> bool {
+    true
+}
+
+/// Returns `true` when the loop engine is enabled, respecting the
+/// `VTCODE_DISABLE_LOOP_ENGINE` env-var override.
+pub fn loop_engine_enabled(config: &AutomationConfig) -> bool {
+    if std::env::var("VTCODE_DISABLE_LOOP_ENGINE").is_ok() {
+        return false;
+    }
+    config.loop_engine.enabled
 }

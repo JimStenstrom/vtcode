@@ -27,6 +27,7 @@ VT Code is a Rust coding agent built for long-running autonomous workflows, with
 - **Model providers** - 21+ LLM providers: Anthropic, OpenAI, Gemini, OpenRouter, Ollama, LM Studio, and more
 - **Safety** - Restricted shell sandbox, tool guardrails, subprocess isolation, full audit logging
 - **Protocols** - Open Responses, Agent2Agent (A2A), ATIF, Anthropic Messages API
+- **Loop engineering** - Worktree isolation for parallel agents, propose/verify sub-agent separation, durable loop state, cost guardrails
 
 ## Quick start
 
@@ -62,6 +63,7 @@ vtcode update                  # self-update
 - [**Editor guides**](./docs/guides/zed-acp.md) - Zed ACP, VS Code, Claude Code
 - [**Safety**](./docs/security/SECURITY_MODEL.md) - Shell sandbox, security hardening, threat model
 - [**Protocols**](./docs/protocols/OPEN_RESPONSES.md) - Open Responses, ATIF, A2A, Anthropic Messages API
+- [**Loop engineering**](./docs/project/PLAN-loop-engineering.md) - Worktree isolation, propose/verify, loop state, cost guardrails
 
 ## Providers
 

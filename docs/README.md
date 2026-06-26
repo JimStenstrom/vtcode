@@ -53,6 +53,8 @@ This documentation is organized to support different user personas and use cases
 
 VT Code has undergone significant improvements:
 
+- **Loop Engineering** - Worktree isolation for parallel agents, propose/verify sub-agent separation, durable loop state persistence (`.vtcode/state/`), and token-cost guardrails. See [Loop Engineering Plan](./project/PLAN-loop-engineering.md).
+
 - **GLM-5.2 Model Support** - Zhipu AI's latest model with cache metrics in stream handling
 - **Byte-Range File Reading** - Large file reading with offset and page size parameters for efficient partial reads
 - **Kimi K2.7 Code Model** - Moonshot's latest code-focused model across all configurations

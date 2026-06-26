@@ -164,12 +164,15 @@ pub mod exec_policy; // Codex-style execution policy management
 pub use components::delegate_components;
 pub use exec_policy::command_validation as execpolicy;
 pub mod gemini; // Compatibility facade; canonical internal import path is llm/providers/gemini::wire
+pub mod git; // Git worktree management for loop isolation
 pub mod git_info; // Git repository information collection
 pub mod hooks;
 pub mod http_client;
 pub mod ide_context;
 pub mod instructions;
 pub mod llm;
+pub mod loop_memory; // Loop memory store for durable loop-engineering state
+pub mod loop_state; // Loop run state persistence for loop-engineering workflows
 pub mod marketplace;
 pub mod mcp;
 pub mod memory; // Memory monitoring and pressure detection
@@ -259,7 +262,7 @@ pub use subagents::{
     SendInputRequest as SubagentSendInputRequest, SpawnAgentRequest as SubagentSpawnRequest,
     SpawnBackgroundSubprocessRequest as SubagentSpawnBackgroundSubprocessRequest,
     SubagentController, SubagentControllerConfig, SubagentInputItem, SubagentStatus,
-    SubagentStatusEntry,
+    SubagentStatusEntry, VerificationResult,
 };
 pub use vtcode_bash_runner::BashRunner;
 

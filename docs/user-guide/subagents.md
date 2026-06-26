@@ -225,7 +225,7 @@ Only `name` and `description` are required.
 | `maxTurns` | per-agent turn ceiling | can also be overridden per call |
 | `nickname_candidates` | preferred thread labels | shown in `/agent` and `/agents` thread lists |
 | `initialPrompt` | default task prompt when the spawn request omits one | useful for compatibility imports |
-| `isolation` | compatibility field for future isolation modes | `worktree` is parsed but currently rejected at runtime in VT Code |
+| `isolation` | workspace isolation for child agents | `worktree` creates a git worktree under `.vtcode/worktrees/` so the child runs in its own working tree |
 
 ### Field Availability
 
@@ -252,7 +252,7 @@ Only `name` and `description` are required.
 | `initialPrompt` | no | yes |
 | `isolation` | no | yes |
 
-Subagent-only fields describe child-thread launch behaviour. `background` selects the managed background subprocess flow, `maxTurns` limits a delegated run, `nickname_candidates` label child threads, `initialPrompt` fills in a missing delegated task, and `isolation` is reserved for delegated isolation modes. Primary agents run in the main session, so they do not need child launch defaults, child labels, or a separate background or isolation boundary.
+Subagent-only fields describe child-thread launch behaviour. `background` selects the managed background subprocess flow, `maxTurns` limits a delegated run, `nickname_candidates` label child threads, `initialPrompt` fills in a missing delegated task, and `isolation` controls workspace isolation (set to `"worktree"` to run the child in a git worktree under `.vtcode/worktrees/`). Primary agents run in the main session, so they do not need child launch defaults, child labels, or a separate background or isolation boundary.
 
 ## Model Resolution
 
