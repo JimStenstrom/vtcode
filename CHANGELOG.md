@@ -2,6 +2,20 @@
 
 All notable changes to vtcode will be documented in this file.
 ## v0.73.2 - 2026-01-29
+## 0.133.16 - 2026-06-26
+
+### Highlights
+#### Features
+
+- Add 'did you mean?' suggestions for unrecognized commands (46e6b56b) 
+- Add /continue command to resume the most recent session (67fb16d5) 
+### Other Changes
+#### Other
+
+- Update README to streamline provider information (87b53bb7) (@vinhnx)
+- Implement Git worktree management and loop memory persistence (e2fec1b7) 
+- Update documentation to include CLAUDE.md references alongside AGENTS.md (c76b9c93) 
+- Update TODO (30307681) 
 ## 0.133.15 - 2026-06-26
 
 ### Highlights
