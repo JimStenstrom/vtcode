@@ -67,14 +67,12 @@ tree-sitter-typescript = "0.23.2"
 indexmap = { workspace = true }
 tempfile = { workspace = true }
 dunce = "1.0"
-include_dir = "0.7"
 once_cell = { workspace = true }
 parking_lot = "0.12"
 sha2 = { workspace = true }
 lru = "0.18"
 num_cpus = { workspace = true }
 chrono = { workspace = true } # For timestamp handling in CLI
-iana-time-zone = "0.1"
 humantime = "2.1"
 terminal_size = "0.4.4"
 async-trait = { workspace = true }
@@ -145,8 +143,7 @@ textwrap = "0.16"
 rustc-hash = { workspace = true }
 arc-swap = "1.9"
 linkme = { workspace = true }
-libloading = { workspace = true }
-webbrowser = "1.2"
+webbrowser = { workspace = true }
 
 notify = "8.2.0"
 notify-rust = { version = "4.17", optional = true }
@@ -164,11 +161,10 @@ tokio-tungstenite = { version = "0.29", default-features = false, features = [
 strsim = { workspace = true }
 smallvec = "1.15.1"
 
-[target.'cfg(target_os = "linux")'.dependencies]
+[target.'cfg(any(target_os = "linux", target_os = "macos"))'.dependencies]
 libc = { workspace = true }
 
 [target.'cfg(target_os = "macos")'.dependencies]
-libc = { workspace = true }
 xattr = "1.6"
 
 [[example]]

@@ -26,7 +26,6 @@ hashbrown = { workspace = true }
 ignore = { workspace = true }
 indexmap = { workspace = true }
 nucleo-matcher = "0.3"
-num_cpus = { workspace = true }
 parking_lot = "0.12.5"
 regex = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
