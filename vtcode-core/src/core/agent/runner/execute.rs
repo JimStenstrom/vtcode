@@ -27,8 +27,8 @@ use crate::exec::events::HarnessEventKind;
 use crate::llm::model_resolver::ModelResolver;
 use crate::llm::provider::{
     FinishReason, Message, ResponsesContinuationState, ToolCall, ToolChoice, ToolDefinition,
-    prepare_responses_continuation_request, responses_continuation_key,
-    supports_responses_chaining,
+    prepare_responses_continuation_request, records_responses_continuation_state,
+    responses_continuation_key,
 };
 use crate::llm::providers::gemini::wire::Part;
 use crate::prompts::{
@@ -902,7 +902,7 @@ impl AgentRunner {
                 let response = turn_output.response;
                 runtime.state.stop_reason =
                     Some(stop_reason_from_finish_reason(&response.finish_reason));
-                if supports_responses_chaining(
+                if records_responses_continuation_state(
                     &provider_name,
                     self.provider_client
                         .supports_responses_compaction(&turn_model),
@@ -1345,7 +1345,7 @@ mod tests {
     use crate::core::agent::session::AgentSessionState;
     use crate::core::agent::task::TaskOutcome;
     use crate::exec::events::ThreadEvent;
-    use crate::llm::provider::Message;
+    use crate::llm::provider::{Message, records_responses_continuation_state};
 
     #[test]
     fn failed_outcome_emits_only_turn_failed() {
@@ -1427,6 +1427,21 @@ mod tests {
 
         assert_eq!(previous_response_id, None);
         assert_eq!(request_messages.as_ref(), current_messages.as_slice());
+    }
+
+    #[test]
+    fn openai_runner_success_path_does_not_record_previous_response_chain() {
+        let mut state = AgentSessionState::new("session".to_string(), 4, 4, 16_000);
+        let messages = vec![Message::user("hello".to_string())];
+
+        if records_responses_continuation_state("openai", true) {
+            state.set_previous_response_chain("openai", "gpt-5.4", Some("resp_123"), messages);
+        }
+
+        assert_eq!(
+            state.previous_response_chain_for("openai", "gpt-5.4"),
+            None
+        );
     }
 
     #[test]

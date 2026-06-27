@@ -15,7 +15,7 @@ use vtcode_core::core::agent::harness_kernel::{
 use vtcode_core::core::agent::runner::prompt_alignment;
 use vtcode_core::llm::provider::{
     self as uni, ParallelToolConfig, prepare_responses_continuation_request,
-    supports_responses_chaining,
+    records_responses_continuation_state,
 };
 use vtcode_core::permissions::{
     build_advertised_permission_requests, evaluate_effective_permissions,
@@ -593,7 +593,7 @@ pub(super) fn update_previous_response_chain_after_success(
     response_request_id: Option<&str>,
     messages: &[uni::Message],
 ) {
-    if supports_responses_chaining(provider_name, provider_supports_responses_compaction) {
+    if records_responses_continuation_state(provider_name, provider_supports_responses_compaction) {
         session_stats.set_previous_response_chain(
             provider_name,
             active_model,

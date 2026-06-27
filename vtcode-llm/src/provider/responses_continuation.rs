@@ -33,6 +33,14 @@ pub fn supports_responses_chaining(
         || provider_name.eq_ignore_ascii_case("gemini")
 }
 
+pub fn records_responses_continuation_state(
+    provider_name: &str,
+    provider_supports_responses_compaction: bool,
+) -> bool {
+    !provider_name.eq_ignore_ascii_case("openai")
+        && supports_responses_chaining(provider_name, provider_supports_responses_compaction)
+}
+
 pub fn uses_incremental_responses_history(
     provider_name: &str,
     provider_supports_responses_compaction: bool,
@@ -124,7 +132,8 @@ where
 mod tests {
     use super::{
         ResponsesContinuationState, prepare_openai_responses_request,
-        prepare_responses_continuation_request, responses_continuation_key,
+        prepare_responses_continuation_request, records_responses_continuation_state,
+        responses_continuation_key,
     };
     use crate::provider::Message;
     use std::borrow::Cow;
@@ -137,6 +146,23 @@ mod tests {
             responses_continuation_key("OpenAI", "gpt-5"),
             Some(("openai".to_string(), "gpt-5".to_string()))
         );
+    }
+
+    #[test]
+    fn openai_does_not_record_normal_responses_continuation_state() {
+        assert!(!records_responses_continuation_state("openai", true));
+        assert!(!records_responses_continuation_state("OpenAI", false));
+    }
+
+    #[test]
+    fn non_openai_chaining_providers_record_continuation_state() {
+        assert!(records_responses_continuation_state("mycorp", true));
+        assert!(records_responses_continuation_state("gemini", false));
+        assert!(records_responses_continuation_state(
+            "openresponses",
+            false
+        ));
+        assert!(!records_responses_continuation_state("anthropic", false));
     }
 
     #[test]
