@@ -98,6 +98,33 @@ pub(super) const RECOVERY_CONTRACT_VIOLATION_REASON: &str = "Recovery mode reque
 const RECOVERY_TOOL_CALL_RETRY_DIRECTIVE: &str =
     "Recovery: tools disabled. Summarize findings from tool outputs in history.";
 
+/// Shared logic for the `PostToolFailureRecovery::RetryToolFree` arm.
+///
+/// Checks the post-tool recovery cycle cap. If the cap is reached, completes
+/// the turn with a deterministic fallback answer and returns `Some(result)`.
+/// Otherwise returns `None` — the caller should increment the cycle counter,
+/// switch to tool-free recovery, and `continue` the turn loop.
+fn check_recovery_cycle_cap(
+    cycles: u8,
+    working_history: &mut Vec<uni::Message>,
+    stage: &'static str,
+    err: &anyhow::Error,
+) -> Option<TurnLoopResult> {
+    if cycles >= MAX_POST_TOOL_RECOVERY_CYCLES {
+        tracing::warn!(
+            cycles,
+            "Post-tool recovery cycle cap reached; concluding turn \
+             with deterministic fallback answer"
+        );
+        return Some(complete_turn_after_failed_tool_free_recovery(
+            working_history,
+            stage,
+            Some(err),
+        ));
+    }
+    None
+}
+
 pub(crate) struct TurnLoopOutcome {
     pub result: TurnLoopResult,
     pub turn_modified_files: BTreeSet<PathBuf>,
@@ -579,24 +606,13 @@ pub(crate) async fn run_turn_loop(
                 )? {
                     PostToolFailureRecovery::NotApplicable => {}
                     PostToolFailureRecovery::RetryToolFree => {
-                        // Switch the recovery mode to a tool-free synthesis pass.
-                        // NOTE: use the unconditional switch helper, not
-                        // activate_recovery_with_mode — the latter is a guarded no-op
-                        // when a recovery pass is already in flight (phase == InPass),
-                        // which would leave the mode unchanged and spin the loop forever.
-                        if turn_processing_ctx.post_tool_recovery_cycles()
-                            >= MAX_POST_TOOL_RECOVERY_CYCLES
-                        {
-                            tracing::warn!(
-                                cycles = turn_processing_ctx.post_tool_recovery_cycles(),
-                                "Post-tool recovery cycle cap reached; concluding turn \
-                                 with deterministic fallback answer"
-                            );
-                            result = complete_turn_after_failed_tool_free_recovery(
-                                turn_processing_ctx.working_history,
-                                "execute_llm_request.recovery_cycle_cap",
-                                Some(&err),
-                            );
+                        if let Some(r) = check_recovery_cycle_cap(
+                            turn_processing_ctx.post_tool_recovery_cycles(),
+                            turn_processing_ctx.working_history,
+                            "execute_llm_request.recovery_cycle_cap",
+                            &err,
+                        ) {
+                            result = r;
                             break;
                         }
                         turn_processing_ctx.increment_post_tool_recovery_cycle();
@@ -778,24 +794,13 @@ pub(crate) async fn run_turn_loop(
                 )? {
                     PostToolFailureRecovery::NotApplicable => {}
                     PostToolFailureRecovery::RetryToolFree => {
-                        // Switch the recovery mode to a tool-free synthesis pass.
-                        // NOTE: use the unconditional switch helper, not
-                        // activate_recovery_with_mode — the latter is a guarded no-op
-                        // when a recovery pass is already in flight (phase == InPass),
-                        // which would leave the mode unchanged and spin the loop forever.
-                        if turn_processing_ctx.post_tool_recovery_cycles()
-                            >= MAX_POST_TOOL_RECOVERY_CYCLES
-                        {
-                            tracing::warn!(
-                                cycles = turn_processing_ctx.post_tool_recovery_cycles(),
-                                "Post-tool recovery cycle cap reached; concluding turn \
-                                 with deterministic fallback answer"
-                            );
-                            result = complete_turn_after_failed_tool_free_recovery(
-                                turn_processing_ctx.working_history,
-                                "process_llm_response.recovery_cycle_cap",
-                                Some(&err),
-                            );
+                        if let Some(r) = check_recovery_cycle_cap(
+                            turn_processing_ctx.post_tool_recovery_cycles(),
+                            turn_processing_ctx.working_history,
+                            "process_llm_response.recovery_cycle_cap",
+                            &err,
+                        ) {
+                            result = r;
                             break;
                         }
                         turn_processing_ctx.increment_post_tool_recovery_cycle();
@@ -921,24 +926,13 @@ pub(crate) async fn run_turn_loop(
                 )? {
                     PostToolFailureRecovery::NotApplicable => {}
                     PostToolFailureRecovery::RetryToolFree => {
-                        // Switch the recovery mode to a tool-free synthesis pass.
-                        // NOTE: use the unconditional switch helper, not
-                        // activate_recovery_with_mode — the latter is a guarded no-op
-                        // when a recovery pass is already in flight (phase == InPass),
-                        // which would leave the mode unchanged and spin the loop forever.
-                        if ctx.harness_state.post_tool_recovery_cycles()
-                            >= MAX_POST_TOOL_RECOVERY_CYCLES
-                        {
-                            tracing::warn!(
-                                cycles = ctx.harness_state.post_tool_recovery_cycles(),
-                                "Post-tool recovery cycle cap reached; concluding turn \
-                                 with deterministic fallback answer"
-                            );
-                            result = complete_turn_after_failed_tool_free_recovery(
-                                working_history,
-                                "handle_turn_processing_result.recovery_cycle_cap",
-                                Some(&err),
-                            );
+                        if let Some(r) = check_recovery_cycle_cap(
+                            ctx.harness_state.post_tool_recovery_cycles(),
+                            working_history,
+                            "handle_turn_processing_result.recovery_cycle_cap",
+                            &err,
+                        ) {
+                            result = r;
                             break;
                         }
                         ctx.harness_state.increment_post_tool_recovery_cycle();
