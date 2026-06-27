@@ -2,6 +2,16 @@
 
 All notable changes to vtcode will be documented in this file.
 ## v0.73.2 - 2026-01-29
+## 0.133.19 - 2026-06-27
+
+### Highlights
+### Other Changes
+#### Other
+
+- Update TODO (bde8fd7e) 
+- Revert "chore: enhance build scripts for parallel processing and artifact management" (d6421236) 
+- Revert "Fix release script" (6ec480e3) 
+- Add new models and update configurations for OpenCode Go (b8e3282e) 
 ## 0.133.18 - 2026-06-27
 
 ### Highlights
