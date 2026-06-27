@@ -615,8 +615,21 @@ fn test_all_models_have_non_empty_metadata_and_parse() {
             ModelId::OpenCodeZenGPT54Mini => ModelId::from_str("opencode/gpt-5.4-mini"),
             ModelId::OpenCodeZenClaudeSonnet46 => ModelId::from_str("opencode/claude-sonnet-4-6"),
             ModelId::OpenCodeZenGlm51 => ModelId::from_str("opencode/glm-5.1"),
+            ModelId::OpenCodeGoGlm52 => ModelId::from_str("opencode-go/glm-5.2"),
             ModelId::OpenCodeGoGlm51 => ModelId::from_str("opencode-go/glm-5.1"),
+            ModelId::OpenCodeGoKimiK27Code => ModelId::from_str("opencode-go/kimi-k2.7-code"),
+            ModelId::OpenCodeGoKimiK26 => ModelId::from_str("opencode-go/kimi-k2.6"),
+            ModelId::OpenCodeGoMimoV25 => ModelId::from_str("opencode-go/mimo-v2.5"),
+            ModelId::OpenCodeGoMimoV25Pro => ModelId::from_str("opencode-go/mimo-v2.5-pro"),
+            ModelId::OpenCodeGoMinimaxM3 => ModelId::from_str("opencode-go/minimax-m3"),
             ModelId::OpenCodeGoMinimaxM27 => ModelId::from_str("opencode-go/minimax-m2.7"),
+            ModelId::OpenCodeGoQwen37Max => ModelId::from_str("opencode-go/qwen3.7-max"),
+            ModelId::OpenCodeGoQwen37Plus => ModelId::from_str("opencode-go/qwen3.7-plus"),
+            ModelId::OpenCodeGoQwen36Plus => ModelId::from_str("opencode-go/qwen3.6-plus"),
+            ModelId::OpenCodeGoDeepseekV4Pro => ModelId::from_str("opencode-go/deepseek-v4-pro"),
+            ModelId::OpenCodeGoDeepseekV4Flash => {
+                ModelId::from_str("opencode-go/deepseek-v4-flash")
+            }
             // Qwen third-party variants share model strings with their native providers;
             // `deepseek-v4-flash`, `deepseek-v4-pro`, `glm-5.1` resolve to native variants.
             ModelId::QwenDeepSeekV4Flash | ModelId::QwenDeepSeekV4Pro | ModelId::QwenGlm51 => {

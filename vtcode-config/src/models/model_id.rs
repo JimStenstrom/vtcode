@@ -158,10 +158,32 @@ pub enum ModelId {
     OpenCodeZenGlm51,
 
     // OpenCode Go models
+    /// GLM-5.2 - Z.AI flagship model included with OpenCode Go
+    OpenCodeGoGlm52,
     /// GLM-5.1 - Z.AI model included with OpenCode Go
     OpenCodeGoGlm51,
+    /// Kimi K2.7 Code - Moonshot.ai's most capable coding model on OpenCode Go
+    OpenCodeGoKimiK27Code,
+    /// Kimi K2.6 - Moonshot.ai's 1T MoE model on OpenCode Go
+    OpenCodeGoKimiK26,
+    /// MiMo-V2.5 - Xiaomi's omnimodal model on OpenCode Go
+    OpenCodeGoMimoV25,
+    /// MiMo-V2.5-Pro - Xiaomi's flagship reasoning model on OpenCode Go
+    OpenCodeGoMimoV25Pro,
+    /// MiniMax M3 - Frontier multimodal coding model on OpenCode Go
+    OpenCodeGoMinimaxM3,
     /// MiniMax M2.7 - Higher-tier OpenCode Go subscription model
     OpenCodeGoMinimaxM27,
+    /// Qwen3.7 Max - Qwen flagship on OpenCode Go
+    OpenCodeGoQwen37Max,
+    /// Qwen3.7 Plus - Qwen balanced tier on OpenCode Go
+    OpenCodeGoQwen37Plus,
+    /// Qwen3.6 Plus - Qwen 3.6 tier on OpenCode Go
+    OpenCodeGoQwen36Plus,
+    /// DeepSeek V4 Pro - High-performance reasoning model on OpenCode Go
+    OpenCodeGoDeepseekV4Pro,
+    /// DeepSeek V4 Flash - Fast inference model on OpenCode Go
+    OpenCodeGoDeepseekV4Flash,
 
     // Qwen models (non-Qwen3 only)
     /// DeepSeek V4 Flash via Qwen Cloud API
