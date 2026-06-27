@@ -396,7 +396,11 @@ pub fn parse_responses_payload(
                     }
                 }
             }
-            _ => {}
+            _ => {
+                if !item_type.is_empty() {
+                    reasoning_items.push(item.clone());
+                }
+            }
         }
     }
 
@@ -1010,10 +1014,7 @@ mod tests {
             .reasoning_details
             .expect("unknown replay item should be preserved for future turns");
         assert!(preserved_items.iter().any(|item| {
-            serde_json::from_str::<Value>(item)
-                .ok()
-                .as_ref()
-                == Some(&unknown_replay_item)
+            serde_json::from_str::<Value>(item).ok().as_ref() == Some(&unknown_replay_item)
         }));
     }
 

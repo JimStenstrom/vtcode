@@ -750,7 +750,7 @@ impl OpenAIProvider {
         Self::validate_inline_file_inputs(request)?;
 
         let is_native_openai = self.is_native_openai_api();
-        let prompt_cache_key = if is_native_openai {
+        let prompt_cache_key = if is_native_openai || self.is_chatgpt_backend() {
             request.prompt_cache_key.as_deref()
         } else {
             None
@@ -761,7 +761,6 @@ impl OpenAIProvider {
             None
         };
         let backend_defaults = self.backend_setup.responses_defaults();
-        let is_chatgpt_backend = self.is_chatgpt_backend();
         let ctx = request_builder::ResponsesRequestContext {
             supports_tools: self.supports_tools(&request.model),
             supports_allowed_tools: self.supports_responses_allowed_tools(&request.model),
@@ -771,7 +770,6 @@ impl OpenAIProvider {
             supports_reasoning: self.supports_reasoning(&request.model),
             is_responses_api_model: Self::is_responses_api_model(&request.model),
             include_max_output_tokens: is_native_openai,
-            include_previous_response_id: false,
             include_output_types: backend_defaults.include_output_types,
             include_sampling_parameters: backend_defaults.include_sampling_parameters,
             force_response_store_false: true,
@@ -790,11 +788,6 @@ impl OpenAIProvider {
             preserve_structured_history_on_replay: backend_defaults
                 .preserve_structured_history_on_replay,
             preserve_assistant_phase_on_replay: false,
-            request_construction: if is_chatgpt_backend {
-                request_builder::ResponsesRequestConstruction::RigChatGptPrivateDefaultsCompatibility
-            } else {
-                request_builder::ResponsesRequestConstruction::OpenAiJsonWithRigTypedParameters
-            },
         };
 
         request_builder::build_responses_request(request, &ctx)

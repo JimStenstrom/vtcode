@@ -980,7 +980,7 @@ async fn api_key_responses_stream_sends_metadata_and_preserves_usage() {
     );
     let payload = captured.get("body").expect("body captured");
     assert_eq!(payload.get("stream").and_then(Value::as_bool), Some(true));
-    assert_eq!(payload.get("store").and_then(Value::as_bool), Some(true));
+    assert_eq!(payload.get("store").and_then(Value::as_bool), Some(false));
     assert_ne!(
         payload.get("include").and_then(Value::as_array),
         Some(&vec![json!("reasoning.encrypted_content")])
@@ -3478,7 +3478,7 @@ async fn manual_compaction_payload_includes_selected_fields_and_appends_instruct
     assert_eq!(p["model"], json!(models::openai::GPT_5_4));
     assert_eq!(p["max_output_tokens"], json!(321));
     assert_eq!(p["service_tier"], json!("priority"));
-    assert_eq!(p["store"], json!(true));
+    assert_eq!(p["store"], json!(false));
     assert_eq!(p["include"], json!(["reasoning.encrypted_content"]));
     assert_eq!(p["reasoning"]["effort"], json!("minimal"));
     assert_eq!(p["text"]["verbosity"], json!("high"));
