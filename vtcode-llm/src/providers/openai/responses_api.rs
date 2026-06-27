@@ -986,6 +986,38 @@ mod tests {
     }
 
     #[test]
+    fn parse_responses_payload_preserves_unknown_replay_items() {
+        let unknown_replay_item = json!({
+            "type": "provider_replay_state",
+            "id": "prs_1",
+            "encrypted_content": "opaque_provider_state",
+            "future_field": {"preserve": true}
+        });
+        let response = json!({
+            "output": [
+                unknown_replay_item.clone(),
+                {
+                    "type": "message",
+                    "content": [{"type": "output_text", "text": "done"}]
+                }
+            ]
+        });
+
+        let parsed = parse_responses_payload(response, "gpt-5.3-codex".to_string(), false)
+            .expect("payload should parse");
+
+        let preserved_items = parsed
+            .reasoning_details
+            .expect("unknown replay item should be preserved for future turns");
+        assert!(preserved_items.iter().any(|item| {
+            serde_json::from_str::<Value>(item)
+                .ok()
+                .as_ref()
+                == Some(&unknown_replay_item)
+        }));
+    }
+
+    #[test]
     fn standard_payload_replays_custom_tool_turns_with_custom_items() {
         let request = LLMRequest {
             messages: vec![
