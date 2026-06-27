@@ -104,4 +104,14 @@ These VT Code settings line up with common agent-loop controls:
 - Tool discovery: MCP and tool catalog flows
 - Resume and fork continuity: session archives, thread bootstrap, and compaction envelopes
 
-Subagents are unchanged in this pass.
+## Loop Engineering Additions
+
+The subagent layer now supports loop-engineering primitives:
+
+- **Worktree isolation**: set `isolation = "worktree"` on an agent spec to run the child in a git worktree under `.vtcode/worktrees/`. The child's file mutations stay in its own working tree until explicitly merged.
+- **Propose/verify separation**: `SubagentController::verify_proposed_change()` spawns a read-only verifier sub-agent that re-reads affected files and approves or rejects the change. The verifier has no shared context with the proposer.
+- **Loop run state**: `vtcode-core/src/loop_state.rs` persists step index, cumulative cost, and status to `.vtcode/state/loop-<id>.json` so a scheduler can resume across invocations.
+- **Loop memory**: `vtcode-core/src/loop_memory.rs` provides an append-only store for agent notes and decisions in `.vtcode/state/notes.md` and `decisions.md`.
+- **Cost guardrails**: `CostBudget` in `loop_state.rs` tracks token/cost/step limits and reports `BudgetStatus` (Ok/TokenLimitReached/CostLimitReached/StepLimitReached).
+
+See [docs/project/PLAN-loop-engineering.md](../project/PLAN-loop-engineering.md) for the full design.

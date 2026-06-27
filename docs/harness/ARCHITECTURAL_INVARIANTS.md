@@ -255,6 +255,22 @@ Every intentional "fix" for an observed error must be followed by running at lea
 
 ---
 
+## 17. Loop Safety
+
+When vtcode-core is invoked by an external loop (scheduler, CI, or a future loop crate), each invocation must be stateless across runs. No mutable global state, leaked temp files, or stale worktrees may persist between loop iterations.
+
+Key guarantees:
+
+- **Loop run state** is persisted explicitly to `.vtcode/state/loop-<id>.json` via `LoopRunState`. In-memory state is discarded at the end of each invocation.
+- **Loop memory** (notes, decisions) is append-only in `.vtcode/state/`. The agent reads previous entries on startup and appends new ones; it never overwrites.
+- **Worktree isolation** prevents parallel loop runs from colliding on the working tree. Each spawned sub-agent with `isolation = "worktree"` gets its own git worktree under `.vtcode/worktrees/`.
+- **Cost guardrails** (`CostBudget` in `loop_state.rs`) prevent unbounded iteration cost. The loop scheduler reads the budget on resume and stops when limits are reached.
+
+**Violation**: global mutable state that leaks between invocations, or worktree paths left behind after the loop run completes.
+**Remediation**: use `LoopRunState` for persistence, clean up worktrees via `WorktreeManager::remove()`, and ensure all state flows through the explicit `.vtcode/state/` layout.
+
+---
+
 ## Enforcement
 
 These invariants should be enforced by:

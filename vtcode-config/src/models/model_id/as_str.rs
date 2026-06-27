@@ -60,8 +60,21 @@ impl ModelId {
             }
             ModelId::OpenCodeZenGlm51 => Cow::Borrowed(models::opencode_zen::GLM_5_1),
             // OpenCode Go models
+            ModelId::OpenCodeGoGlm52 => Cow::Borrowed(models::opencode_go::GLM_5_2),
             ModelId::OpenCodeGoGlm51 => Cow::Borrowed(models::opencode_go::GLM_5_1),
+            ModelId::OpenCodeGoKimiK27Code => Cow::Borrowed(models::opencode_go::KIMI_K2_7_CODE),
+            ModelId::OpenCodeGoKimiK26 => Cow::Borrowed(models::opencode_go::KIMI_K2_6),
+            ModelId::OpenCodeGoMimoV25 => Cow::Borrowed(models::opencode_go::MIMO_V2_5),
+            ModelId::OpenCodeGoMimoV25Pro => Cow::Borrowed(models::opencode_go::MIMO_V2_5_PRO),
+            ModelId::OpenCodeGoMinimaxM3 => Cow::Borrowed(models::opencode_go::MINIMAX_M3),
             ModelId::OpenCodeGoMinimaxM27 => Cow::Borrowed(models::opencode_go::MINIMAX_M2_7),
+            ModelId::OpenCodeGoQwen37Max => Cow::Borrowed(models::opencode_go::QWEN_3_7_MAX),
+            ModelId::OpenCodeGoQwen37Plus => Cow::Borrowed(models::opencode_go::QWEN_3_7_PLUS),
+            ModelId::OpenCodeGoQwen36Plus => Cow::Borrowed(models::opencode_go::QWEN_3_6_PLUS),
+            ModelId::OpenCodeGoDeepseekV4Pro => Cow::Borrowed(models::opencode_go::DEEPSEEK_V4_PRO),
+            ModelId::OpenCodeGoDeepseekV4Flash => {
+                Cow::Borrowed(models::opencode_go::DEEPSEEK_V4_FLASH)
+            }
             // Ollama models
             ModelId::OllamaGptOss20b => Cow::Borrowed(models::ollama::GPT_OSS_20B),
             ModelId::OllamaGptOss20bCloud => Cow::Borrowed(models::ollama::GPT_OSS_20B_CLOUD),

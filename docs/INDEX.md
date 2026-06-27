@@ -34,6 +34,7 @@ Last reviewed: 2026-06-17
 - [Indexer Notes](modules/vtcode_indexer.md) - Indexer behavior and usage.
 - [Development Guide](development/README.md) - Local dev workflows.
 - [Roadmap](project/ROADMAP.md) - Planned work.
+- [Loop Engineering](project/PLAN-loop-engineering.md) - Worktree isolation, propose/verify sub-agents, loop state, cost guardrails.
 
 ## Module Documentation
 

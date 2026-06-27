@@ -206,6 +206,11 @@ This document serves as an index of all VT Code documentation. When users ask qu
   - **Topics**: What Makes VT Code Special, Enhanced Terminal Interface, Configuration, Usage Examples, Understanding the Agents
   - **User Questions**: "What can you tell me about Getting Started with VT Code?", "How does What Makes VT Code Special work?", "How does Enhanced Terminal Interface work?"
 
+- **File**: `docs/loop-engineering.md`
+  - **Content**: Loop Engineering in vtcode
+  - **Topics**: The Five Primitives, Reconcile Flow, Configuration, Feature Flags
+  - **User Questions**: "What can you tell me about Loop Engineering in vtcode?", "How does The Five Primitives work?", "How does Reconcile Flow work?"
+
 - **File**: `docs/user-guide/scheduled-tasks.md`
   - **Content**: Scheduled Tasks
   - **Topics**: Session-scoped scheduling, Durable scheduling, Config and disable flags, Security model
@@ -270,7 +275,7 @@ This document serves as an index of all VT Code documentation. When users ask qu
 
 - **File**: `docs/guides/full-automation.md`
   - **Content**: Full Automation
-  - **Topics**: Activation Checklist, Runtime Behaviour, Customising The Allow-List, Orchestrated Harness, Profile File Recommendations
+  - **Topics**: Activation Checklist, Runtime Behaviour, Customising The Allow-List, Propose/Verify Sub-agent, Orchestrated Harness
   - **User Questions**: "What can you tell me about Full Automation?", "How does Activation Checklist work?", "How does Runtime Behaviour work?"
 
 - **File**: `docs/guides/permissions.md`
@@ -718,6 +723,11 @@ This document serves as an index of all VT Code documentation. When users ask qu
   - **Content**: Open Responses Specification Conformance
   - **Topics**: Conformance Overview, What is Open Responses?, Implementation Details, Conformance Levels, Response Object Structure
   - **User Questions**: "What can you tell me about Open Responses Specification Conformance?", "How does Conformance Overview work?", "How does What is Open Responses? work?"
+
+- **File**: `docs/project/PLAN-loop-engineering.md`
+  - **Content**: PLAN: vtcode Loop Engineering — Apply Addy Osmani's Pattern to vtcode-core
+  - **Topics**: 1. Why this plan exists, 2. The article's checklist mapped to vtcode, 3. Goals (in order of priority), 4. Non-goals, 5. Architectural decisions
+  - **User Questions**: "What can you tell me about PLAN: vtcode Loop Engineering — Apply Addy Osmani's Pattern to vtcode-core?", "How does 1. Why this plan exists work?", "How does 2. The article's checklist mapped to vtcode work?"
 
 - **File**: `docs/pty/PTY_ANSI_HANDLING.md`
   - **Content**: PTY Output ANSI Handling

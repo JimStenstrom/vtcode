@@ -33,6 +33,9 @@ pub use types::{
     SubagentStatusEntry, SubagentThreadSnapshot, TurnDelegationHints,
 };
 
+// VerificationResult is defined in this module (below) and re-exported at the
+// crate root via `pub use subagents::VerificationResult`.
+
 // ─── Public Utilities ───────────────────────────────────────────────────────
 
 pub fn is_subagent_tool(name: &str) -> bool {
@@ -53,6 +56,20 @@ struct PreparedDelegationContext {
     explicit_mentions: Vec<String>,
     explicit_request: bool,
     current_input: String,
+}
+
+/// Result of a propose/verify cycle.
+///
+/// Returned by [`SubagentController::verify_proposed_change`]. The caller
+/// inspects `approved` to decide whether to commit or retry the mutation.
+#[derive(Debug, Clone)]
+pub struct VerificationResult {
+    /// Whether the verifier approved the change.
+    pub approved: bool,
+    /// Concrete issues identified by the verifier (empty if approved).
+    pub issues: Vec<String>,
+    /// Free-text reasoning from the verifier.
+    pub reasoning: String,
 }
 
 // ─── Controller ─────────────────────────────────────────────────────────────
@@ -1466,9 +1483,20 @@ impl SubagentController {
                 self.config.vt_cfg.subagents.max_depth
             );
         }
-        if spec.isolation.as_deref() == Some("worktree") {
-            bail!("Subagent isolation=worktree is not supported in this VT Code build");
-        }
+        // Create a worktree for isolation if requested.
+        let worktree_path = if spec.isolation.as_deref() == Some("worktree") {
+            let wm = crate::git::WorktreeManager::new(&self.config.workspace_root);
+            let wt_name = format!(
+                "{}-{}",
+                sanitize_component(spec.name.as_str()),
+                Utc::now().format("%Y%m%dT%H%M%S")
+            );
+            Some(wm.create(&wt_name).with_context(|| {
+                format!("Failed to create worktree for subagent '{}'", spec.name)
+            })?)
+        } else {
+            None
+        };
 
         let active_count = {
             let state = self.state.read().await;
@@ -1556,6 +1584,7 @@ impl SubagentController {
             thread_handle: None,
             handle: None,
             notify,
+            worktree_path,
         };
         state.children.insert(id.clone(), entry);
         drop(state);
@@ -1603,6 +1632,32 @@ impl SubagentController {
         let target = child_id.to_string();
         let handle = tokio::spawn(async move {
             Box::pin(controller.child_loop(&target)).await;
+
+            // After child_loop completes, reconcile worktree if needed.
+            // This runs on the owned controller clone so it does not affect
+            // the Send-ness of child_loop's future.
+            let worktree_info = {
+                let state = controller.state.read().await;
+                state.children.get(&target).and_then(|record| {
+                    record
+                        .worktree_path
+                        .as_ref()
+                        .map(|p| (p.clone(), record.spec.name.clone()))
+                })
+            };
+
+            if let Some((wt_path, wt_name)) = worktree_info
+                && controller
+                    .config
+                    .vt_cfg
+                    .automation
+                    .loop_engine
+                    .reconcile_on_complete
+            {
+                controller
+                    .run_worktree_reconciliation(&target, &wt_path, &wt_name)
+                    .await;
+            }
         });
 
         // Store the handle in the record.
@@ -1682,14 +1737,16 @@ impl SubagentController {
 
             if has_more_work {
                 continue;
-            } else {
+            }
+
+            {
                 let mut state = self.state.write().await;
                 if let Some(record) = state.children.get_mut(child_id) {
                     record.handle = None;
                     record.updated_at = Utc::now();
                 }
-                return;
             }
+            return;
         }
     }
 
@@ -1701,7 +1758,7 @@ impl SubagentController {
         model_override: Option<String>,
         reasoning_override: Option<String>,
     ) -> Result<ChildRunResult> {
-        let (spec, session_id, bootstrap_messages, display_label, background) = {
+        let (spec, session_id, bootstrap_messages, display_label, background, worktree_path) = {
             let mut state = self.state.write().await;
             let record = state
                 .children
@@ -1715,8 +1772,15 @@ impl SubagentController {
                 record.stored_messages.clone(),
                 record.display_label.clone(),
                 record.background,
+                record.worktree_path.clone(),
             )
         };
+
+        // Use the worktree path as the effective workspace root if the
+        // subagent was spawned with isolation=worktree.
+        let effective_workspace = worktree_path
+            .as_deref()
+            .unwrap_or(&self.config.workspace_root);
 
         let (resolved_model, child_reasoning_effort, child_cfg) = prepare_child_runtime_config(
             &self.config.vt_cfg,
@@ -1732,7 +1796,7 @@ impl SubagentController {
         let parent_session_id = self.parent_session_id.read().await.clone();
 
         let archive_metadata = build_subagent_archive_metadata(
-            &self.config.workspace_root,
+            effective_workspace,
             child_cfg.agent.default_model.as_str(),
             child_cfg.agent.provider.as_str(),
             child_cfg.agent.theme.as_str(),
@@ -1753,7 +1817,7 @@ impl SubagentController {
             agent_type_for_spec(&spec),
             resolved_model,
             self.config.api_key.clone(),
-            self.config.workspace_root.clone(),
+            effective_workspace.to_path_buf(),
             session_id.clone(),
             RunnerSettings {
                 reasoning_effort: Some(child_reasoning_effort),
@@ -1837,6 +1901,238 @@ impl SubagentController {
             outcome: results.outcome,
             transcript_path,
         })
+    }
+
+    /// Verify a proposed change by spawning a read-only verifier sub-agent.
+    ///
+    /// The verifier re-reads the affected files and either approves or rejects
+    /// the change. On rejection, the caller can retry the mutation up to N times.
+    ///
+    /// This implements the propose/verify separation from Osmani's loop
+    /// engineering pattern: the proposer and verifier are independent agents
+    /// with no shared context bias.
+    pub async fn verify_proposed_change(
+        &self,
+        diff_description: &str,
+        file_paths: &[PathBuf],
+    ) -> Result<VerificationResult> {
+        let verifier_spec = match self.find_spec("verifier").await {
+            Some(s) => Some(s),
+            None => {
+                // Fall back to a synthetic read-only spec if no verifier agent is defined.
+                self.find_spec("explorer").await
+            }
+        };
+
+        let spec = match verifier_spec {
+            Some(s) => s,
+            None => {
+                // No verifier or explorer agent available. Reject by default
+                // (fail-closed) — unverified changes must not be merged.
+                tracing::warn!("No verifier agent found; rejecting change without verification");
+                return Ok(VerificationResult {
+                    approved: false,
+                    issues: vec!["No verifier agent available to review this change.".to_string()],
+                    reasoning: "No verifier agent available; rejected (fail-closed).".to_string(),
+                });
+            }
+        };
+
+        let files_list = file_paths
+            .iter()
+            .map(|p| format!("- {}", p.display()))
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        let prompt = format!(
+            "Verify the following proposed change.\n\n\
+             ## Diff Description\n{}\n\n\
+             ## Affected Files\n{}\n\n\
+             Read each affected file and check for correctness, safety, and convention adherence.\n\
+             Respond with your verification result in the format specified in your instructions.",
+            diff_description, files_list
+        );
+
+        let request = SpawnAgentRequest {
+            agent_type: Some(spec.name.clone()),
+            message: Some(prompt),
+            items: Vec::new(),
+            fork_context: false,
+            model: None,
+            reasoning_effort: None,
+            background: false,
+            max_turns: Some(3),
+        };
+
+        let status = self.spawn_custom(spec.clone(), request).await?;
+        let entry = self.wait(&[status.id.clone()], Some(60_000)).await?;
+
+        match entry {
+            Some(entry) if entry.status == SubagentStatus::Completed => {
+                let summary = entry.summary.unwrap_or_default();
+                let issues = extract_issues_from_summary(&summary);
+                let lower = summary.to_lowercase();
+
+                // Positive approval: verifier must explicitly state approval.
+                // Ambiguous or unclear results default to rejected (fail-closed).
+                let explicitly_approved = lower.contains("approved")
+                    || lower.contains("safe to merge")
+                    || lower.contains("no issues found")
+                    || lower.contains("looks correct")
+                    || lower.contains("verification passed");
+                let explicitly_rejected = lower.contains("reject")
+                    || lower.contains("denied")
+                    || lower.contains("unsafe")
+                    || lower.contains("blocked")
+                    || lower.contains("dangerous")
+                    || lower.contains("malicious")
+                    || lower.contains("vulnerability");
+
+                let approved = if explicitly_rejected {
+                    false
+                } else if explicitly_approved && issues.is_empty() {
+                    true
+                } else {
+                    false
+                };
+
+                Ok(VerificationResult {
+                    approved,
+                    issues,
+                    reasoning: summary,
+                })
+            }
+            Some(entry) => {
+                let error = entry.error.unwrap_or_default();
+                tracing::warn!(
+                    error = %error,
+                    "Verifier sub-agent failed; rejecting change (fail-closed)"
+                );
+                Ok(VerificationResult {
+                    approved: false,
+                    issues: vec![format!("Verifier agent error: {error}")],
+                    reasoning: format!("Verifier failed: {error}"),
+                })
+            }
+            None => {
+                tracing::warn!("Verifier sub-agent timed out; rejecting change (fail-closed)");
+                Ok(VerificationResult {
+                    approved: false,
+                    issues: vec!["Verifier agent timed out after 60s.".to_string()],
+                    reasoning: "Verifier timed out.".to_string(),
+                })
+            }
+        }
+    }
+
+    /// Reconcile a worktree-isolated child: diff → verify → merge → cleanup.
+    ///
+    /// Uses `WorktreeReconciler::reconcile` in a single `spawn_blocking` call
+    /// with a synchronous verify closure. This avoids borrowing `&self` across
+    /// spawn boundaries, which would make the parent `tokio::spawn` future
+    /// non-Send due to the recursive spawn chain through `verify_proposed_change`.
+    async fn run_worktree_reconciliation(
+        &self,
+        child_id: &str,
+        wt_path: &std::path::Path,
+        wt_name: &str,
+    ) {
+        let ws = self.config.workspace_root.clone();
+        let wt_name_owned = wt_name.to_string();
+        let wt_path_owned = wt_path.to_path_buf();
+
+        let result = tokio::task::spawn_blocking(move || {
+            let reconciler = crate::git::WorktreeReconciler::new(&ws, "main");
+            reconciler.reconcile(&wt_name_owned, &wt_path_owned, |diff, _files| {
+                // Heuristic verification: reject obviously dangerous patterns.
+                let lower = diff.to_lowercase();
+                let mut issues = Vec::new();
+
+                // Destructive shell commands
+                if lower.contains("rm -rf") || lower.contains("rm -fr") {
+                    issues.push("Diff contains 'rm -rf' pattern".to_string());
+                }
+                // Fork bombs and process abuse
+                if lower.contains(":(){ :|:&") || lower.contains("fork bomb") {
+                    issues.push("Diff contains fork bomb pattern".to_string());
+                }
+                // Curl-pipe-to-shell
+                if (lower.contains("curl") || lower.contains("wget"))
+                    && lower.contains("|")
+                    && (lower.contains("sh") || lower.contains("bash") || lower.contains("python"))
+                {
+                    issues.push("Diff contains pipe-to-shell pattern".to_string());
+                }
+                // Credential exfiltration
+                if lower.contains("curl")
+                    && (lower.contains("password")
+                        || lower.contains("secret")
+                        || lower.contains("token")
+                        || lower.contains("api_key"))
+                {
+                    issues.push("Diff may exfiltrate credentials via curl".to_string());
+                }
+                // chmod 777 on system paths
+                if lower.contains("chmod 777") || lower.contains("chmod -r 777") {
+                    issues.push("Diff contains overly permissive chmod".to_string());
+                }
+                // Eval of untrusted input
+                if lower.contains("eval(") || lower.contains("eval ") {
+                    issues.push("Diff contains eval usage".to_string());
+                }
+
+                if issues.is_empty() {
+                    Ok((true, Vec::new(), "Heuristic check passed".to_string()))
+                } else {
+                    let reasoning = format!("Heuristic check found {} issue(s)", issues.len());
+                    Ok((false, issues, reasoning))
+                }
+            })
+        })
+        .await;
+
+        match result {
+            Ok(Ok(rr)) if rr.approved && rr.merged => {
+                tracing::info!(
+                    child_id,
+                    worktree = %wt_name,
+                    reasoning = %rr.reasoning,
+                    "Worktree reconciled and merged"
+                );
+            }
+            Ok(Ok(rr)) if !rr.approved => {
+                tracing::warn!(
+                    child_id,
+                    worktree = %wt_name,
+                    issues = ?rr.issues,
+                    "Verifier rejected worktree changes; skipping merge"
+                );
+            }
+            Ok(Ok(rr)) => {
+                tracing::info!(
+                    child_id,
+                    worktree = %wt_name,
+                    reasoning = %rr.reasoning,
+                    "Worktree reconciliation completed (no merge needed)"
+                );
+            }
+            Ok(Err(err)) => {
+                tracing::warn!(
+                    child_id,
+                    worktree = %wt_name,
+                    error = %err,
+                    "Worktree reconciliation failed"
+                );
+            }
+            Err(err) => {
+                tracing::warn!(
+                    child_id,
+                    worktree = %wt_name,
+                    error = %err,
+                    "Reconciliation spawn_blocking panicked"
+                );
+            }
+        }
     }
 }
 
@@ -1927,6 +2223,37 @@ fn transcript_line_from_message(message: &Message) -> Option<String> {
     Some(format!("{role}: {content}"))
 }
 
+/// Extract issue descriptions from a verifier sub-agent's summary text.
+///
+/// Looks for lines starting with common issue markers (e.g. "- ISSUE:",
+/// "- REJECT:", numbered items) and collects them. Returns an empty vec
+/// if no structured issues are found.
+fn extract_issues_from_summary(summary: &str) -> Vec<String> {
+    let mut issues = Vec::new();
+    for line in summary.lines() {
+        let trimmed = line.trim();
+        // Match patterns like "- ISSUE: ...", "- REJECT: ...", "1. ISSUE: ..."
+        let lower = trimmed.to_ascii_lowercase();
+        if lower.contains("issue:")
+            || lower.contains("reject:")
+            || lower.contains("problem:")
+            || lower.contains("error:")
+            || lower.contains("violation:")
+        {
+            // Strip leading list markers ("- ", "1. ", "* ", etc.)
+            let cleaned = trimmed
+                .trim_start_matches(|c: char| {
+                    c.is_ascii_digit() || c == '.' || c == '-' || c == '*' || c == ' '
+                })
+                .trim();
+            if !cleaned.is_empty() {
+                issues.push(cleaned.to_string());
+            }
+        }
+    }
+    issues
+}
+
 // ─── Tests ──────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
@@ -2014,6 +2341,7 @@ mod tests {
             thread_handle: None,
             handle: None,
             notify: Arc::new(Notify::new()),
+            worktree_path: None,
         }
     }
 
@@ -3818,6 +4146,7 @@ Inspect the repository.
                         thread_handle: None,
                         handle: None,
                         notify: Arc::new(Notify::new()),
+                        worktree_path: None,
                     },
                 );
             }
@@ -3886,6 +4215,7 @@ Inspect the repository.
                         thread_handle: None,
                         handle: None,
                         notify: Arc::new(Notify::new()),
+                        worktree_path: None,
                     },
                 );
             }

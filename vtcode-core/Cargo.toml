@@ -101,6 +101,7 @@ quick_cache = "0.6"
 roff = "1.1"
 unicode-width = { workspace = true }
 crossterm = { workspace = true, features = ["event-stream"], optional = true }
+rusqlite = { version = "0.35", features = ["bundled"], optional = true }
 nix = { version = "0.31", features = ["user", "signal", "poll", "term"] }
 ratatui = { workspace = true, features = [
     "crossterm",
@@ -115,20 +116,20 @@ rig = { package = "rig-core", version = "0.39", default-features = false, featur
 ] }
 portable-pty = "0.9.0"
 ansi-to-tui = "8.0.1"
-vtcode-commons = { path = "../vtcode-commons", version = "0.133.10" }
-vtcode-ui = { path = "../vtcode-ui", version = "0.133.10" }
-vtcode-macros = { path = "../vtcode-macros", version = "0.133.10" }
-vtcode-exec-events = { path = "../vtcode-exec-events", version = "0.133.10" }
-vtcode-auth = { path = "../vtcode-auth", version = "0.133.10" }
-vtcode-config = { path = "../vtcode-config", version = "0.133.10" }
-vtcode-utility-tool-specs = { path = "../vtcode-utility-tool-specs", version = "0.133.10" }
-vtcode-indexer = { path = "../vtcode-indexer", version = "0.133.10" }
-vtcode-bash-runner = { path = "../vtcode-bash-runner", version = "0.133.10" }
-vtcode-safety = { path = "../vtcode-safety", version = "0.133.10" }
-vtcode-a2a = { path = "../vtcode-a2a", version = "0.133.10" }
-vtcode-mcp = { path = "../vtcode-mcp", version = "0.133.10" }
-vtcode-llm = { path = "../vtcode-llm", version = "0.133.10", features = ["copilot"] }
-vtcode-skills = { path = "../vtcode-skills", version = "0.133.10" }
+vtcode-commons = { path = "../vtcode-commons", version = "0.133.19" }
+vtcode-ui = { path = "../vtcode-ui", version = "0.133.19" }
+vtcode-macros = { path = "../vtcode-macros", version = "0.133.19" }
+vtcode-exec-events = { path = "../vtcode-exec-events", version = "0.133.19" }
+vtcode-auth = { path = "../vtcode-auth", version = "0.133.19" }
+vtcode-config = { path = "../vtcode-config", version = "0.133.19" }
+vtcode-utility-tool-specs = { path = "../vtcode-utility-tool-specs", version = "0.133.19" }
+vtcode-indexer = { path = "../vtcode-indexer", version = "0.133.19" }
+vtcode-bash-runner = { path = "../vtcode-bash-runner", version = "0.133.19" }
+vtcode-safety = { path = "../vtcode-safety", version = "0.133.19" }
+vtcode-a2a = { path = "../vtcode-a2a", version = "0.133.19" }
+vtcode-mcp = { path = "../vtcode-mcp", version = "0.133.19" }
+vtcode-llm = { path = "../vtcode-llm", version = "0.133.19", features = ["copilot"] }
+vtcode-skills = { path = "../vtcode-skills", version = "0.133.19" }
 
 # Schema generation
 schemars = { workspace = true, optional = true }
@@ -192,6 +193,7 @@ a2a-server = ["http-server", "vtcode-a2a/a2a-server"]
 anthropic-api = ["http-server"]
 http-server = ["dep:axum", "dep:tower", "dep:tower-http", "dep:tokio-stream"]
 desktop-notifications = ["dep:notify-rust"]
+sqlite = ["dep:rusqlite"]
 
 [package.metadata.cargo-machete]
 ignored = ["toml_edit", "tower"]

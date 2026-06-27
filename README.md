@@ -27,6 +27,7 @@ VT Code is a Rust coding agent built for long-running autonomous workflows, with
 - **Model providers** - 21+ LLM providers: Anthropic, OpenAI, Gemini, OpenRouter, Ollama, LM Studio, and more
 - **Safety** - Restricted shell sandbox, tool guardrails, subprocess isolation, full audit logging
 - **Protocols** - Open Responses, Agent2Agent (A2A), ATIF, Anthropic Messages API
+- **Loop engineering** - Worktree isolation for parallel agents, propose/verify sub-agent separation, durable loop state, cost guardrails
 
 ## Quick start
 
@@ -62,16 +63,11 @@ vtcode update                  # self-update
 - [**Editor guides**](./docs/guides/zed-acp.md) - Zed ACP, VS Code, Claude Code
 - [**Safety**](./docs/security/SECURITY_MODEL.md) - Shell sandbox, security hardening, threat model
 - [**Protocols**](./docs/protocols/OPEN_RESPONSES.md) - Open Responses, ATIF, A2A, Anthropic Messages API
+- [**Loop engineering**](./docs/project/PLAN-loop-engineering.md) - Worktree isolation, propose/verify, loop state, cost guardrails
 
 ## Providers
 
-VT Code ships with **MiMo V2.5 (Xiaomi)** as the default model (1M-token context, `mimo-v2.5-pro`) and supports 21+ LLM providers out of the box, plus any OpenAI-compatible API via `[[custom_providers]]`.
-
-<p align="center"><a href="https://platform.xiaomimimo.com?ref=K5BCAP"><img src="./resources/screenshots/xiaomi_mi_promo.png" alt="Xiaomi MiMo" width="380" style="border-radius: 8px" /></a></p>
-
-### Z.ai GLM Coding Plan Special
-
-> 👉🏼 **Z.ai Coding Plan** — Use GLM-5.2, full support for Claude Code, Codex, and 20+ top coding tools, starting at $18/month. [Join now with invite code **KPHRHRAVLL**](https://z.ai/subscribe?ic=KPHRHRAVLL). _(Limited-time pricing)_
+VT Code supports 21+ LLM providers out of the box, plus any OpenAI-compatible API via `[[custom_providers]]`.
 
 | Category            | Providers                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -81,8 +77,6 @@ VT Code ships with **MiMo V2.5 (Xiaomi)** as the default model (1M-token context
 | **Other**           | [GitHub Copilot](./docs/providers/PROVIDER_GUIDES.md#github-copilot) · [Anthropic API Compat](./docs/providers/PROVIDER_GUIDES.md#anthropic-api-compatibility-server) · [Poolside](./docs/providers/PROVIDER_GUIDES.md#poolside)                                                                                                                                                                                                                                                                                                                      |
 
 Read: [Provider Guides](./docs/providers/PROVIDER_GUIDES.md).
-
-<sup>Atlas Cloud referral: [atlascloud.ai?ref=C59AAV](https://www.atlascloud.ai?ref=C59AAV)</sup>
 
 ## Development
 

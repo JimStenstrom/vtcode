@@ -110,7 +110,7 @@ pub(super) fn evaluate_interim_text_continuation(
         // input and should NOT be treated as continuation-worthy. This prevents
         // infinite loops where the model explains blockers and asks the user how
         // to proceed, but the system keeps injecting continue directives.
-        let asks_user_question = text.contains('?') || contains_user_directed_question(&lower);
+        let asks_user_question = text.contains('?') || contains_user_input_request(&lower);
         // Also cap relaxed continuations to prevent infinite loops where the model
         // keeps producing continuation-worthy text without progress.
         let relaxed_budget_exhausted =
@@ -209,19 +209,7 @@ pub(super) fn is_interim_progress_update(text: &str) -> bool {
         return false;
     }
 
-    let user_input_markers = [
-        "could you",
-        "can you",
-        "please provide",
-        "need your",
-        "need you to",
-        "which option",
-    ];
-    if trimmed.contains('?')
-        || user_input_markers
-            .iter()
-            .any(|marker| lower.contains(marker))
-    {
+    if trimmed.contains('?') || contains_user_input_request(&lower) {
         return false;
     }
 
@@ -325,12 +313,32 @@ fn has_relaxed_continuation_intent(lower: &str) -> bool {
     .any(|needle| lower.contains(needle))
 }
 
-/// Returns true when the text contains a question directed at the user,
+/// Returns true when the text asks for user input,
 /// indicating the model is waiting for input rather than continuing autonomously.
 /// This prevents infinite loops where the model explains blockers and asks the
 /// user how to proceed, but the system keeps injecting continue directives.
-fn contains_user_directed_question(lower: &str) -> bool {
-    let user_question_patterns = [
+fn contains_user_input_request(lower: &str) -> bool {
+    let anywhere_patterns = [
+        "please provide",
+        "need your",
+        "need you to",
+        "please confirm",
+        "please let me know",
+        "waiting for your",
+        "awaiting your",
+        "your choice",
+        "your decision",
+    ];
+    if anywhere_patterns
+        .iter()
+        .any(|pattern| lower.contains(pattern))
+    {
+        return true;
+    }
+
+    let clause_start_patterns = [
+        "could you",
+        "can you",
         "how would you like",
         "what would you like",
         "which option",
@@ -345,18 +353,45 @@ fn contains_user_directed_question(lower: &str) -> bool {
         "what would you prefer",
         "which approach",
         "any suggestions",
-        "please confirm",
-        "please let me know",
         "let me know how",
         "let me know if",
-        "waiting for your",
-        "awaiting your",
-        "your choice",
-        "your decision",
+        "let me know what",
+        "let me know which",
+        "let me know whether",
+        "let me know where",
+        "let me know when",
+        "let me know why",
+        "tell me how",
+        "tell me if",
+        "tell me what",
+        "tell me which",
+        "tell me whether",
+        "tell me where",
+        "tell me when",
+        "tell me why",
     ];
-    user_question_patterns
+    clause_start_patterns
         .iter()
-        .any(|pattern| lower.contains(pattern))
+        .any(|pattern| contains_phrase_at_clause_start(lower, pattern))
+}
+
+fn contains_phrase_at_clause_start(lower: &str, phrase: &str) -> bool {
+    lower
+        .match_indices(phrase)
+        .any(|(idx, _)| is_clause_start(lower, idx))
+}
+
+fn is_clause_start(text: &str, idx: usize) -> bool {
+    for ch in text[..idx].chars().rev() {
+        if ch == '\n' {
+            return true;
+        }
+        if ch.is_whitespace() {
+            continue;
+        }
+        return matches!(ch, '.' | '!' | '?' | ':' | ';' | ',' | '—' | '…');
+    }
+    true
 }
 
 /// Returns true when a single clause expresses an intent to continue working.
@@ -547,6 +582,9 @@ mod tests {
         ));
         assert!(!is_interim_progress_update(
             "I need you to choose which option to apply."
+        ));
+        assert!(!is_interim_progress_update(
+            "Let me know what you'd like to dig into next."
         ));
         assert!(!is_interim_progress_update(
             "Running cargo fmt uses rustfmt to rewrite the source files."
@@ -993,6 +1031,99 @@ mod tests {
     }
 
     #[test]
+    fn relaxed_continuation_does_not_trigger_for_first_turn_handoff_offer() {
+        let repo_overview = checkpoint_shaped_repo_overview();
+        let history = vec![
+            uni::Message::user("what's in this repo?".to_string()),
+            uni::Message::assistant(String::new()).with_tool_calls(vec![uni::ToolCall::function(
+                "call_1".to_string(),
+                "unified_file".to_string(),
+                "{}".to_string(),
+            )]),
+            uni::Message::tool_response("call_1".to_string(), "README summary".to_string()),
+        ];
+
+        let decision = evaluate_interim_text_continuation(true, false, &history, repo_overview, 0);
+
+        assert!(
+            !decision.should_continue,
+            "handoff offers after answering a first-turn question should end the turn"
+        );
+    }
+
+    #[tokio::test]
+    async fn first_turn_handoff_offer_completes_without_continue_directive() {
+        let mut backing = TestTurnProcessingBacking::new(4).await;
+        let mut ctx = backing.turn_processing_context();
+        ctx.working_history
+            .push(uni::Message::user("what's in this repo?".to_string()));
+        ctx.working_history
+            .push(uni::Message::assistant(String::new()).with_tool_calls(vec![
+                uni::ToolCall::function(
+                    "call_1".to_string(),
+                    "unified_file".to_string(),
+                    "{}".to_string(),
+                ),
+            ]));
+        ctx.working_history.push(uni::Message::tool_response(
+            "call_1".to_string(),
+            "README summary".to_string(),
+        ));
+
+        let outcome = ctx
+            .handle_text_response(
+                checkpoint_shaped_repo_overview().to_string(),
+                Vec::new(),
+                None,
+                None,
+                false,
+            )
+            .await
+            .expect("repo overview response should be handled");
+
+        assert!(matches!(
+            outcome,
+            TurnHandlerOutcome::Break(TurnLoopResult::Completed)
+        ));
+        let last_assistant = ctx
+            .working_history
+            .iter()
+            .rev()
+            .find(|message| message.role == uni::MessageRole::Assistant)
+            .expect("assistant message should be recorded");
+        assert_eq!(last_assistant.phase, Some(uni::AssistantPhase::FinalAnswer));
+        assert!(!ctx.working_history.iter().any(|message| {
+            message.role == uni::MessageRole::System
+                && message.content.as_text().trim() == AUTONOMOUS_CONTINUE_DIRECTIVE
+        }));
+    }
+
+    fn checkpoint_shaped_repo_overview() -> &'static str {
+        "Here's a quick overview of the repo:\n\n\
+        **VT Code** — a Rust coding agent for long-running autonomous workflows, with OS-native sandboxing, multi-provider LLM support, open protocols, and extensible Skills.\n\n\
+        **Layout**\n\
+        - Root crate `vtcode` (binary) + workspace of ~30 member crates under `vtcode-*` (e.g. `vtcode-core`, `vtcode-ui`, `vtcode-llm`, `vtcode-mcp`, `vtcode-safety`, `vtcode-exec-events`, `vtcode-indexer`, `vtcode-skills`, `vtcode-config`, `vtcode-a2a`, `vtcode-acp`, etc.)\n\
+        - Rust stable, MSRV 1.88, edition 2024; CI runs `RUSTFLAGS=\"-D warnings\"` with `--locked`\n\
+        - `default-members` = root, `vtcode-core`, `vtcode-ui`\n\n\
+        **Capabilities**\n\
+        - Agent runtime: interactive TUI, slash commands, streaming, `ask`/`exec` CLI, session resume\n\
+        - Coding tools: safe file ops, ripgrep search, fuzzy discovery, code intelligence, project indexing, terminal execution\n\
+        - Extensibility: Agent Skills, MCP client/server, lifecycle hooks, subagents, custom providers, Zed ACP, VS Code, Claude Code\n\
+        - Model providers: 21+ LLMs (Anthropic, OpenAI, Gemini, OpenRouter, Ollama, LM Studio, etc.)\n\
+        - Safety: restricted shell sandbox, tool guardrails, subprocess isolation, full audit logging\n\
+        - Protocols: Open Responses, Agent2Agent (A2A), ATIF, Anthropic Messages API\n\n\
+        **Default model**: MiMo V2.5 (Xiaomi), 1M-token context (`mimo-v2.5-pro`).\n\n\
+        **Other top-level dirs**: `docs/`, `plans/`, `rules/`, `system-prompts/`, `examples/`, `tests/`, `evals/`, `fuzz/`, `scripts/`, `vscode-extension/`, `zed-extension/`, `xtask/`, `homebrew/`.\n\n\
+        Quick start:\n\
+        ```shell\n\
+        curl -fsSL https://raw.githubusercontent.com/vinhnx/vtcode/main/scripts/install.sh | bash\n\
+        vtcode init\n\
+        vtcode\n\
+        ```\n\n\
+        Let me know what you'd like to dig into next — a specific crate, the agent loop, the TUI, sandboxing, or something else."
+    }
+
+    #[test]
     fn relaxed_continuation_still_works_for_genuine_interim_progress() {
         // Legitimate interim progress should still trigger continuation
         let interim_text = "I've reviewed the linter output. There are several warnings. \
@@ -1083,30 +1214,30 @@ mod tests {
     }
 
     #[test]
-    fn contains_user_directed_question_detects_various_patterns() {
-        assert!(contains_user_directed_question(
+    fn contains_user_input_request_detects_various_patterns() {
+        assert!(contains_user_input_request(
             "how would you like to proceed?"
         ));
-        assert!(contains_user_directed_question(
-            "what would you like me to do?"
+        assert!(contains_user_input_request("what would you like me to do?"));
+        assert!(contains_user_input_request("which option should i choose?"));
+        assert!(contains_user_input_request("shall i continue?"));
+        assert!(contains_user_input_request("do you want me to retry?"));
+        assert!(contains_user_input_request("please confirm and i'll retry"));
+        assert!(contains_user_input_request("let me know how to proceed"));
+        assert!(contains_user_input_request(
+            "let me know what you'd like to dig into next"
         ));
-        assert!(contains_user_directed_question(
-            "which option should i choose?"
+        assert!(contains_user_input_request(
+            "tell me which area you want next"
         ));
-        assert!(contains_user_directed_question("shall i continue?"));
-        assert!(contains_user_directed_question("do you want me to retry?"));
-        assert!(contains_user_directed_question(
-            "please confirm and i'll retry"
+        assert!(contains_user_input_request("waiting for your approval"));
+        assert!(!contains_user_input_request(
+            "The compiler errors tell me what to fix next. Let me update the parser branch now."
         ));
-        assert!(contains_user_directed_question(
-            "let me know how to proceed"
+        assert!(!contains_user_input_request(
+            "Let me check whether this should initialize the cache before use."
         ));
-        assert!(contains_user_directed_question("waiting for your approval"));
-        assert!(!contains_user_directed_question(
-            "let me fix the next issue"
-        ));
-        assert!(!contains_user_directed_question(
-            "i'll apply these changes now"
-        ));
+        assert!(!contains_user_input_request("let me fix the next issue"));
+        assert!(!contains_user_input_request("i'll apply these changes now"));
     }
 }

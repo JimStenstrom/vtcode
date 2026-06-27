@@ -2,6 +2,105 @@
 
 All notable changes to vtcode will be documented in this file.
 ## v0.73.2 - 2026-01-29
+## 0.133.19 - 2026-06-27
+
+### Highlights
+### Other Changes
+#### Other
+
+- Update TODO (bde8fd7e) 
+- Revert "chore: enhance build scripts for parallel processing and artifact management" (d6421236) 
+- Revert "Fix release script" (6ec480e3) 
+- Add new models and update configurations for OpenCode Go (b8e3282e) 
+## 0.133.18 - 2026-06-27
+
+### Highlights
+#### Bug Fixes
+
+- Pin rmcp to =1.7.0 to prevent Arc<InitializeResult> type mismatch (e25976ae) 
+#### Features
+
+- Colorize 'did you mean?' suggestions (15f5e609) 
+### Other Changes
+## 0.133.17 - 2026-06-26
+
+### Highlights
+### Other Changes
+## 0.133.16 - 2026-06-26
+
+### Highlights
+#### Features
+
+- Add 'did you mean?' suggestions for unrecognized commands (46e6b56b) 
+- Add /continue command to resume the most recent session (67fb16d5) 
+### Other Changes
+#### Other
+
+- Update README to streamline provider information (87b53bb7) (@vinhnx)
+- Implement Git worktree management and loop memory persistence (e2fec1b7) 
+- Update documentation to include CLAUDE.md references alongside AGENTS.md (c76b9c93) 
+- Update TODO (30307681) 
+## 0.133.15 - 2026-06-26
+
+### Highlights
+
+*No highlighted changes*
+
+### Other Changes
+
+#### Chores
+
+- enhance build scripts for parallel processing and artifact management (452221875) (@vinhnx)
+
+#### Other
+
+- Fix release script (947307b26) (@vinhnx)
+
+### Contributors
+
+@vinhnx
+
+## 0.133.13 - 2026-06-26
+
+### Highlights
+
+*No highlighted changes*
+
+### Other Changes
+
+#### Refactors
+
+- move inject_latest_memory_envelope to test configuration (991fc083f) (@vinhnx)
+
+#### Other
+
+- Update TODO (87a03136f) (@vinhnx)
+- Update TODO (873af9c63) (@vinhnx)
+
+### Contributors
+
+@vinhnx
+
+## 0.133.12 - 2026-06-25
+
+### Highlights
+### Other Changes
+## 0.133.11 - 2026-06-25
+
+### Highlights
+#### Bug Fixes
+
+- Shell policy byte-offset panic, glob compilation, and structural fallback bugs (a6c8ce38) (@vinhnx)
+- Security hardening, concurrency fixes, and async I/O improvements (e0fcd0fa) (@vinhnx)
+- Stop memory envelope refresh mutating live history (172fc2ed) (@kernitus)
+- Make memory envelope refresh history-immutable (6f33e7dc) (@kernitus)
+- Preserve full resume history verbatim (5d967855) (@kernitus)
+- Resume progress archives from full history (b506f33a) (@kernitus)
+- Refine validation for format, report_style, and builtin_rules in scan workflow (2edbfd55) (@vinhnx)
+### Other Changes
+#### Other
+
+- Update gitignore (ab279a6d) (@vinhnx)
 ## 0.133.10 - 2026-06-24
 
 ### Highlights

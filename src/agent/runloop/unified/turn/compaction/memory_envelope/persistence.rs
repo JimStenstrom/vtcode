@@ -386,6 +386,7 @@ pub(super) fn apply_memory_envelope(
     insert_memory_envelope_message(compacted, envelope, placement);
 }
 
+#[cfg(test)]
 pub(crate) fn inject_latest_memory_envelope(
     workspace_root: &Path,
     session_id: &str,

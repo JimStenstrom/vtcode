@@ -58,6 +58,27 @@ Tips:
 - Combine with granular agent permissions if you need per-tool constraints in normal interactive sessions.
 - Treat the list as a hard execution boundary for full-auto: outside the list is denied, and inside the list still passes deny and policy checks before automatic review.
 
+## Propose/Verify Sub-agent
+
+When `automation.full_auto.verify_mutations` is enabled, every call to `SubagentController::verify_proposed_change()` spawns a fresh read-only verifier sub-agent that re-reads the affected files and approves or rejects the change before it is committed. The verifier runs with no shared context from the proposer, preventing confirmation bias.
+
+```toml
+[automation.full_auto]
+enabled = true
+verify_mutations = true
+```
+
+The verifier is gated behind this flag because it roughly doubles the token cost on mutating calls. Default: `false`.
+
+When enabled, the propose/verify cycle works as follows:
+
+1. The proposer sub-agent makes a change (file edit, shell command, etc.).
+2. The caller invokes `verify_proposed_change()` with a diff description and affected file paths.
+3. A verifier sub-agent (falling back to the `explorer` agent if no `verifier` agent is defined) reads the files and returns `VerificationResult { approved, issues, reasoning }`.
+4. If rejected, the caller can retry the mutation up to N times.
+
+See [docs/project/PLAN-loop-engineering.md](../project/PLAN-loop-engineering.md) for the full design.
+
 ## Orchestrated Harness
 
 For longer unattended builds, prefer enabling the planner/evaluator harness instead of relying on a single uninterrupted build loop:

@@ -154,6 +154,12 @@ impl ModelId {
                 Some(ModelId::CopilotGPT54Mini)
             }
             ModelId::DeepSeekV4Pro => Some(ModelId::DeepSeekV4Flash),
+            ModelId::OpenCodeGoDeepseekV4Pro => Some(ModelId::OpenCodeGoDeepseekV4Flash),
+            ModelId::OpenCodeGoGlm52 => Some(ModelId::OpenCodeGoGlm51),
+            ModelId::OpenCodeGoMinimaxM3 => Some(ModelId::OpenCodeGoMinimaxM27),
+            ModelId::OpenCodeGoMimoV25Pro => Some(ModelId::OpenCodeGoMimoV25),
+            ModelId::OpenCodeGoQwen37Max => Some(ModelId::OpenCodeGoQwen37Plus),
+            ModelId::OpenCodeGoKimiK27Code => Some(ModelId::OpenCodeGoKimiK26),
             ModelId::HuggingFaceDeepseekV4ProTogether => {
                 Some(ModelId::HuggingFaceDeepseekV4FlashNovita)
             }
@@ -287,7 +293,13 @@ impl ModelId {
                 | ModelId::OpenCodeZenClaudeSonnet46
                 | ModelId::OpenCodeZenGlm51
                 | ModelId::OpenCodeGoGlm51
+                | ModelId::OpenCodeGoGlm52
+                | ModelId::OpenCodeGoKimiK27Code
+                | ModelId::OpenCodeGoMimoV25Pro
                 | ModelId::OpenCodeGoMinimaxM27
+                | ModelId::OpenCodeGoMinimaxM3
+                | ModelId::OpenCodeGoQwen37Max
+                | ModelId::OpenCodeGoDeepseekV4Pro
                 | ModelId::DeepSeekV4Pro
                 | ModelId::EvolinkDeepseekV4Pro
                 | ModelId::ZaiGlm52
@@ -319,12 +331,16 @@ impl ModelId {
             ModelId::Gemini35Flash
                 | ModelId::GPT54Mini
                 | ModelId::CopilotGPT54Mini
-                | ModelId::ClaudeHaiku45
+                |             ModelId::ClaudeHaiku45
                 | ModelId::OpenCodeZenGPT54Mini
                 | ModelId::DeepSeekV4Flash
                 | ModelId::HuggingFaceStep35Flash
                 | ModelId::HuggingFaceDeepseekV4FlashNovita
                 | ModelId::PoolsideLagunaXs2
+                | ModelId::OpenCodeGoMimoV25
+                | ModelId::OpenCodeGoQwen37Plus
+                | ModelId::OpenCodeGoQwen36Plus
+                | ModelId::OpenCodeGoDeepseekV4Flash
         )
     }
 
@@ -349,7 +365,15 @@ impl ModelId {
                 | ModelId::OpenCodeZenClaudeSonnet46
                 | ModelId::OpenCodeZenGlm51
                 | ModelId::OpenCodeGoGlm51
+                | ModelId::OpenCodeGoGlm52
+                | ModelId::OpenCodeGoKimiK27Code
+                | ModelId::OpenCodeGoKimiK26
+                | ModelId::OpenCodeGoMimoV25Pro
                 | ModelId::OpenCodeGoMinimaxM27
+                | ModelId::OpenCodeGoMinimaxM3
+                | ModelId::OpenCodeGoQwen37Max
+                | ModelId::OpenCodeGoQwen37Plus
+                | ModelId::OpenCodeGoDeepseekV4Pro
                 | ModelId::DeepSeekV4Pro
                 | ModelId::ZaiGlm52
                 | ModelId::ZaiGlm51
@@ -421,7 +445,16 @@ impl ModelId {
             ModelId::OpenCodeZenGPT54 | ModelId::OpenCodeZenGPT54Mini => "5.4",
             ModelId::OpenCodeZenClaudeSonnet46 => "4.6",
             ModelId::OpenCodeZenGlm51 | ModelId::OpenCodeGoGlm51 => "5.1",
+            ModelId::OpenCodeGoGlm52 => "5.2",
+            ModelId::OpenCodeGoKimiK27Code => "k2.7",
+            ModelId::OpenCodeGoKimiK26 => "k2.6",
+            ModelId::OpenCodeGoMimoV25 | ModelId::OpenCodeGoMimoV25Pro => "v2.5",
+            ModelId::OpenCodeGoMinimaxM3 => "m3",
             ModelId::OpenCodeGoMinimaxM27 => "m2.7",
+            ModelId::OpenCodeGoQwen37Max => "3.7-max",
+            ModelId::OpenCodeGoQwen37Plus => "3.7-plus",
+            ModelId::OpenCodeGoQwen36Plus => "3.6-plus",
+            ModelId::OpenCodeGoDeepseekV4Pro | ModelId::OpenCodeGoDeepseekV4Flash => "v4",
             ModelId::OllamaGptOss20b => "oss",
             ModelId::OllamaGptOss20bCloud => "oss-cloud",
             ModelId::OllamaGptOss120bCloud => "oss-cloud",

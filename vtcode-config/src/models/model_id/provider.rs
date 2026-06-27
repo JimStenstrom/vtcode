@@ -62,7 +62,19 @@ impl ModelId {
             | ModelId::OpenCodeZenGPT54Mini
             | ModelId::OpenCodeZenClaudeSonnet46
             | ModelId::OpenCodeZenGlm51 => Provider::OpenCodeZen,
-            ModelId::OpenCodeGoGlm51 | ModelId::OpenCodeGoMinimaxM27 => Provider::OpenCodeGo,
+            ModelId::OpenCodeGoGlm52
+            | ModelId::OpenCodeGoGlm51
+            | ModelId::OpenCodeGoKimiK27Code
+            | ModelId::OpenCodeGoKimiK26
+            | ModelId::OpenCodeGoMimoV25
+            | ModelId::OpenCodeGoMimoV25Pro
+            | ModelId::OpenCodeGoMinimaxM3
+            | ModelId::OpenCodeGoMinimaxM27
+            | ModelId::OpenCodeGoQwen37Max
+            | ModelId::OpenCodeGoQwen37Plus
+            | ModelId::OpenCodeGoQwen36Plus
+            | ModelId::OpenCodeGoDeepseekV4Pro
+            | ModelId::OpenCodeGoDeepseekV4Flash => Provider::OpenCodeGo,
             ModelId::QwenDeepSeekV4Flash | ModelId::QwenDeepSeekV4Pro | ModelId::QwenGlm51 => {
                 Provider::Qwen
             }

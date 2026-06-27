@@ -4,6 +4,8 @@ mod recovery_preview;
 
 use self::file_read_dedup::dedup_repeated_file_reads_for_local_compaction;
 #[cfg(test)]
+pub(crate) use self::memory_envelope::inject_latest_memory_envelope;
+#[cfg(test)]
 pub(crate) use self::memory_envelope::latest_memory_envelope_path_for_session;
 use self::memory_envelope::{
     build_zero_cost_summarized_fork_history, configured_retained_user_messages,
@@ -11,7 +13,7 @@ use self::memory_envelope::{
     persist_memory_envelope, strip_existing_memory_envelope,
 };
 pub(crate) use self::memory_envelope::{
-    has_latest_memory_envelope, inject_latest_memory_envelope, refresh_session_memory_envelope,
+    has_latest_memory_envelope, refresh_session_memory_envelope,
 };
 pub(crate) use self::recovery_preview::build_recovery_context_previews_with_workspace;
 

@@ -183,11 +183,44 @@ impl ModelId {
             ModelId::OpenCodeZenGlm51 => Cow::Borrowed(
                 "GLM-5.1 served through OpenCode Zen for lower-cost reasoning and coding work",
             ),
+            ModelId::OpenCodeGoGlm52 => Cow::Borrowed(
+                "GLM-5.2 included with the OpenCode Go subscription for flagship open-model coding",
+            ),
             ModelId::OpenCodeGoGlm51 => Cow::Borrowed(
                 "GLM-5.1 included with the OpenCode Go subscription for open-model coding workflows",
             ),
+            ModelId::OpenCodeGoKimiK27Code => Cow::Borrowed(
+                "Kimi K2.7 Code included with the OpenCode Go subscription for long-horizon coding",
+            ),
+            ModelId::OpenCodeGoKimiK26 => Cow::Borrowed(
+                "Kimi K2.6 included with the OpenCode Go subscription for general agentic coding",
+            ),
+            ModelId::OpenCodeGoMimoV25 => Cow::Borrowed(
+                "MiMo-V2.5 included with the OpenCode Go subscription for high-volume coding workloads",
+            ),
+            ModelId::OpenCodeGoMimoV25Pro => Cow::Borrowed(
+                "MiMo-V2.5-Pro included with the OpenCode Go subscription for complex agentic tasks",
+            ),
+            ModelId::OpenCodeGoMinimaxM3 => Cow::Borrowed(
+                "MiniMax-M3 included with the OpenCode Go subscription for frontier agentic coding",
+            ),
             ModelId::OpenCodeGoMinimaxM27 => Cow::Borrowed(
                 "MiniMax-M2.7 included with the OpenCode Go subscription for stronger agentic coding",
+            ),
+            ModelId::OpenCodeGoQwen37Max => Cow::Borrowed(
+                "Qwen3.7 Max included with the OpenCode Go subscription for the highest capability tier",
+            ),
+            ModelId::OpenCodeGoQwen37Plus => Cow::Borrowed(
+                "Qwen3.7 Plus included with the OpenCode Go subscription as a balanced coding model",
+            ),
+            ModelId::OpenCodeGoQwen36Plus => Cow::Borrowed(
+                "Qwen3.6 Plus included with the OpenCode Go subscription for cost-effective coding",
+            ),
+            ModelId::OpenCodeGoDeepseekV4Pro => Cow::Borrowed(
+                "DeepSeek V4 Pro included with the OpenCode Go subscription for high-quality reasoning",
+            ),
+            ModelId::OpenCodeGoDeepseekV4Flash => Cow::Borrowed(
+                "DeepSeek V4 Flash included with the OpenCode Go subscription for fast, low-cost coding",
             ),
             ModelId::HuggingFaceOpenAIGptOss20b => {
                 Cow::Borrowed("OpenAI GPT-OSS 20B via Hugging Face router")

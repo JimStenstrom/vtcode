@@ -121,8 +121,19 @@ impl ModelId {
             ModelId::OpenCodeZenClaudeSonnet46 => Cow::Borrowed("Claude Sonnet 4.6 (OpenCode Zen)"),
             ModelId::OpenCodeZenGlm51 => Cow::Borrowed("GLM-5.1 (OpenCode Zen)"),
             // OpenCode Go models
+            ModelId::OpenCodeGoGlm52 => Cow::Borrowed("GLM-5.2 (OpenCode Go)"),
             ModelId::OpenCodeGoGlm51 => Cow::Borrowed("GLM-5.1 (OpenCode Go)"),
+            ModelId::OpenCodeGoKimiK27Code => Cow::Borrowed("Kimi K2.7 Code (OpenCode Go)"),
+            ModelId::OpenCodeGoKimiK26 => Cow::Borrowed("Kimi K2.6 (OpenCode Go)"),
+            ModelId::OpenCodeGoMimoV25 => Cow::Borrowed("MiMo-V2.5 (OpenCode Go)"),
+            ModelId::OpenCodeGoMimoV25Pro => Cow::Borrowed("MiMo-V2.5-Pro (OpenCode Go)"),
+            ModelId::OpenCodeGoMinimaxM3 => Cow::Borrowed("MiniMax-M3 (OpenCode Go)"),
             ModelId::OpenCodeGoMinimaxM27 => Cow::Borrowed("MiniMax-M2.7 (OpenCode Go)"),
+            ModelId::OpenCodeGoQwen37Max => Cow::Borrowed("Qwen3.7 Max (OpenCode Go)"),
+            ModelId::OpenCodeGoQwen37Plus => Cow::Borrowed("Qwen3.7 Plus (OpenCode Go)"),
+            ModelId::OpenCodeGoQwen36Plus => Cow::Borrowed("Qwen3.6 Plus (OpenCode Go)"),
+            ModelId::OpenCodeGoDeepseekV4Pro => Cow::Borrowed("DeepSeek V4 Pro (OpenCode Go)"),
+            ModelId::OpenCodeGoDeepseekV4Flash => Cow::Borrowed("DeepSeek V4 Flash (OpenCode Go)"),
             // Custom user-defined models
             ModelId::Custom(_, model) => Cow::Owned(model.clone()),
             // OpenRouter models

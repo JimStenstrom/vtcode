@@ -1,3 +1,4 @@
+use crate::skills::SkillMetadata;
 #[cfg(test)]
 use crate::skills::loader::discover_skill_metadata_lightweight_hermetic;
 use crate::skills::loader::{
@@ -17,27 +18,21 @@ use std::time::{Duration, SystemTime};
 
 use crate::utils::file_utils::read_file_with_context_sync;
 
-/// Cache entry with TTL tracking for skill outcomes
+/// Generic cache entry with TTL tracking.
 #[derive(Clone)]
-struct CachedSkillOutcome {
-    outcome: SkillLoadOutcome,
+struct CachedEntry<T> {
+    value: T,
     timestamp: SystemTime,
 }
 
-impl CachedSkillOutcome {
-    fn is_expired(&self, ttl: Duration) -> bool {
-        self.timestamp.elapsed().unwrap_or(ttl) > ttl
+impl<T> CachedEntry<T> {
+    fn new(value: T) -> Self {
+        Self {
+            value,
+            timestamp: SystemTime::now(),
+        }
     }
-}
 
-/// Cached instruction entry for on-demand skill parsing (Phase 3)
-#[derive(Clone)]
-struct CachedSkillInstruction {
-    skill: Skill,
-    timestamp: SystemTime,
-}
-
-impl CachedSkillInstruction {
     fn is_expired(&self, ttl: Duration) -> bool {
         self.timestamp.elapsed().unwrap_or(ttl) > ttl
     }
@@ -47,7 +42,7 @@ pub struct SkillsManager {
     codex_home: PathBuf,
     bundled_skills_enabled: bool,
     /// Per-cwd skill loading cache with TTL and max capacity
-    cache_by_cwd: RwLock<HashMap<PathBuf, CachedSkillOutcome>>,
+    cache_by_cwd: RwLock<HashMap<PathBuf, CachedEntry<SkillLoadOutcome>>>,
     /// Max number of cached workspaces (prevents unbounded growth)
     max_cache_size: usize,
     /// TTL for cached metadata (default 5 minutes)
@@ -55,11 +50,43 @@ pub struct SkillsManager {
     /// Tracks if system skills installation has been attempted
     system_skills_initialized: OnceLock<()>,
     /// Per-skill instruction cache with TTL (Phase 3: deferred SKILL.md parsing)
-    instruction_cache: RwLock<HashMap<String, CachedSkillInstruction>>,
+    instruction_cache: RwLock<HashMap<String, CachedEntry<Skill>>>,
     /// Max instructions cached in memory (prevents unbounded growth)
     max_instruction_cache_size: usize,
     /// TTL for instruction cache (default 10 minutes - longer than metadata)
     instruction_cache_ttl: Duration,
+}
+
+/// Generic cache eviction: remove expired entries, then LRU if still over capacity.
+fn evict_cache<K, V>(
+    cache: &mut HashMap<K, V>,
+    max_size: usize,
+    ttl: Duration,
+    get_timestamp: impl Fn(&V) -> SystemTime,
+    is_expired: impl Fn(&V, Duration) -> bool,
+) where
+    K: Eq + std::hash::Hash + Clone,
+{
+    // Remove expired entries
+    let expired: Vec<_> = cache
+        .iter()
+        .filter(|(_, v)| is_expired(v, ttl))
+        .map(|(k, _)| k.clone())
+        .collect();
+    for key in expired {
+        cache.remove(&key);
+    }
+
+    // If still at capacity, remove oldest entry by timestamp (LRU)
+    if cache.len() >= max_size {
+        let oldest_key = cache
+            .iter()
+            .min_by_key(|(_, v)| get_timestamp(v))
+            .map(|(k, _)| k.clone());
+        if let Some(key) = oldest_key {
+            cache.remove(&key);
+        }
+    }
 }
 
 impl SkillsManager {
@@ -121,7 +148,7 @@ impl SkillsManager {
                 if let Some(cached) = cache.get(cwd)
                     && !cached.is_expired(self.cache_ttl)
                 {
-                    return cached.outcome.clone();
+                    return cached.value.clone();
                 }
             } else {
                 tracing::warn!("skills metadata cache lock poisoned while reading cache");
@@ -140,38 +167,18 @@ impl SkillsManager {
         let outcome = load_skills(&config);
 
         if let Ok(mut cache) = self.cache_by_cwd.write() {
-            // Enforce max cache size: remove oldest expired entries first, then LRU
+            // Enforce max cache size: remove expired entries first, then LRU
             if cache.len() >= self.max_cache_size && !cache.contains_key(cwd) {
-                // Remove oldest expired entries
-                let expired: Vec<_> = cache
-                    .iter()
-                    .filter(|(_, v)| v.timestamp.elapsed().unwrap_or_default() > self.cache_ttl)
-                    .map(|(k, _)| k.clone())
-                    .collect();
-
-                for key in expired {
-                    cache.remove(&key);
-                }
-
-                // If still at capacity, remove oldest entry by timestamp (simple LRU)
-                if cache.len() >= self.max_cache_size {
-                    let oldest_key = cache
-                        .iter()
-                        .min_by_key(|(_, v)| v.timestamp)
-                        .map(|(k, _)| k.clone());
-                    if let Some(key) = oldest_key {
-                        cache.remove(&key);
-                    }
-                }
+                evict_cache(
+                    &mut cache,
+                    self.max_cache_size,
+                    self.cache_ttl,
+                    |v| v.timestamp,
+                    |v, ttl| v.is_expired(ttl),
+                );
             }
 
-            cache.insert(
-                cwd.to_path_buf(),
-                CachedSkillOutcome {
-                    outcome: outcome.clone(),
-                    timestamp: SystemTime::now(),
-                },
-            );
+            cache.insert(cwd.to_path_buf(), CachedEntry::new(outcome.clone()));
         } else {
             tracing::warn!("skills metadata cache lock poisoned while writing cache");
         }
@@ -238,13 +245,17 @@ impl SkillsManager {
     /// Cached with LRU eviction (max 50 skills, 10-minute TTL).
     /// Returns cached result if available and not expired.
     pub fn load_skill_instructions(&self, skill_name: &str, skill_path: &Path) -> Result<Skill> {
+        // Composite cache key: name + resolved path to avoid collisions when
+        // skills in different directories share the same name.
+        let cache_key = format!("{}:{}", skill_name, skill_path.display());
+
         // Check cache first
         {
             if let Ok(cache) = self.instruction_cache.read() {
-                if let Some(cached) = cache.get(skill_name)
+                if let Some(cached) = cache.get(&cache_key)
                     && !cached.is_expired(self.instruction_cache_ttl)
                 {
-                    return Ok(cached.skill.clone());
+                    return Ok(cached.value.clone());
                 }
             } else {
                 tracing::warn!("skill instruction cache lock poisoned while reading cache");
@@ -262,42 +273,71 @@ impl SkillsManager {
         // Cache the parsed skill
         if let Ok(mut cache) = self.instruction_cache.write() {
             // Enforce max cache size: remove expired entries first, then LRU
-            if cache.len() >= self.max_instruction_cache_size && !cache.contains_key(skill_name) {
-                // Remove expired entries
-                let expired: Vec<_> = cache
-                    .iter()
-                    .filter(|(_, v)| v.is_expired(self.instruction_cache_ttl))
-                    .map(|(k, _)| k.clone())
-                    .collect();
-
-                for key in expired {
-                    cache.remove(&key);
-                }
-
-                // If still at capacity, remove oldest by timestamp (LRU)
-                if cache.len() >= self.max_instruction_cache_size {
-                    let oldest_key = cache
-                        .iter()
-                        .min_by_key(|(_, v)| v.timestamp)
-                        .map(|(k, _)| k.clone());
-                    if let Some(key) = oldest_key {
-                        cache.remove(&key);
-                    }
-                }
+            if cache.len() >= self.max_instruction_cache_size && !cache.contains_key(&cache_key) {
+                evict_cache(
+                    &mut cache,
+                    self.max_instruction_cache_size,
+                    self.instruction_cache_ttl,
+                    |v| v.timestamp,
+                    |v, ttl| v.is_expired(ttl),
+                );
             }
 
-            cache.insert(
-                skill_name.to_string(),
-                CachedSkillInstruction {
-                    skill: skill.clone(),
-                    timestamp: SystemTime::now(),
-                },
-            );
+            cache.insert(cache_key, CachedEntry::new(skill.clone()));
         } else {
             tracing::warn!("skill instruction cache lock poisoned while writing cache");
         }
 
         Ok(skill)
+    }
+
+    /// Resolve a skill by name from the discovered set for the given cwd.
+    /// Returns `Err` if the skill is not found, enabling callers to fail loud.
+    pub fn resolve_skill_by_name(&self, cwd: &Path, skill_name: &str) -> Result<SkillMetadata> {
+        let outcome = self.skills_for_cwd(cwd);
+        let available: Vec<String> = outcome.skills.iter().map(|s| s.name.clone()).collect();
+        outcome
+            .skills
+            .into_iter()
+            .find(|s| s.name == skill_name)
+            .ok_or_else(|| {
+                anyhow::anyhow!(
+                    "Skill '{}' not found. Available skills: [{}]",
+                    skill_name,
+                    available.join(", ")
+                )
+            })
+    }
+
+    /// Load skills by name from a list of skill names (e.g. from
+    /// `LoopEngineConfig.preload_skills`). Returns metadata for each
+    /// found skill and logs warnings for missing ones.
+    pub fn loop_skills(&self, cwd: &Path, skill_names: &[String]) -> Vec<SkillMetadata> {
+        if skill_names.is_empty() {
+            return Vec::new();
+        }
+
+        let outcome = self.skills_for_cwd(cwd);
+        let available: HashMap<String, &SkillMetadata> =
+            outcome.skills.iter().map(|s| (s.name.clone(), s)).collect();
+
+        let mut loaded = Vec::new();
+        for name in skill_names {
+            if let Some(meta) = available.get(name) {
+                loaded.push((*meta).clone());
+            } else {
+                tracing::warn!(
+                    skill = %name,
+                    "Preload skill not found; skipping. Available: {}",
+                    available
+                        .keys()
+                        .cloned()
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                );
+            }
+        }
+        loaded
     }
 
     /// Clear instruction cache
