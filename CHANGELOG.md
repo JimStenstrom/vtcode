@@ -2,6 +2,16 @@
 
 All notable changes to vtcode will be documented in this file.
 ## v0.73.2 - 2026-01-29
+## 0.133.18 - 2026-06-27
+
+### Highlights
+#### Bug Fixes
+
+- Pin rmcp to =1.7.0 to prevent Arc<InitializeResult> type mismatch (e25976ae) 
+#### Features
+
+- Colorize 'did you mean?' suggestions (15f5e609) 
+### Other Changes
 ## 0.133.17 - 2026-06-26
 
 ### Highlights
