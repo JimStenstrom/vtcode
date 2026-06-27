@@ -381,10 +381,14 @@ types), `match` (name regex), `items` (`auto` | `structure` | `exports` |
 - `full`: per-symbol records with ranges, signatures, `astKind`, and nested
   members (passthrough of the ast-grep JSON).
 
-`outline` shells out to the same resolved `ast-grep` binary as `structural`.
-On a missing binary it returns a structured "ast-grep is not available" error
-with the install command; unlike `structural`, there is no grep fallback
-(outline has no text equivalent).
+`outline` and `structural` shell out to the same resolved `ast-grep` binary.
+On a missing binary, both actions **auto-install ast-grep on first use** by
+downloading the matching platform release from GitHub into `~/.vtcode/bin`
+(with checksum verification and a 24h failure cooldown). Set
+`VTCODE_AST_GREP_NO_INSTALL=1` to opt out of auto-install; the error then
+surfaces immediately with the manual install command
+(`vtcode dependencies install ast-grep`). Unlike `structural`, `outline` has
+no grep fallback (outline has no text equivalent).
 
 ## Troubleshooting
 

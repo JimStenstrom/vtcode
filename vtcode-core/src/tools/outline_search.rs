@@ -18,7 +18,7 @@ use std::collections::BTreeMap;
 use std::path::Path;
 use tokio::process::Command;
 
-use crate::tools::editing::patch::resolve_ast_grep_binary_path;
+use crate::tools::ast_grep_installer::AstGrepStatus;
 use crate::tools::structural_search::stderr_or_stdout;
 use crate::utils::path::resolve_workspace_path;
 
@@ -185,7 +185,8 @@ fn get_string_or_array_field(obj: &Map<String, Value>, key: &str) -> Result<Opti
 /// Entry point invoked by `execute_unified_search` for `action=outline`.
 pub async fn execute_outline_search(workspace_root: &Path, args: Value) -> Result<Value> {
     let request = OutlineRequest::from_args(&args)?;
-    let ast_grep = resolve_ast_grep_binary_path()
+    let ast_grep = AstGrepStatus::resolve_or_install()
+        .await
         .map_err(|reason| anyhow!("Outline requires ast-grep (`sg`). {reason}"))?;
 
     // Resolve the search path within the workspace. `resolve_workspace_path`
