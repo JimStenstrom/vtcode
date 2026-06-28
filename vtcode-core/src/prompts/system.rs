@@ -79,7 +79,7 @@ const SHARED_CONTRACT_LINES: &[&str] = &[
     "Do not use emoji in responses.",
     "Use retrieved evidence when citation-sensitive.",
     "Preserve task goal, tracker state, touched files, verification status, and decisions across compaction.",
-    "Keep outputs concise.",
+    "Keep outputs concise; keep agent loops simple and let the model choose the next useful step.",
     "Prefer `ast-grep` for code-shape queries; keep text grep for prose and config.",
     "When a tool result has `spool_path`, the full output is at that path. Read it once with `unified_search action=grep` using a SPECIFIC pattern — do NOT page through it with multiple `read_file` calls (the per-turn spool chunk cap will block you). Past-turn errors are already in your history; do not re-read their spool files.",
 ];
@@ -87,7 +87,8 @@ const SHARED_CONTRACT_LINES: &[&str] = &[
 /// Default/Lightweight/Specialized mode: expanded contract lines beyond shared rules.
 const DEFAULT_SPECIFIC_LINES: &[&str] = &[
     "Start with existing `AGENTS.md` and `CLAUDE.md`; inspect code first, match local patterns, use `@file`.",
-    "Take safe, reversible steps; ask only for material behavior, API, UX, or credential changes.",
+    "Take safe, reversible steps; recover from tool errors with corrected parameters, smaller scope, or one focused clarification.",
+    "Ask only for material behavior, API, UX, or credential changes.",
     "Keep control on the main thread. Delegate bounded, independent work only.",
     "Verify changes yourself; never claim a check passed unless you ran it.",
     "Keep user updates brief and high-signal.",
@@ -99,7 +100,7 @@ const DEFAULT_SPECIFIC_LINES: &[&str] = &[
 const MINIMAL_SPECIFIC_LINES: &[&str] = &[
     "Use existing `AGENTS.md` and `CLAUDE.md`; inspect code first.",
     "Take safe, reversible steps; verify changes yourself.",
-    "Keep delegation bounded and explicit.",
+    "Keep delegation and skills bounded, explicit, and narrow.",
 ];
 
 const DEFAULT_OPERATING_PROFILE_DELTA: &str = r#"## Operating Profile
@@ -184,7 +185,7 @@ pub fn openai_gpt55_contract_addendum() -> String {
 const STRUCTURED_REASONING_INSTRUCTIONS: &str = r#"
 ## Structured Reasoning
 
-Use tags when helpful: `<analysis>` facts/options, `<plan>` steps, `<uncertainty>` blockers, `<verification>` checks.
+Use tags when helpful: `<analysis>` facts/options, `<plan>` steps, `<uncertainty>` blockers, `<verification>` checks. When a decision must be consumed by code or tools, prefer JSON or function-call shaped output over prose.
 "#;
 
 /// System instruction configuration
