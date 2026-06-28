@@ -96,6 +96,7 @@ syn = "2"
 linkme = "0.3"
 ctor = "0.2"
 webbrowser = "1.2"
+tiktoken = "3.5"
 
 [workspace.package]
 version = "0.133.21"

@@ -701,6 +701,29 @@ impl AgentRunner {
                     break;
                 }
 
+                // Pre-flight token budget check: estimate if the assembled prompt
+                // fits within the context window before invoking the LLM.
+                // This catches overflow early rather than relying on post-hoc
+                // utilization checks that fire after the call completes.
+                {
+                    const RESERVED_OUTPUT_TOKENS: usize = 4096;
+                    let (fits, estimated, budget) =
+                        runtime
+                            .state
+                            .preflight_token_check(0, 0, RESERVED_OUTPUT_TOKENS);
+                    if !fits {
+                        warn!(
+                            estimated,
+                            budget, "Pre-flight token check failed: prompt exceeds context budget"
+                        );
+                        #[allow(clippy::cast_sign_loss)]
+                        let pct = (estimated as f64 / budget as f64 * 100.0) as u32;
+                        runtime.state.warnings.push(format!(
+                            "Pre-flight check: {pct}% of context budget used before LLM call"
+                        ));
+                    }
+                }
+
                 if let Some(input) = runtime.run_until_idle() {
                     self.runner_println(format_args!(
                         "{} {}: {}",

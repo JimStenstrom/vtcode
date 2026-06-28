@@ -19,6 +19,8 @@ const DEFAULT_COMPACTION_KEEP_LAST_MESSAGES: usize = 10;
 const DEFAULT_RETAINED_USER_MESSAGE_TOKENS: usize = 20_000;
 const DEFAULT_RETAINED_USER_MESSAGES: usize = 4;
 const SUMMARY_PREFIX: &str = "Previous conversation summary:\n";
+const ABSTRACT_PREFIX: &str = "Earlier context (abstract):\n";
+const DETAIL_PREFIX: &str = "Recent context (summary):\n";
 
 /// Compaction configuration for context window management.
 #[derive(Debug, Clone)]
@@ -37,6 +39,15 @@ pub struct CompactionConfig {
     pub retained_user_messages: usize,
     /// Force local summarization even for short histories and providers with native compaction.
     pub always_summarize: bool,
+    /// Enable hierarchical summarization (multi-level pyramid).
+    ///
+    /// When `true`, compaction produces three tiers instead of a flat summary:
+    /// - **Abstract**: oldest turns compressed into 1-2 sentences
+    /// - **Detail**: middle turns summarized into a paragraph
+    /// - **Verbatim**: most recent turns kept as-is
+    ///
+    /// When `false` (default), all old turns become a single flat summary.
+    pub hierarchical: bool,
 }
 
 impl Default for CompactionConfig {
@@ -50,6 +61,7 @@ impl Default for CompactionConfig {
             retained_user_message_tokens: DEFAULT_RETAINED_USER_MESSAGE_TOKENS,
             retained_user_messages: DEFAULT_RETAINED_USER_MESSAGES,
             always_summarize: false,
+            hierarchical: false,
         }
     }
 }
@@ -312,6 +324,10 @@ async fn compact_history_native_inline(
 /// `generate`, and rebuilds the history as a summary system message plus the
 /// retained recent user messages. Applies the manual options to the summary
 /// request.
+///
+/// When `config.hierarchical` is `true`, delegates to
+/// [`summarize_locally_hierarchical`] which produces a multi-tier pyramid
+/// (abstract + detail + verbatim) instead of a flat summary.
 async fn summarize_locally(
     provider: &dyn LLMProvider,
     model: &str,
@@ -319,6 +335,10 @@ async fn summarize_locally(
     config: &CompactionConfig,
     options: &ManualCompactionOptions,
 ) -> Result<Vec<Message>> {
+    if config.hierarchical {
+        return summarize_locally_hierarchical(provider, model, history, config, options).await;
+    }
+
     let effective_config = config.clone().with_manual_overrides(options);
     let summary_prompt = build_summary_prompt(history, &effective_config.summary_prompt);
     let request = LLMRequest {
@@ -342,6 +362,96 @@ async fn summarize_locally(
         config.retained_user_message_tokens,
         config.retained_user_messages,
     ))
+}
+
+/// Hierarchical local summarization: abstract + detail + verbatim pyramid.
+///
+/// Splits the history into three bands and summarizes each with a different
+/// compression target:
+/// - **Abstract** (oldest third): 1-2 sentence overview
+/// - **Detail** (middle third): paragraph-level summary
+/// - **Verbatim** (newest third): kept as-is plus importance-weighted retained messages
+///
+/// This follows the hierarchical summarization strategy from the context window
+/// management literature: recent turns verbatim, older turns as paragraph
+/// summaries, oldest turns as a single abstract.
+async fn summarize_locally_hierarchical(
+    provider: &dyn LLMProvider,
+    model: &str,
+    history: &[Message],
+    config: &CompactionConfig,
+    options: &ManualCompactionOptions,
+) -> Result<Vec<Message>> {
+    let effective_config = config.clone().with_manual_overrides(options);
+
+    // Split history into three bands at roughly equal thirds.
+    let total = history.len();
+    let band_size = total / 3;
+    let abstract_end = band_size;
+    let detail_end = band_size * 2;
+
+    // Band 1 (oldest): compress into 1-2 sentence abstract.
+    let abstract_band = &history[..abstract_end];
+    let abstract_prompt = format!(
+        "In 1-2 sentences, what was the overall goal and major progress in this \
+         portion of the conversation?\n\n{}",
+        build_summary_prompt(abstract_band, ""),
+    );
+    let abstract_request = LLMRequest {
+        messages: vec![Message::user(abstract_prompt)],
+        model: model.to_string(),
+        max_tokens: Some(150),
+        reasoning_effort: options.reasoning_effort,
+        verbosity: options.verbosity,
+        ..Default::default()
+    };
+    let abstract_response = provider
+        .generate(abstract_request)
+        .await
+        .context("Failed to generate abstract summary")?;
+    let abstract_summary = abstract_response
+        .content
+        .unwrap_or_default()
+        .trim()
+        .to_string();
+
+    // Band 2 (middle): paragraph-level summary using the full summary prompt.
+    let detail_band = &history[abstract_end..detail_end];
+    let detail_prompt = build_summary_prompt(detail_band, &effective_config.summary_prompt);
+    let detail_request = LLMRequest {
+        messages: vec![Message::user(detail_prompt)],
+        model: model.to_string(),
+        max_tokens: options.max_output_tokens,
+        reasoning_effort: options.reasoning_effort,
+        verbosity: options.verbosity,
+        ..Default::default()
+    };
+    let detail_response = provider
+        .generate(detail_request)
+        .await
+        .context("Failed to generate detail summary")?;
+    let detail_summary = detail_response
+        .content
+        .unwrap_or_default()
+        .trim()
+        .to_string();
+
+    // Band 3 (newest): retain verbatim via importance-weighted selection.
+    let recent_band = &history[detail_end..];
+    let retained = collect_retained_user_messages(
+        recent_band,
+        config.retained_user_message_tokens,
+        config.retained_user_messages,
+    );
+
+    // Assemble: [abstract, detail, ...retained_recent]
+    let mut new_history = Vec::with_capacity(2 + retained.len());
+    new_history.push(Message::system(format!(
+        "{ABSTRACT_PREFIX}{abstract_summary}"
+    )));
+    new_history.push(Message::system(format!("{DETAIL_PREFIX}{detail_summary}")));
+    new_history.extend(retained);
+    Ok(new_history)
 }
 
 fn build_summary_prompt(history: &[Message], instructions: &str) -> String {
@@ -400,36 +510,128 @@ fn collect_retained_user_messages(
         return Vec::new();
     }
 
-    let mut kept = Vec::new();
+    // Score all messages by importance, then select the top-k that fit within
+    // the token budget. This replaces the naive backward-walk that only kept
+    // the N most recent user messages regardless of importance.
+    let total = history.len();
+    let mut scored: Vec<(usize, f64, &Message)> = history
+        .iter()
+        .enumerate()
+        .filter(|(_, m)| is_retainable_message(m))
+        .map(|(i, m)| {
+            let score = score_message(m, i, total);
+            (i, score, m)
+        })
+        .collect();
+
+    // Sort by score descending (most important first).
+    scored.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+
+    let mut selected: Vec<(usize, Message)> = Vec::new();
     let mut remaining = token_budget;
 
-    for message in history.iter().rev() {
-        if kept.len() >= max_messages {
+    for (original_idx, _score, message) in &scored {
+        if selected.len() >= max_messages {
             break;
-        }
-        if !is_real_user_message(message) {
-            continue;
         }
 
         let estimated = message.estimate_tokens();
         if estimated <= remaining {
-            kept.push(message.clone());
+            selected.push((*original_idx, (*message).clone()));
             remaining = remaining.saturating_sub(estimated);
             continue;
         }
 
         if let Some(truncated) = truncate_user_message(message, remaining) {
-            kept.push(truncated);
+            selected.push((*original_idx, truncated));
         }
         break;
     }
 
-    kept.reverse();
-    kept
+    // Re-sort by original conversation order to preserve chronology.
+    selected.sort_by_key(|(idx, _)| *idx);
+    selected.into_iter().map(|(_, msg)| msg).collect()
 }
 
-fn is_real_user_message(message: &Message) -> bool {
-    message.role == MessageRole::User && !message.content.trim().is_empty()
+/// Score a message for importance-weighted retention during compaction.
+///
+/// Uses a weighted combination of content importance and recency:
+/// - Messages containing errors, corrections, or tool results score higher
+/// - Recent messages get a recency bonus
+/// - Assistant messages with tool calls are moderately important
+fn score_message(message: &Message, index: usize, total: usize) -> f64 {
+    let content = message.content.as_text();
+    let content_lower = content.to_lowercase();
+
+    // Importance weight based on content signals.
+    let importance = match message.role {
+        MessageRole::User => {
+            if contains_error_signal(&content_lower) {
+                3.0
+            } else if contains_correction_signal(&content_lower) {
+                2.5
+            } else {
+                1.0
+            }
+        }
+        MessageRole::Tool => {
+            // Tool results contain factual data the model may need.
+            2.0
+        }
+        MessageRole::Assistant => {
+            if message.tool_calls.is_some() {
+                // Assistant messages with tool calls show action taken.
+                0.5
+            } else {
+                0.1
+            }
+        }
+        MessageRole::System => 0.0,
+    };
+
+    // Recency bonus: linear from 0.0 (oldest) to 1.0 (newest).
+    let recency = if total > 0 {
+        index as f64 / total as f64
+    } else {
+        0.0
+    };
+
+    importance + recency
+}
+
+/// Check if content contains error or failure signals.
+fn contains_error_signal(content: &str) -> bool {
+    content.contains("error")
+        || content.contains("failed")
+        || content.contains("failure")
+        || content.contains("panic")
+        || content.contains("bug")
+        || content.contains("broken")
+        || content.contains("regression")
+}
+
+/// Check if content contains user correction signals.
+fn contains_correction_signal(content: &str) -> bool {
+    content.contains("no,")
+        || content.contains("wrong")
+        || content.contains("actually")
+        || content.contains("fix")
+        || content.contains("instead")
+        || content.contains("should be")
+        || content.contains("don't")
+}
+
+/// Whether a message is worth retaining during compaction.
+fn is_retainable_message(message: &Message) -> bool {
+    match message.role {
+        MessageRole::User => !message.content.trim().is_empty(),
+        MessageRole::Tool => !message.content.trim().is_empty(),
+        MessageRole::Assistant => {
+            // Retain assistant messages that contain tool calls (action history).
+            message.tool_calls.is_some()
+        }
+        MessageRole::System => false,
+    }
 }
 
 fn truncate_user_message(message: &Message, token_budget: usize) -> Option<Message> {
@@ -457,8 +659,7 @@ mod tests {
     use crate::config::types::{ReasoningEffortLevel, VerbosityLevel};
     use crate::exec::events::CompactionMode;
     use crate::llm::provider::{
-        LLMError, LLMProvider, LLMRequest, LLMResponse, Message, MessageRole,
-        ResponsesCompactionOptions,
+        LLMError, LLMProvider, LLMRequest, LLMResponse, Message, ResponsesCompactionOptions,
     };
     use async_trait::async_trait;
     use std::sync::Mutex;
@@ -1030,7 +1231,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn compact_history_rebuilds_history_around_summary_and_users() {
+    async fn compact_history_rebuilds_history_around_summary_and_important_messages() {
         let history = vec![
             Message::assistant("setup".to_string()),
             Message::user("first request".to_string()),
@@ -1048,16 +1249,16 @@ mod tests {
             .await
             .expect("compacted history");
 
-        assert_eq!(compacted.len(), 3);
+        // Summary + importance-weighted retained messages (user messages + tool response).
+        assert_eq!(compacted.len(), 4);
         assert_eq!(
             compacted[0].content.as_text(),
             "Previous conversation summary:\nsummary"
         );
+        // Messages are in original conversation order.
         assert_eq!(compacted[1].content.as_text(), "first request");
-        assert_eq!(compacted[2].content.as_text(), "second request");
-        assert!(compacted.iter().all(|message| {
-            message.role == MessageRole::System || message.role == MessageRole::User
-        }));
+        assert_eq!(compacted[2].content.as_text(), "done");
+        assert_eq!(compacted[3].content.as_text(), "second request");
     }
 
     #[tokio::test]

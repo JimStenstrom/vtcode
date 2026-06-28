@@ -280,6 +280,30 @@ impl AgentSessionState {
         self.messages.iter().map(|m| m.estimate_tokens()).sum()
     }
 
+    /// Pre-flight check: does the assembled prompt fit within the context window?
+    ///
+    /// Estimates total tokens for the full request (conversation history +
+    /// system prompt + tool definitions) and compares against the available
+    /// budget (`max_context_tokens - reserved_output_tokens`).
+    ///
+    /// Returns `(fits, estimated_total, available_budget)`.
+    pub fn preflight_token_check(
+        &self,
+        system_prompt_tokens: usize,
+        tool_def_tokens: usize,
+        reserved_output_tokens: usize,
+    ) -> (bool, usize, usize) {
+        let budget = self
+            .constraints
+            .max_context_tokens
+            .saturating_sub(reserved_output_tokens);
+        let estimated = self
+            .total_tokens()
+            .saturating_add(system_prompt_tokens)
+            .saturating_add(tool_def_tokens);
+        (estimated <= budget, estimated, budget)
+    }
+
     /// Find a safe split point for history trimming that doesn't break tool call/output pairs.
     pub fn find_safe_split_point(&self, preferred_split_at: usize) -> usize {
         crate::core::agent::state::safe_history_split_point(
