@@ -184,7 +184,7 @@ fn get_string_or_array_field(obj: &Map<String, Value>, key: &str) -> Result<Opti
 
 /// Entry point invoked by `execute_unified_search` for `action=outline`.
 pub async fn execute_outline_search(workspace_root: &Path, args: Value) -> Result<Value> {
-    let request = OutlineRequest::from_args(&args)?;
+    let mut request = OutlineRequest::from_args(&args)?;
     let ast_grep = AstGrepStatus::resolve_or_install()
         .await
         .map_err(|reason| anyhow!("Outline requires ast-grep (`sg`). {reason}"))?;
@@ -194,6 +194,18 @@ pub async fn execute_outline_search(workspace_root: &Path, args: Value) -> Resul
     // surfaces as a structured error rather than a panic.
     let resolved = resolve_workspace_path(workspace_root, Path::new(&request.path))
         .with_context(|| format!("Failed to resolve outline path: {}", request.path))?;
+
+    // Auto-tune the output for directory queries: when the user asks for an
+    // outline of a directory, default to `view=names` (less verbose than
+    // `digest`, no member lists) and emit a top-level `summary` block that
+    // gives the model the symbol counts it usually wants when answering
+    // "what's in this directory?" in a single tool call.
+    let is_directory = resolved.is_dir();
+    let was_view_explicit = args.as_object().and_then(|obj| obj.get("view")).is_some();
+    if is_directory && !was_view_explicit {
+        request.view = OutlineView::Names;
+    }
+
     let command_arg = command_path_arg(workspace_root, &resolved);
 
     let mut command = Command::new(&ast_grep);
@@ -228,7 +240,126 @@ pub async fn execute_outline_search(workspace_root: &Path, args: Value) -> Resul
     }
 
     let files = parse_outline_stream(&output.stdout)?;
-    shape_outline_result(request.view, files)
+    let mut result = shape_outline_result(request.view, files)?;
+
+    if is_directory {
+        attach_directory_summary(&mut result, &request);
+    }
+
+    Ok(result)
+}
+
+/// Attach a directory-level `summary` block to the outline result. The
+/// summary includes total file count, breakdown by language, and a flat list
+/// of every top-level symbol name+kind across the directory. This lets the
+/// model answer "list all functions and structs in this directory" in a
+/// single tool call without re-extracting symbols file-by-file.
+fn attach_directory_summary(result: &mut Value, request: &OutlineRequest) {
+    let Some(obj) = result.as_object_mut() else {
+        return;
+    };
+    let Some(files) = obj.get("files").and_then(Value::as_array).cloned() else {
+        return;
+    };
+
+    let mut by_lang: BTreeMap<String, usize> = BTreeMap::new();
+    let mut by_kind: BTreeMap<String, usize> = BTreeMap::new();
+    let mut all_symbols: Vec<Value> = Vec::new();
+    let mut total_items = 0usize;
+
+    for file in &files {
+        let path = file
+            .get("path")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string();
+        let lang = file
+            .get("lang")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string();
+        *by_lang
+            .entry(if lang.is_empty() {
+                "unknown".to_string()
+            } else {
+                lang.clone()
+            })
+            .or_default() += 1;
+
+        // Both `digest`/`names` views expose `groups` and `full` exposes
+        // `items`. Walk both shapes uniformly.
+        if let Some(groups) = file.get("groups").and_then(Value::as_array) {
+            for group in groups {
+                let kind = group
+                    .get("kind")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
+                    .to_string();
+                *by_kind
+                    .entry(if kind.is_empty() {
+                        "item".to_string()
+                    } else {
+                        kind.clone()
+                    })
+                    .or_default() += 1;
+                if let Some(names) = group.get("names").and_then(Value::as_array) {
+                    for name in names {
+                        if let Some(name_str) = name.as_str() {
+                            all_symbols.push(json!({
+                                "path": path,
+                                "lang": lang,
+                                "kind": kind,
+                                "name": name_str,
+                            }));
+                            total_items += 1;
+                        }
+                    }
+                }
+            }
+        } else if let Some(items) = file.get("items").and_then(Value::as_array) {
+            for item in items {
+                let kind = item
+                    .get("kind")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
+                    .to_string();
+                let name = item
+                    .get("name")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
+                    .to_string();
+                *by_kind
+                    .entry(if kind.is_empty() {
+                        "item".to_string()
+                    } else {
+                        kind.clone()
+                    })
+                    .or_default() += 1;
+                if !name.is_empty() {
+                    all_symbols.push(json!({
+                        "path": path,
+                        "lang": lang,
+                        "kind": kind,
+                        "name": name,
+                    }));
+                    total_items += 1;
+                }
+            }
+        }
+    }
+
+    let summary = json!({
+        "path": request.path,
+        "is_directory": true,
+        "file_count": files.len(),
+        "total_symbols": total_items,
+        "by_lang": by_lang,
+        "by_kind": by_kind,
+        "all_symbols": all_symbols,
+        "next_action": "The directory outline is complete. Synthesize your final answer from the `summary.all_symbols` and `files` arrays above — no further tool calls needed for an overview.",
+    });
+
+    obj.insert("summary".to_string(), summary);
 }
 
 /// Build the path argument passed to ast-grep. Use the workspace-relative form

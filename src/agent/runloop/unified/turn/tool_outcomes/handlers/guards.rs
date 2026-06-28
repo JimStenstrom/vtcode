@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use serde_json::{Value, json};
 use vtcode_core::config::constants::defaults::{
     DEFAULT_MAX_CONSECUTIVE_BLOCKED_TOOL_CALLS_PER_TURN, DEFAULT_MAX_REPEATED_TOOL_CALLS,
@@ -19,9 +21,94 @@ use super::looping::{
     task_tracker_create_signature,
 };
 use super::{ValidationResult, build_failure_error_content};
+use crate::agent::runloop::unified::tool_reads::{
+    read_spool_head_for_error_check, spool_content_looks_like_error,
+};
 
 const SPOOL_CHUNK_GREP_PATTERN: &str = "warning|error|TODO";
+const SPOOL_CHUNK_INLINE_MAX_BYTES: usize = 32 * 1024;
+const SPOOL_CHUNK_INLINE_HEAD_BYTES: usize = 8 * 1024;
+const SPOOL_CHUNK_INLINE_TAIL_BYTES: usize = 8 * 1024;
 const MAX_CONSECUTIVE_SAME_FILE_READ_FAMILY_CALLS: usize = 4;
+
+/// Read a spool file's content for inline embedding when the spool-chunk
+/// guard trips. Returns `None` if the file is missing, empty, or unreadable.
+/// Caps content at `SPOOL_CHUNK_INLINE_MAX_BYTES` to bound the response size
+/// and uses head+tail truncation when the file is larger than
+/// `SPOOL_CHUNK_INLINE_HEAD_BYTES + SPOOL_CHUNK_INLINE_TAIL_BYTES`.
+fn read_spool_preview_for_guard(path: &str) -> Option<String> {
+    let metadata = std::fs::metadata(path).ok()?;
+    let len = metadata.len() as usize;
+    if len == 0 {
+        return None;
+    }
+
+    let total_cap = SPOOL_CHUNK_INLINE_MAX_BYTES.min(len);
+    let mut file = std::fs::File::open(path).ok()?;
+    let mut buffer = vec![0u8; total_cap];
+    use std::io::Read;
+    file.read_exact(&mut buffer).ok()?;
+    let content = String::from_utf8_lossy(&buffer).to_string();
+    if content.len() <= SPOOL_CHUNK_INLINE_HEAD_BYTES + SPOOL_CHUNK_INLINE_TAIL_BYTES {
+        return Some(content);
+    }
+    let head: String = content
+        .chars()
+        .take(SPOOL_CHUNK_INLINE_HEAD_BYTES)
+        .collect();
+    let tail: String = content
+        .chars()
+        .rev()
+        .take(SPOOL_CHUNK_INLINE_TAIL_BYTES)
+        .collect::<String>()
+        .chars()
+        .rev()
+        .collect();
+    Some(format!(
+        "{head}\n\n... [spool content truncated; full file is {len} bytes] ...\n\n{tail}"
+    ))
+}
+
+/// Inspect the spool filename and try to derive a useful fallback tool call
+/// that resumes the original workflow rather than the generic
+/// `grep warning|error|TODO` placeholder.
+///
+/// Recognized patterns:
+///   - `run-<id>.txt`   -> `unified_exec action=poll session_id=<id>`
+///   - `unified_search_<ts>.txt` -> `unified_search action=grep pattern="." path=<spool>`
+///   - `unified_exec_<ts>.txt`   -> fallback to head/tail preview tool
+///   - `outline_<ts>.txt`         -> `unified_search action=grep` on the spool
+fn derive_spool_fallback(path: &str) -> Option<(String, Value)> {
+    let file_name = Path::new(path).file_name()?.to_str()?.to_string();
+
+    if let Some(sid) = file_name
+        .strip_suffix(".txt")
+        .and_then(|stem| stem.strip_prefix("run-"))
+    {
+        return Some((
+            tool_names::UNIFIED_EXEC.to_string(),
+            json!({
+                "action": "poll",
+                "session_id": sid,
+            }),
+        ));
+    }
+
+    let stem = file_name.strip_suffix(".txt")?;
+    let prefix = stem.split('_').next()?;
+    match prefix {
+        "unified" | "outline" | "search" => Some((
+            tool_names::UNIFIED_SEARCH.to_string(),
+            json!({
+                "action": "grep",
+                "path": path,
+                "pattern": ".",
+                "max_results": 200,
+            }),
+        )),
+        _ => None,
+    }
+}
 
 #[cold]
 fn push_guard_failure_messages(
@@ -436,25 +523,75 @@ fn max_sequential_spool_chunk_reads_per_turn(ctx: &TurnProcessingContext<'_>) ->
 
 #[cold]
 fn spool_chunk_guard_fallback_args(path: &str) -> Value {
-    json!({
-        "action": "grep",
-        "path": path,
-        "pattern": SPOOL_CHUNK_GREP_PATTERN
-    })
+    derive_spool_fallback(path)
+        .map(|(_, args)| args)
+        .unwrap_or_else(|| {
+            json!({
+                "action": "grep",
+                "path": path,
+                "pattern": SPOOL_CHUNK_GREP_PATTERN
+            })
+        })
+}
+
+#[cold]
+fn spool_chunk_guard_fallback_tool(path: &str) -> Option<String> {
+    if let Some((tool, _)) = derive_spool_fallback(path) {
+        Some(tool)
+    } else {
+        Some(tool_names::UNIFIED_SEARCH.to_string())
+    }
 }
 
 #[cold]
 fn build_spool_chunk_guard_error_content(path: &str, max_reads_per_turn: usize) -> String {
-    super::super::execution_result::build_error_content(
+    let inline_content = read_spool_preview_for_guard(path);
+    let fallback_tool = spool_chunk_guard_fallback_tool(path);
+    let fallback_args = spool_chunk_guard_fallback_args(path);
+
+    let mut payload = super::super::execution_result::build_error_content(
         format!(
             "Spool chunk reads exceeded per-turn cap ({}). Use targeted extraction before reading more from '{}'.",
             max_reads_per_turn, path
         ),
-        Some(tool_names::UNIFIED_SEARCH.to_string()),
-        Some(spool_chunk_guard_fallback_args(path)),
+        fallback_tool.clone(),
+        Some(fallback_args),
         "spool_chunk_guard",
-    )
-    .to_string()
+    );
+
+    if let Some(obj) = payload.as_object_mut() {
+        // Mark the response so the model knows the tool output is already
+        // present in the conversation and recovery is required.
+        obj.insert("loop_detected".to_string(), Value::Bool(true));
+        obj.insert("recovery_required".to_string(), Value::Bool(true));
+        // Replace the generic "next_action" with one that points at the
+        // inline content we just embedded.
+        obj.insert(
+            "next_action".to_string(),
+            Value::String(
+                "STOP calling read_file/unified_file on this spool. The full \
+                 content is in `inline_content` below. Synthesize your final \
+                 answer from the existing conversation history."
+                    .to_string(),
+            ),
+        );
+        if let Some(content) = inline_content {
+            obj.insert("inline_content".to_string(), Value::String(content));
+            obj.insert(
+                "inline_content_note".to_string(),
+                Value::String(
+                    "Full spool content embedded inline. Do NOT re-read this \
+                     spool file — the per-turn cap will continue to block you."
+                        .to_string(),
+                ),
+            );
+        }
+        if let Some(tool) = fallback_tool {
+            obj.insert("fallback_tool".to_string(), Value::String(tool));
+        }
+    }
+
+    payload.to_string()
 }
 
 pub(super) fn enforce_spool_chunk_read_guard(
@@ -468,11 +605,37 @@ pub(super) fn enforce_spool_chunk_read_guard(
         return None;
     };
 
+    // Short-circuit: if the spool file's first bytes look like an error
+    // payload, the agent already has the error in its conversation history
+    // from the previous turn. Inject the error inline as a tool response and
+    // tell the model to use it instead of paginating the spool.
+    if let Some(head) = read_spool_head_for_error_check(spool_path) {
+        if spool_content_looks_like_error(&head) {
+            ctx.push_tool_response(
+                tool_call_id,
+                build_previous_turn_error_spool_content(spool_path, &head),
+            );
+            ctx.push_system_message(format!(
+                "Spool file '{}' contains a tool error from an earlier turn. Use the error payload already in your conversation history instead of re-reading the spool.",
+                spool_path
+            ));
+            // Do not increment the streak for this short-circuit — the model
+            // is being told to stop reading the spool, not to try again.
+            ctx.harness_state.reset_spool_chunk_read_streak();
+            return Some(ValidationResult::Handled);
+        }
+    }
+
     let max_reads_per_turn = max_sequential_spool_chunk_reads_per_turn(ctx);
     let streak = ctx.harness_state.record_spool_chunk_read();
     if streak <= max_reads_per_turn {
         return None;
     }
+
+    // Once the cap trips, do not increment the streak again for this path so
+    // subsequent attempts don't double-count and the recovery pass can
+    // synthesize a final answer without re-entering this guard.
+    ctx.harness_state.reset_spool_chunk_read_streak();
 
     let display_tool = tool_action_label(canonical_tool_name, args);
     let block_reason = format!(
@@ -491,14 +654,62 @@ pub(super) fn enforce_spool_chunk_read_guard(
     Some(ValidationResult::Blocked)
 }
 
+/// Build the tool response payload for a short-circuited spool read of an
+/// error payload from a previous turn. The payload exposes the original
+/// error and a `hint` directing the model to use the error in its history
+/// rather than re-reading the spool file.
+fn build_previous_turn_error_spool_content(spool_path: &str, head: &str) -> String {
+    let preview = if head.len() > 1024 {
+        format!("{}... [truncated]", &head[..1024])
+    } else {
+        head.to_string()
+    };
+    serde_json::json!({
+        "spool_path": spool_path,
+        "loop_detected": true,
+        "is_recoverable": true,
+        "error_class": "previous_turn_error_spool",
+        "next_action": "STOP re-reading this spool file. The original error payload is already in your conversation history from the previous turn. Choose a different tool or approach.",
+        "hint": "This spool contains an error response from an earlier turn; you do not need to re-read it. Use the error message already in your history and try a different approach.",
+        "inline_content": preview,
+    })
+    .to_string()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn spool_chunk_guard_error_uses_unified_search_fallback() {
+    fn spool_chunk_guard_error_resolves_to_pty_poll_for_run_prefix() {
         let payload =
             build_spool_chunk_guard_error_content(".vtcode/context/tool_outputs/run-1.txt", 3);
+        let parsed: Value =
+            serde_json::from_str(&payload).expect("spool chunk guard payload should be json");
+
+        assert_eq!(
+            parsed.get("fallback_tool").and_then(Value::as_str),
+            Some(tool_names::UNIFIED_EXEC)
+        );
+        assert_eq!(parsed["fallback_tool_args"]["action"], "poll");
+        assert_eq!(parsed["fallback_tool_args"]["session_id"], "1");
+        assert!(parsed.get("next_action").and_then(Value::as_str).is_some());
+        assert_eq!(
+            parsed.get("loop_detected").and_then(Value::as_bool),
+            Some(true)
+        );
+        assert_eq!(
+            parsed.get("recovery_required").and_then(Value::as_bool),
+            Some(true)
+        );
+    }
+
+    #[test]
+    fn spool_chunk_guard_error_resolves_to_search_grep_for_search_prefix() {
+        let payload = build_spool_chunk_guard_error_content(
+            ".vtcode/context/tool_outputs/unified_search_1782625284532136.txt",
+            3,
+        );
         let parsed: Value =
             serde_json::from_str(&payload).expect("spool chunk guard payload should be json");
 
@@ -509,13 +720,45 @@ mod tests {
         assert_eq!(parsed["fallback_tool_args"]["action"], "grep");
         assert_eq!(
             parsed["fallback_tool_args"]["path"],
-            ".vtcode/context/tool_outputs/run-1.txt"
+            ".vtcode/context/tool_outputs/unified_search_1782625284532136.txt"
         );
+        assert_eq!(
+            parsed.get("loop_detected").and_then(Value::as_bool),
+            Some(true)
+        );
+        assert_eq!(
+            parsed.get("recovery_required").and_then(Value::as_bool),
+            Some(true)
+        );
+    }
+
+    #[test]
+    fn spool_chunk_guard_error_falls_back_to_warning_error_todo_for_unknown_prefix() {
+        let payload = build_spool_chunk_guard_error_content(
+            ".vtcode/context/tool_outputs/custom_tool_42.txt",
+            3,
+        );
+        let parsed: Value =
+            serde_json::from_str(&payload).expect("spool chunk guard payload should be json");
+
+        assert_eq!(
+            parsed.get("fallback_tool").and_then(Value::as_str),
+            Some(tool_names::UNIFIED_SEARCH)
+        );
+        assert_eq!(parsed["fallback_tool_args"]["action"], "grep");
         assert_eq!(
             parsed["fallback_tool_args"]["pattern"],
             SPOOL_CHUNK_GREP_PATTERN
         );
-        assert!(parsed.get("next_action").and_then(Value::as_str).is_some());
+    }
+
+    #[test]
+    fn derive_spool_fallback_recognizes_pty_session_id() {
+        let (tool, args) = derive_spool_fallback(".vtcode/context/tool_outputs/run-abc123.txt")
+            .expect("pty session spool should resolve to a fallback");
+        assert_eq!(tool, tool_names::UNIFIED_EXEC);
+        assert_eq!(args["action"], "poll");
+        assert_eq!(args["session_id"], "abc123");
     }
 
     #[test]

@@ -307,59 +307,45 @@ impl ToolExecutionError {
         }
 
         if error_payload.is_object() && error_payload.get("message").is_some() {
-            return serde_json::from_value(error_payload.clone())
-                .ok()
-                .or_else(|| {
-                    let tool_name = error_payload
-                        .get("tool_name")
-                        .and_then(Value::as_str)
-                        .unwrap_or("tool");
-                    let message = error_payload
-                        .get("message")
-                        .and_then(Value::as_str)
-                        .unwrap_or("Unknown tool execution error");
-                    let category = error_payload
-                        .get("category")
-                        .and_then(|value| serde_json::from_value(value.clone()).ok())
-                        .unwrap_or_else(|| vtcode_commons::classify_error_message(message));
-                    let error_type = error_payload
-                        .get("error_type")
-                        .and_then(Value::as_str)
-                        .map(parse_error_type)
-                        .unwrap_or_else(|| ToolErrorType::from(category));
-                    let mut structured =
-                        Self::new(tool_name.to_string(), error_type, message.to_string());
-                    structured.category = category;
-                    structured.retryable = error_payload
-                        .get("retryable")
-                        .and_then(Value::as_bool)
-                        .unwrap_or(structured.retryable);
-                    structured.is_recoverable = error_payload
-                        .get("is_recoverable")
-                        .and_then(Value::as_bool)
-                        .unwrap_or(structured.is_recoverable);
-                    structured.retry_delay_ms =
-                        error_payload.get("retry_delay_ms").and_then(Value::as_u64);
-                    structured.retry_after_ms =
-                        error_payload.get("retry_after_ms").and_then(Value::as_u64);
-                    structured.circuit_breaker_impact = error_payload
-                        .get("circuit_breaker_impact")
-                        .and_then(Value::as_bool)
-                        .unwrap_or(structured.circuit_breaker_impact);
-                    structured.partial_state_possible = error_payload
-                        .get("partial_state_possible")
-                        .and_then(Value::as_bool)
-                        .unwrap_or(false);
-                    structured.rollback_performed = error_payload
-                        .get("rollback_performed")
-                        .and_then(Value::as_bool)
-                        .unwrap_or(false);
-                    structured.original_error = error_payload
-                        .get("original_error")
-                        .and_then(Value::as_str)
-                        .map(ToOwned::to_owned);
-                    Some(structured)
-                });
+            // Single source of truth: deserialize via serde. The previous
+            // implementation hand-built the error struct from individual
+            // fields, which silently dropped any new field that was added to
+            // `ToolExecutionError` (it would fall through to `Self::new`'s
+            // default for that field, which could be subtly wrong).
+            //
+            // `serde_json::from_value` honors every `#[serde(default)]` on
+            // the struct, so a partial payload still reconstructs safely.
+            if let Ok(structured) = serde_json::from_value::<Self>(error_payload.clone()) {
+                return Some(structured);
+            }
+
+            // Last-resort fallback: pull out the minimum fields needed to
+            // construct a usable error. This branch only fires when the
+            // payload is malformed (e.g. wrong type for `category`).
+            let tool_name = error_payload
+                .get("tool_name")
+                .and_then(Value::as_str)
+                .unwrap_or("tool");
+            let message = error_payload
+                .get("message")
+                .and_then(Value::as_str)
+                .unwrap_or("Unknown tool execution error");
+            let category = error_payload
+                .get("category")
+                .and_then(|value| serde_json::from_value(value.clone()).ok())
+                .unwrap_or_else(|| vtcode_commons::classify_error_message(message));
+            let error_type = error_payload
+                .get("error_type")
+                .and_then(Value::as_str)
+                .map(parse_error_type)
+                .unwrap_or_else(|| ToolErrorType::from(category));
+            let mut structured = Self::new(tool_name.to_string(), error_type, message.to_string());
+            structured.category = category;
+            structured.original_error = error_payload
+                .get("original_error")
+                .and_then(Value::as_str)
+                .map(ToOwned::to_owned);
+            return Some(structured);
         }
 
         error_payload.as_str().map(|message| {

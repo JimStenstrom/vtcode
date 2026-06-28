@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use vtcode_core::llm::provider as uni;
+use vtcode_core::llm::provider::{self as uni, AssistantPhase};
 
 use crate::agent::runloop::unified::run_loop_context::RecoveryMode;
 
@@ -80,5 +80,99 @@ pub(super) fn recovery_empty_response_fallback_message(
         format!("{intro}\n\n{}\n\n{guidance}", previews[0])
     } else {
         format!("{intro}\n\n{}\n\n{guidance}", previews.join("\n"))
+    }
+}
+
+/// Last-resort fallback used when `recovery_empty_response_fallback_message`
+/// somehow returns empty or whitespace-only content. Ensures the user always
+/// sees a non-empty final answer rather than a silent blank line.
+pub(super) fn recovery_empty_fallback_safety_message(mode: RecoveryMode) -> String {
+    match mode {
+        RecoveryMode::ToolEnabledRetry => {
+            "I couldn't generate a response on this turn because the model returned an \
+             empty answer twice in a row. Please retry the request — the prior turn \
+             state has been preserved."
+                .to_string()
+        }
+        RecoveryMode::ToolFreeSynthesis | RecoveryMode::AdaptiveBudgetDecision => {
+            "I couldn't synthesize a final answer from this turn. The most recent tool \
+             outputs (if any) are in the conversation history above. Please retry with \
+             a more specific question or rephrase the request."
+                .to_string()
+        }
+    }
+}
+
+/// Push a recovery fallback assistant message directly into the working
+/// history, bypassing `handle_assistant_response`'s skip-empty guard. The
+/// fallback is the user's only view of what happened when the model returns
+/// nothing during recovery; without forcing the push, the conversation can
+/// end with a silent blank assistant message.
+pub(super) fn push_recovery_fallback_assistant_message(
+    history: &mut Vec<uni::Message>,
+    content: &str,
+    phase: Option<AssistantPhase>,
+) {
+    if content.trim().is_empty() {
+        return;
+    }
+    let msg = uni::Message::assistant(content.to_string()).with_phase(phase);
+    history.push(msg);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn safety_message_is_non_empty_for_all_modes() {
+        for mode in [
+            RecoveryMode::ToolEnabledRetry,
+            RecoveryMode::ToolFreeSynthesis,
+            RecoveryMode::AdaptiveBudgetDecision,
+        ] {
+            let msg = recovery_empty_fallback_safety_message(mode);
+            assert!(!msg.trim().is_empty(), "safety message must be non-empty");
+            assert!(
+                msg.len() > 40,
+                "safety message should be substantial (got {} chars)",
+                msg.len()
+            );
+        }
+    }
+
+    #[test]
+    fn fallback_message_always_includes_intro_and_guidance() {
+        for mode in [
+            RecoveryMode::ToolEnabledRetry,
+            RecoveryMode::ToolFreeSynthesis,
+            RecoveryMode::AdaptiveBudgetDecision,
+        ] {
+            let intro = recovery_empty_response_fallback_intro(mode);
+            let guidance = recovery_empty_response_fallback_guidance(mode);
+            assert!(!intro.trim().is_empty());
+            assert!(!guidance.trim().is_empty());
+        }
+    }
+
+    #[test]
+    fn push_recovery_fallback_skips_empty_content() {
+        let mut history: Vec<uni::Message> = Vec::new();
+        push_recovery_fallback_assistant_message(&mut history, "", None);
+        push_recovery_fallback_assistant_message(&mut history, "   \n  ", None);
+        assert!(history.is_empty());
+    }
+
+    #[test]
+    fn push_recovery_fallback_includes_phase_when_provided() {
+        let mut history: Vec<uni::Message> = Vec::new();
+        push_recovery_fallback_assistant_message(
+            &mut history,
+            "summary",
+            Some(AssistantPhase::FinalAnswer),
+        );
+        assert_eq!(history.len(), 1);
+        assert_eq!(history[0].phase, Some(AssistantPhase::FinalAnswer));
+        assert_eq!(history[0].content.as_text().as_ref(), "summary");
     }
 }

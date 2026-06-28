@@ -45,6 +45,60 @@ const LOOP_HARD_BLOCK_REPEAT_COUNT: usize = 5;
 // on alias/self-recursion bugs with minimal extra work.
 const REENTRANCY_PER_TOOL_LIMIT: usize = 1;
 
+/// Extract the file paths a non-readonly tool call is about to mutate.
+///
+/// Returns an empty Vec for tool calls that aren't path-mutating (in which
+/// case no cache invalidation is needed). For commands that take a `path` or
+/// `file_path` argument we return that path verbatim; for tools that accept
+/// an `items` array we collect every string-valued entry.
+fn mutated_target_paths(tool_name: &str, args: &Value) -> Vec<String> {
+    let obj = match args.as_object() {
+        Some(obj) => obj,
+        None => return Vec::new(),
+    };
+    let mut paths = Vec::new();
+    let singular_keys = ["path", "file_path", "filepath", "target_path", "file"];
+    let array_keys = ["items", "paths", "files"];
+
+    // Most write-style tools carry the target path in a singular field.
+    for key in singular_keys {
+        if let Some(value) = obj.get(key).and_then(Value::as_str) {
+            let trimmed = value.trim();
+            if !trimmed.is_empty() {
+                paths.push(trimmed.to_string());
+            }
+        }
+    }
+
+    // Batch tools (e.g., batch edits) accept an `items` array of `{path, ...}`.
+    for key in array_keys {
+        if let Some(items) = obj.get(key).and_then(Value::as_array) {
+            for item in items {
+                if let Some(item_obj) = item.as_object() {
+                    for path_key in singular_keys {
+                        if let Some(value) = item_obj.get(path_key).and_then(Value::as_str) {
+                            let trimmed = value.trim();
+                            if !trimmed.is_empty() {
+                                paths.push(trimmed.to_string());
+                            }
+                        }
+                    }
+                } else if let Some(value) = item.as_str() {
+                    let trimmed = value.trim();
+                    if !trimmed.is_empty() {
+                        paths.push(trimmed.to_string());
+                    }
+                }
+            }
+        }
+    }
+
+    // Path is informational only — callers should treat the result as the
+    // set of files whose cached read content may now be stale.
+    let _ = tool_name;
+    paths
+}
+
 fn structured_tool_output_error(value: &Value) -> Option<String> {
     let obj = value.as_object()?;
     if obj.get("success").and_then(Value::as_bool) == Some(false) {
@@ -1057,6 +1111,36 @@ impl ToolRegistry {
                     };
                     obj.insert("reused_result_note".into(), json!(note));
                 }
+                // Record a synthetic "reused" entry so subsequent
+                // `detect_loop` / `find_recent_*` queries see this call in the
+                // history.  Previously the fast-reuse path returned the
+                // cached payload without recording, which meant `detect_loop`
+                // could not account for the reused call — leading to
+                // undercounting on the very next turn and silent cache
+                // poisoning.
+                //
+                // We pass `is_mcp_tool = false` and `mcp_provider = None`
+                // because the fast-reuse gate has already filtered for
+                // read-only calls and we don't have those locals in scope at
+                // this point in the function.  The cached record itself
+                // (added when the original call ran) carries the true MCP
+                // metadata; the synthetic record exists only to make
+                // `detect_loop` see this call in the rolling window.
+                self.execution_history
+                    .add_record(ToolExecutionRecord::success(
+                        tool_name.clone(),
+                        requested_name.clone(),
+                        false,
+                        None,
+                        args.clone(),
+                        reused_value.clone(),
+                        context_snapshot.clone(),
+                        timeout_category_label.clone(),
+                        base_timeout_ms,
+                        adaptive_timeout_ms,
+                        None,
+                        false,
+                    ));
                 trace!(
                     tool = %tool_name,
                     "Fast-reusing recent successful read-only result"
@@ -1745,7 +1829,15 @@ impl ToolRegistry {
                 let structured_error = structured_tool_output_error(&normalized_value);
 
                 if !readonly_classification {
-                    self.execution_history.clear();
+                    // Invalidate only the cache records whose read target could
+                    // overlap the mutated file(s).  Wiping the entire history
+                    // (previous behavior) defeated cross-turn dedup: any write
+                    // tool call would discard unrelated read-only cache hits,
+                    // forcing the model to re-read files whose contents hadn't
+                    // changed at all.
+                    for target in mutated_target_paths(&tool_name_owned, &args_for_recording) {
+                        self.execution_history.invalidate_for_path(&target);
+                    }
                 }
 
                 if let Some(error_msg) = structured_error {

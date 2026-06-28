@@ -364,16 +364,21 @@ impl GrepSearchManager {
             cmd.arg("--max-filesize").arg(format!("{max_file_size}B"));
         }
 
-        // Case sensitivity
-        if let Some(case_sensitive) = input.case_sensitive {
-            if case_sensitive {
+        // Case sensitivity: pick exactly one flag from a single match so
+        // ripgrep never sees conflicting `--ignore-case` + `--smart-case`.
+        // Previously the cascade could append both when `case_sensitive`
+        // defaulted to None but a higher-level wrapper set it to false.
+        match input.case_sensitive {
+            Some(true) => {
                 cmd.arg("--case-sensitive");
-            } else {
+            }
+            Some(false) => {
                 cmd.arg("--ignore-case");
             }
-        } else {
-            // Default to smart case if not specified
-            cmd.arg("--smart-case");
+            None => {
+                // Default to smart case when the caller didn't specify.
+                cmd.arg("--smart-case");
+            }
         }
 
         // Invert match
@@ -645,13 +650,33 @@ impl GrepSearchManager {
         let input_clone = input.clone();
 
         let timeout = input.timeout.unwrap_or(DEFAULT_SEARCH_TIMEOUT);
-        let (matches, truncated, total_match_count) = tokio::time::timeout(
-            timeout,
-            spawn_blocking(move || GrepSearchManager::execute_with_backends(&input_clone)),
-        )
-        .await
-        .context("ripgrep search timed out")?
-        .context("ripgrep search worker panicked")??;
+        // Spawn the blocking search on its own handle so we can cancel it
+        // on timeout. The previous implementation used `tokio::time::timeout`
+        // which returns `Err(Elapsed)` but leaves the blocking task running
+        // — repeated timeouts would leak threads holding the state lock.
+        let mut join =
+            spawn_blocking(move || GrepSearchManager::execute_with_backends(&input_clone));
+        let outcome = tokio::time::timeout(timeout, &mut join).await;
+        let (matches, truncated, total_match_count) = match outcome {
+            Ok(Ok(Ok(result))) => result,
+            Ok(Ok(Err(worker_err))) => {
+                return Err(worker_err.context("ripgrep search worker failed"));
+            }
+            Ok(Err(join_err)) => {
+                return Err(anyhow::Error::new(join_err).context("ripgrep search worker panicked"));
+            }
+            Err(_elapsed) => {
+                // Abort the blocking task so it doesn't keep running after
+                // we time out. The runtime cancels the spawn_blocking task
+                // and frees its slot in the blocking pool.
+                join.abort();
+                let _ = join.await;
+                return Err(anyhow::anyhow!(
+                    "ripgrep search timed out after {}s; the worker has been cancelled",
+                    timeout.as_secs()
+                ));
+            }
+        };
 
         let result = GrepSearchResult {
             query,

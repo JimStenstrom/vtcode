@@ -200,6 +200,33 @@ fn spool_path_exists(result: &Value) -> bool {
             .is_some_and(|cwd| cwd.join(path).exists())
 }
 
+/// Check whether a spool path is still replayable. Mirrors `spool_path_exists`
+/// but takes the path directly so it can be called from the unified TTL helper
+/// without re-extracting the spool path from the result object.
+fn spool_path_is_replayable(spool_path: &str) -> bool {
+    let path = Path::new(spool_path);
+    if path.is_absolute() {
+        return path.exists();
+    }
+
+    path.exists()
+        || env::current_dir()
+            .ok()
+            .is_some_and(|cwd| cwd.join(path).exists())
+}
+
+/// Whether a TTL replay requires the record to reference a spool file.
+///
+/// - `RequireSpool`: the caller only wants spool-backed payloads (PTY sessions,
+///   large search outputs). Records without `spool_path` are skipped.
+/// - `Any`: accept either an inline or spool-backed result, but always validate
+///   that the spool file is still on disk when `spool_path` is present.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ReplayMode {
+    RequireSpool,
+    Any,
+}
+
 fn read_file_path_from_args(args: &Value) -> Option<&str> {
     let obj = args.as_object()?;
     for key in ["path", "file_path", "filepath", "target_path", "file"] {
@@ -383,30 +410,7 @@ impl ToolExecutionHistory {
         args: &Value,
         max_age: Duration,
     ) -> Option<Value> {
-        let records = self.records.read().ok()?;
-        let now = SystemTime::now();
-
-        for record in records.iter().rev() {
-            if record.tool_name != tool_name || !record.success || record.args != *args {
-                continue;
-            }
-
-            let age_ok = match now.duration_since(record.timestamp) {
-                Ok(age) => age <= max_age,
-                Err(_) => false,
-            };
-            if !age_ok {
-                continue;
-            }
-
-            if let Ok(result) = &record.result
-                && result.get("spool_path").and_then(|v| v.as_str()).is_some()
-                && spool_path_exists(result)
-            {
-                return Some(result.clone());
-            }
-        }
-        None
+        self.find_recent_matching(tool_name, args, max_age, ReplayMode::RequireSpool)
     }
 
     /// Find the most recent successful output for a tool call with identical args.
@@ -416,36 +420,7 @@ impl ToolExecutionHistory {
         args: &Value,
         max_age: Duration,
     ) -> Option<Value> {
-        let records = self.records.read().ok()?;
-        let now = SystemTime::now();
-
-        for record in records.iter().rev() {
-            if record.tool_name != tool_name || !record.success || record.args != *args {
-                continue;
-            }
-
-            let age_ok = match now.duration_since(record.timestamp) {
-                Ok(age) => age <= max_age,
-                Err(_) => false,
-            };
-            if !age_ok {
-                continue;
-            }
-
-            if let Ok(result) = &record.result {
-                if result.get("spool_path").and_then(|v| v.as_str()).is_some() {
-                    let Some(spool_path) = result.get("spool_path").and_then(|v| v.as_str()) else {
-                        continue;
-                    };
-                    if !Path::new(spool_path).exists() {
-                        continue;
-                    }
-                }
-                return Some(result.clone());
-            }
-        }
-
-        None
+        self.find_recent_matching(tool_name, args, max_age, ReplayMode::Any)
     }
 
     /// Find the most recent successful output for a read-only tool call that
@@ -461,6 +436,46 @@ impl ToolExecutionHistory {
         max_age: Duration,
     ) -> Option<Value> {
         let query_path = Self::extract_read_target(tool_name, query_args)?;
+        self.find_recent_matching_with_predicate(tool_name, max_age, ReplayMode::Any, |record| {
+            let record_path = Self::extract_read_target(tool_name, &record.args)?;
+            if record_path != query_path {
+                return None;
+            }
+            // Read-shape check: only match if the cached result covers the
+            // query's extent and has the same raw/summarized mode.  A query
+            // asking for a larger limit, different offset, or raw content is
+            // a materially different read — the model genuinely needs fresh
+            // content, not a cached stub.
+            if !Self::read_extent_matches(&record.args, query_args) {
+                return None;
+            }
+            Some(())
+        })
+    }
+
+    /// Single source of truth for "find a recent successful record for this
+    /// tool call, honoring the spool path lifetime semantics". Replaces the
+    /// three near-identical loops that previously diverged on whether spool
+    /// was required and how its existence was checked.
+    fn find_recent_matching(
+        &self,
+        tool_name: &str,
+        args: &Value,
+        max_age: Duration,
+        mode: ReplayMode,
+    ) -> Option<Value> {
+        self.find_recent_matching_with_predicate(tool_name, max_age, mode, |record| {
+            (record.args == *args).then_some(())
+        })
+    }
+
+    fn find_recent_matching_with_predicate(
+        &self,
+        tool_name: &str,
+        max_age: Duration,
+        mode: ReplayMode,
+        mut matches: impl FnMut(&ToolExecutionRecord) -> Option<()>,
+    ) -> Option<Value> {
         let records = self.records.read().ok()?;
         let now = SystemTime::now();
 
@@ -468,20 +483,10 @@ impl ToolExecutionHistory {
             if record.tool_name != tool_name || !record.success {
                 continue;
             }
-            let Some(record_path) = Self::extract_read_target(tool_name, &record.args) else {
-                continue;
-            };
-            if record_path != query_path {
+            if matches(record).is_none() {
                 continue;
             }
-            // Read-shape check: only match if the cached result covers the
-            // query's extent and has the same raw/summarized mode.  A query
-            // asking for a larger limit, different offset, or raw content is a
-            // materially different read — the model genuinely needs fresh
-            // content, not a cached stub.
-            if !Self::read_extent_matches(&record.args, query_args) {
-                continue;
-            }
+
             let age_ok = match now.duration_since(record.timestamp) {
                 Ok(age) => age <= max_age,
                 Err(_) => false,
@@ -489,19 +494,50 @@ impl ToolExecutionHistory {
             if !age_ok {
                 continue;
             }
-            if let Ok(result) = &record.result {
-                if result.get("spool_path").and_then(|v| v.as_str()).is_some() {
-                    let Some(spool_path) = result.get("spool_path").and_then(|v| v.as_str()) else {
-                        continue;
-                    };
-                    if !Path::new(spool_path).exists() {
-                        continue;
-                    }
+
+            let Ok(result) = &record.result else {
+                continue;
+            };
+
+            if let Some(spool_path) = result.get("spool_path").and_then(Value::as_str) {
+                if mode == ReplayMode::RequireSpool && !spool_path_exists(result) {
+                    continue;
                 }
-                return Some(result.clone());
+                // Single source of truth for spool-path existence. Uses the
+                // shared helper so a relative path resolves against the
+                // workspace cwd consistently across all callers.
+                if !spool_path_is_replayable(spool_path) {
+                    continue;
+                }
+            } else if mode == ReplayMode::RequireSpool {
+                continue;
             }
+
+            return Some(result.clone());
         }
         None
+    }
+
+    /// Invalidate cache records whose read target overlaps the mutated path.
+    /// Used when a write tool modifies a file: only the records that could
+    /// contain stale content for that file are dropped, instead of wiping
+    /// every cached read-only result.
+    pub fn invalidate_for_path(&self, target_path: &str) {
+        let Ok(mut records) = self.records.write() else {
+            return;
+        };
+        records.retain(|record| {
+            if record.tool_name == tools::READ_FILE || record.tool_name == tools::UNIFIED_FILE {
+                if let Some(record_path) =
+                    Self::extract_read_target(&record.tool_name, &record.args)
+                {
+                    if record_path == target_path {
+                        return false;
+                    }
+                }
+            }
+            true
+        });
     }
 
     /// Check whether the cached record's read shape covers the new query's shape.

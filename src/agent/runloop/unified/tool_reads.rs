@@ -46,12 +46,48 @@ pub(crate) fn spool_chunk_read_path<'a>(
     }
 }
 
+/// Read the first 4 KB of a file to detect error payloads written by previous
+/// tool calls. Used to short-circuit repeated reads of an error spool.
+pub(crate) fn read_spool_head_for_error_check(path: &str) -> Option<String> {
+    use std::io::Read;
+    let mut file = std::fs::File::open(path).ok()?;
+    let mut buffer = vec![0u8; 4096];
+    let read = file.read(&mut buffer).ok()?;
+    if read == 0 {
+        return None;
+    }
+    buffer.truncate(read);
+    Some(String::from_utf8_lossy(&buffer).to_string())
+}
+
+/// Returns `true` if the spool file's first bytes look like a tool error
+/// response rather than a successful tool output. We check both:
+///   - JSON `{"error":...}` envelopes produced by `build_error_content`
+///   - Plain-text error fragments commonly written by outline / search tools
+pub(crate) fn spool_content_looks_like_error(content: &str) -> bool {
+    let trimmed = content.trim_start();
+    if trimmed.starts_with("{\"error\"") {
+        return true;
+    }
+    if trimmed.starts_with("{\"output\":\"Outline requires ast-grep") {
+        return true;
+    }
+    if trimmed.starts_with("{\"output\":\"Error") {
+        return true;
+    }
+    let lower = trimmed.to_ascii_lowercase();
+    lower.starts_with("error:")
+        || lower.starts_with("tool error:")
+        || lower.starts_with("ast-grep")
+        || lower.contains("outline requires ast-grep")
+}
+
 #[cfg(test)]
 mod tests {
     use serde_json::json;
     use vtcode_core::config::constants::tools;
 
-    use super::spool_chunk_read_path;
+    use super::{spool_chunk_read_path, spool_content_looks_like_error};
 
     #[test]
     fn spool_chunk_read_path_matches_read_file_spool_reads() {
@@ -102,5 +138,36 @@ mod tests {
         });
 
         assert_eq!(spool_chunk_read_path(tools::UNIFIED_FILE, &args), None);
+    }
+
+    #[test]
+    fn spool_content_looks_like_error_detects_json_error_envelope() {
+        let payload =
+            r#"{"error":"Spool chunk reads exceeded","failure_kind":"spool_chunk_guard"}"#;
+        assert!(spool_content_looks_like_error(payload));
+    }
+
+    #[test]
+    fn spool_content_looks_like_error_detects_outline_ast_grep_failure() {
+        let payload = r#"{"output":"Outline requires ast-grep (`sg`). not installed"}"#;
+        assert!(spool_content_looks_like_error(payload));
+    }
+
+    #[test]
+    fn spool_content_looks_like_error_detects_plain_error_prefix() {
+        assert!(spool_content_looks_like_error("Error: file not found"));
+        assert!(spool_content_looks_like_error(
+            "ast-grep: command not found"
+        ));
+    }
+
+    #[test]
+    fn spool_content_looks_like_error_returns_false_for_normal_output() {
+        assert!(!spool_content_looks_like_error(
+            "approval_recorder.rs\nassembly.rs\nbuilder.rs"
+        ));
+        assert!(!spool_content_looks_like_error(
+            "=== mod.rs ===\npub struct ToolRegistry"
+        ));
     }
 }

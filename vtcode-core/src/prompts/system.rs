@@ -81,6 +81,7 @@ const SHARED_CONTRACT_LINES: &[&str] = &[
     "Preserve task goal, tracker state, touched files, verification status, and decisions across compaction.",
     "Keep outputs concise.",
     "Prefer `ast-grep` for code-shape queries; keep text grep for prose and config.",
+    "When a tool result has `spool_path`, the full output is at that path. Read it once with `unified_search action=grep` using a SPECIFIC pattern — do NOT page through it with multiple `read_file` calls (the per-turn spool chunk cap will block you). Past-turn errors are already in your history; do not re-read their spool files.",
 ];
 
 /// Default/Lightweight/Specialized mode: expanded contract lines beyond shared rules.
@@ -615,8 +616,8 @@ mod tests {
             compose_system_instruction_text(&PathBuf::from("."), Some(&config), None).await;
 
         assert!(
-            result.len() <= 1700,
-            "Default mode should stay sparse (<=1.7K chars, was {} chars)",
+            result.len() <= 1900,
+            "Default mode should stay sparse (<=1.9K chars, was {} chars)",
             result.len()
         );
         assert!(result.contains("task_tracker"));
@@ -749,7 +750,7 @@ mod tests {
         // Rough estimate: 1 token ≈ 4 characters
         let approx_tokens = minimal_system_prompt().len() / 4;
         assert!(
-            approx_tokens < 220,
+            approx_tokens < 300,
             "Minimal prompt should stay compact, got ~{approx_tokens}"
         );
     }
@@ -758,7 +759,7 @@ mod tests {
     fn test_default_prompt_token_count() {
         let approx_tokens = default_system_prompt().len() / 4;
         assert!(
-            approx_tokens < 420,
+            approx_tokens < 470,
             "Default prompt should stay compact, got ~{approx_tokens}"
         );
     }

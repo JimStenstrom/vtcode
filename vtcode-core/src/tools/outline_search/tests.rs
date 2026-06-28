@@ -260,3 +260,63 @@ async fn outline_handles_empty_stream_gracefully() {
     assert_eq!(result["view"], "digest");
     assert_eq!(result["files"].as_array().expect("files array").len(), 0);
 }
+
+#[tokio::test]
+#[serial]
+async fn outline_directory_emits_summary_block() {
+    let (_script_dir, script_path) = write_fake_sg(TWO_FILE_STREAM);
+    let _override = set_ast_grep_binary_override_for_tests(Some(script_path));
+    let temp = workspace_with_source();
+
+    // Point at the `src` *directory* (not a single file). The summary block
+    // should appear with aggregated counts and a flat symbol list.
+    let result = execute_outline_search(temp.path(), json!({"action": "outline", "path": "src"}))
+        .await
+        .expect("directory outline ok");
+
+    assert_eq!(
+        result["view"], "names",
+        "directory should default to names view"
+    );
+    let summary = result.get("summary").expect("summary block on directory");
+    assert_eq!(summary["is_directory"], json!(true));
+    assert_eq!(summary["file_count"], json!(2));
+    assert_eq!(summary["total_symbols"], json!(3));
+    assert_eq!(summary["by_lang"]["Rust"], json!(2));
+    assert_eq!(summary["by_kind"]["function"], json!(2));
+    assert_eq!(summary["by_kind"]["struct"], json!(1));
+    let all_symbols = summary["all_symbols"]
+        .as_array()
+        .expect("all_symbols array");
+    assert_eq!(all_symbols.len(), 3);
+    assert_eq!(all_symbols[0]["kind"], "function");
+    assert_eq!(all_symbols[0]["name"], "alpha");
+    assert!(
+        summary["next_action"]
+            .as_str()
+            .is_some_and(|s| s.contains("Synthesize your final answer")),
+        "directory summary should include next_action"
+    );
+}
+
+#[tokio::test]
+#[serial]
+async fn outline_directory_respects_explicit_view() {
+    let (_script_dir, script_path) = write_fake_sg(TWO_FILE_STREAM);
+    let _override = set_ast_grep_binary_override_for_tests(Some(script_path));
+    let temp = workspace_with_source();
+
+    // Explicit `view=full` on a directory should be respected.
+    let result = execute_outline_search(
+        temp.path(),
+        json!({"action": "outline", "path": "src", "view": "full"}),
+    )
+    .await
+    .expect("directory outline with explicit view");
+
+    assert_eq!(result["view"], "full");
+    assert!(
+        result.get("summary").is_some(),
+        "summary should still be attached for explicit views"
+    );
+}

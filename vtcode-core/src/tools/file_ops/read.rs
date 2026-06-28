@@ -518,6 +518,12 @@ impl FileOpsTool {
                                     )
                                     .to_value(),
                                 );
+                                builder = builder.field(
+                                    "next_action",
+                                    json!(
+                                        "Use the `next_read_args` field above to continue, or `unified_search action=grep` with a SPECIFIC pattern. Do NOT re-read the same offset — the per-turn spool chunk cap will block you."
+                                    ),
+                                );
                             }
                         }
 
