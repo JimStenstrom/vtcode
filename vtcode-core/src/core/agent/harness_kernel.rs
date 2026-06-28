@@ -97,9 +97,18 @@ fn tool_names_from_definitions(tools: Option<&Vec<ToolDefinition>>) -> Vec<Strin
 }
 
 #[derive(Debug, Clone)]
+pub struct FallbackStep {
+    pub tool_name: String,
+    pub args: Value,
+}
+
+#[derive(Debug, Clone)]
 pub struct FallbackRecommendation {
     pub tool_name: String,
     pub args: Value,
+    /// Ordered chain of additional fallbacks to try if the primary
+    /// `tool_name`/`args` fails.  Each step is tried in sequence.
+    pub chain: Vec<FallbackStep>,
 }
 
 impl FallbackRecommendation {
@@ -107,6 +116,20 @@ impl FallbackRecommendation {
     /// so downstream callers can skip invalid fallbacks early.
     pub fn is_valid(&self) -> bool {
         !self.tool_name.trim().is_empty()
+    }
+
+    /// Total number of fallback steps including the primary.
+    pub fn step_count(&self) -> usize {
+        1 + self.chain.len()
+    }
+
+    /// Iterate all fallback steps: primary first, then chain.
+    pub fn steps(&self) -> impl Iterator<Item = FallbackStep> {
+        std::iter::once(FallbackStep {
+            tool_name: self.tool_name.clone(),
+            args: self.args.clone(),
+        })
+        .chain(self.chain.iter().cloned())
     }
 }
 

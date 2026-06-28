@@ -65,6 +65,7 @@ fn vtcode_config_circuit_breaker_to_core(
             min_backoff: Duration::from_millis(100),
             max_backoff: Duration::from_secs(1),
             backoff_factor: 1.0,
+            half_open_probe_count: 1,
         };
     }
 
@@ -74,6 +75,7 @@ fn vtcode_config_circuit_breaker_to_core(
         min_backoff: Duration::from_secs(5),
         max_backoff: Duration::from_secs(120),
         backoff_factor: 2.0,
+        half_open_probe_count: 1,
     }
 }
 

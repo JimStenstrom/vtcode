@@ -393,7 +393,7 @@ impl AgentRunner {
         agent_prefix: &str,
         name: &str,
     ) -> Option<(serde_json::Value, String, serde_json::Value)> {
-        if !fallback.is_valid() {
+        if !fallback.is_valid() && fallback.chain.is_empty() {
             warn!(
                 agent = %agent_prefix,
                 tool = %name,
@@ -405,42 +405,68 @@ impl AgentRunner {
         info!(
             agent = %agent_prefix,
             tool = %name,
-            fallback_tool = %fallback.tool_name,
-            "Main tool execution failed; attempting fallback recommendation"
+            fallback_steps = fallback.step_count(),
+            "Main tool execution failed; attempting fallback chain"
         );
 
-        match self.admit_tool_call(
-            &fallback.tool_name,
-            fallback.args.clone(),
-            &mut runtime.state,
-        ) {
-            Ok(fallback_prepared) => {
-                match self
-                    .execute_prepared_tool_internal(&fallback_prepared)
-                    .await
-                {
-                    Ok(res) => Some((res, fallback.tool_name.clone(), fallback.args.clone())),
-                    Err(fallback_err) => {
-                        warn!(
-                            agent = %agent_prefix,
-                            tool = %fallback.tool_name,
-                            error = %fallback_err.message,
-                            "Fallback tool execution failed"
-                        );
-                        None
+        for step in fallback.steps() {
+            if step.tool_name.trim().is_empty() {
+                continue;
+            }
+            info!(
+                agent = %agent_prefix,
+                tool = %name,
+                fallback_tool = %step.tool_name,
+                "Attempting fallback step"
+            );
+
+            match self
+                .admit_tool_call(
+                    &step.tool_name,
+                    step.args.clone(),
+                    &mut runtime.state,
+                )
+            {
+                Ok(fallback_prepared) => {
+                    match self
+                        .execute_prepared_tool_internal(&fallback_prepared)
+                        .await
+                    {
+                        Ok((res, _attempts)) => {
+                            info!(
+                                agent = %agent_prefix,
+                                fallback_tool = %step.tool_name,
+                                "Fallback step succeeded"
+                            );
+                            return Some((res, step.tool_name, step.args));
+                        }
+                        Err(fallback_err) => {
+                            warn!(
+                                agent = %agent_prefix,
+                                tool = %step.tool_name,
+                                error = %fallback_err.message,
+                                "Fallback step failed; trying next"
+                            );
+                        }
                     }
                 }
-            }
-            Err(admit_err) => {
-                warn!(
-                    agent = %agent_prefix,
-                    tool = %fallback.tool_name,
-                    error = %admit_err,
-                    "Failed to admit fallback tool call"
-                );
-                None
+                Err(admit_err) => {
+                    warn!(
+                        agent = %agent_prefix,
+                        tool = %step.tool_name,
+                        error = %admit_err,
+                        "Failed to admit fallback step; trying next"
+                    );
+                }
             }
         }
+
+        warn!(
+            agent = %agent_prefix,
+            tool = %name,
+            "All fallback steps exhausted"
+        );
+        None
     }
 
     async fn admit_runner_tool_call(
@@ -608,6 +634,7 @@ impl AgentRunner {
                                     "parallel tool semaphore closed",
                                 )),
                                 circuit_before,
+                                0,
                             );
                         }
                     }
@@ -615,7 +642,9 @@ impl AgentRunner {
                     None
                 };
                 runner.throttle_repeated_tool(&name).await;
+                let _start = std::time::Instant::now();
                 let result = runner.execute_prepared_tool_internal(&prepared).await;
+                let duration_ms = _start.elapsed().as_millis() as u64;
                 (
                     name,
                     tool_call_id,
@@ -623,16 +652,24 @@ impl AgentRunner {
                     tool_call_item,
                     result,
                     circuit_before,
+                    duration_ms,
                 )
             });
         }
 
         let results = join_all(futures).await;
         let mut halt_turn = false;
-        for (name, call_id, args, tool_call_item, result, circuit_before) in results {
+        for (name, call_id, args, tool_call_item, result, circuit_before, duration_ms) in results {
+            runtime
+                .state
+                .turn_tool_latencies
+                .push((name.clone(), duration_ms));
             record_circuit_transition(self, &runtime.state.error_recovery, &name, circuit_before);
             match result {
-                Ok(result) => {
+                Ok((result, attempts)) => {
+                    if attempts > 1 {
+                        event_recorder.error_recovered(&name, attempts, "transient");
+                    }
                     event_recorder
                         .tool_output_started(&tool_call_item.call_item_id, Some(&call_id));
                     apply_tool_success(
@@ -649,6 +686,17 @@ impl AgentRunner {
                     );
                 }
                 Err(e) => {
+                    // Emit retry observability if the error carries attempt info
+                    if let Some(attempt) = e.attempts_made()
+                        && attempt > 1
+                    {
+                        event_recorder.tool_retry_attempted(
+                            &name,
+                            attempt,
+                            &e.category.to_string(),
+                            e.retry_delay_ms.unwrap_or(0),
+                        );
+                    }
                     // Try fallback first before declaring failure.
                     let fallback_outcome = if let Some(fallback) = fallback_map.get(&call_id) {
                         self.try_execute_fallback(fallback, runtime, agent_prefix, &name)
@@ -736,8 +784,16 @@ impl AgentRunner {
             &call.tool_call_id,
             runtime.state.error_recovery.clone(),
         );
+        let _tool_start = std::time::Instant::now();
         match self.execute_prepared_tool_internal(&call.prepared).await {
-            Ok(result) => {
+            Ok((result, attempts)) => {
+                runtime.state.turn_tool_latencies.push((
+                    name.clone(),
+                    _tool_start.elapsed().as_millis() as u64,
+                ));
+                if attempts > 1 {
+                    event_recorder.error_recovered(&name, attempts, "transient");
+                }
                 guard.mark_completed();
                 record_circuit_transition(
                     self,
@@ -760,6 +816,21 @@ impl AgentRunner {
                 Ok(false)
             }
             Err(e) => {
+                runtime.state.turn_tool_latencies.push((
+                    name.clone(),
+                    _tool_start.elapsed().as_millis() as u64,
+                ));
+                // Emit retry observability if retries occurred
+                if let Some(attempt) = e.attempts_made()
+                    && attempt > 1
+                {
+                    event_recorder.tool_retry_attempted(
+                        &name,
+                        attempt,
+                        &e.category.to_string(),
+                        e.retry_delay_ms.unwrap_or(0),
+                    );
+                }
                 // Try fallback first before declaring failure.
                 let fallback_outcome =
                     if let Some(fallback) = &call.prepared.fallback_recommendation {

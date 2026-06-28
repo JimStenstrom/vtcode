@@ -118,7 +118,7 @@ pub(crate) async fn handle_rewind_to_turn(
     if let Some(manager) = ctx.checkpoint_manager {
         let supports_reasoning =
             model_supports_reasoning(&**ctx.provider_client, &ctx.config.model);
-        restore_rewind_from_checkpoint(
+        let result = restore_rewind_from_checkpoint(
             ctx.renderer,
             ctx.handle,
             ctx.conversation_history,
@@ -127,7 +127,21 @@ pub(crate) async fn handle_rewind_to_turn(
             scope,
             supports_reasoning,
         )
-        .await?;
+        .await;
+        if result.is_ok() {
+            if let Some(emitter) = ctx.harness_emitter {
+                let _ = emitter.emit(
+                    crate::agent::runloop::unified::inline_events::harness::harness_event(
+                        vtcode_core::exec::events::HarnessEventKind::SnapshotRestored,
+                        Some(format!("Rewound to turn {turn}")),
+                        None,
+                        None,
+                        None,
+                    ),
+                );
+            }
+        }
+        result?;
     } else {
         render_rewind_cli_guidance(ctx.renderer, turn, scope)?;
     }

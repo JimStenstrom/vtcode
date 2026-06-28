@@ -40,6 +40,9 @@ pub struct CircuitBreakerConfig {
     pub min_backoff: Duration,   // Minimum wait time
     pub max_backoff: Duration,   // Maximum wait time
     pub backoff_factor: f64,     // Multiplier (e.g., 2.0 for exponential)
+    /// Number of probe requests to allow through in half-open state.
+    /// The circuit closes only after all probes succeed.  Default: 1.
+    pub half_open_probe_count: u32,
 }
 
 impl Default for CircuitBreakerConfig {
@@ -50,6 +53,7 @@ impl Default for CircuitBreakerConfig {
             min_backoff: Duration::from_secs(5), // Start with 5s
             max_backoff: Duration::from_secs(120), // Cap at 2m
             backoff_factor: 2.0,
+            half_open_probe_count: 1,
         }
     }
 }
@@ -65,6 +69,8 @@ struct ToolCircuitState {
     denied_requests: u32,
     last_denied_at: Option<Instant>,
     last_error_category: Option<ErrorCategory>,
+    /// Number of successful probe requests in half-open state.
+    half_open_successes: u32,
 }
 
 impl ToolCircuitState {
@@ -172,7 +178,14 @@ impl CircuitBreaker {
             let states = self.tool_states.read();
             if let Some(state) = states.get(tool_name) {
                 match state.status {
-                    CircuitState::Closed | CircuitState::HalfOpen => return true,
+                    CircuitState::Closed => return true,
+                    CircuitState::HalfOpen => {
+                        // Allow probe requests only if we haven't reached the probe limit.
+                        if state.half_open_successes < self.config.half_open_probe_count {
+                            return true;
+                        }
+                        return false;
+                    }
                     CircuitState::Open => {
                         if let Some(last_failure) = state.last_failure_time {
                             let backoff = if state.current_backoff == Duration::ZERO {
@@ -195,7 +208,10 @@ impl CircuitBreaker {
         let state = states.entry(CompactStr::from(tool_name)).or_default();
 
         match state.status {
-            CircuitState::Closed | CircuitState::HalfOpen => true,
+            CircuitState::Closed => true,
+            CircuitState::HalfOpen => {
+                state.half_open_successes < self.config.half_open_probe_count
+            }
             CircuitState::Open => {
                 if let Some(last_failure) = state.last_failure_time {
                     let backoff = if state.current_backoff == Duration::ZERO {
@@ -206,6 +222,7 @@ impl CircuitBreaker {
 
                     if last_failure.elapsed() >= backoff {
                         state.transition_to(CircuitState::HalfOpen);
+                        state.half_open_successes = 0;
                         self.record_half_open_metric();
                         return true;
                     }
@@ -245,8 +262,11 @@ impl CircuitBreaker {
 
         match state.status {
             CircuitState::HalfOpen => {
-                // Probe succeeded - use batched reset
-                state.reset_on_success();
+                state.half_open_successes += 1;
+                // Close the circuit only after all probe requests succeed.
+                if state.half_open_successes >= self.config.half_open_probe_count {
+                    state.reset_on_success();
+                }
             }
             CircuitState::Closed => {
                 // Reset failure count on success if we want purely consecutive failures
@@ -288,6 +308,7 @@ impl CircuitBreaker {
                 if state.failure_count >= self.config.failure_threshold {
                     state.transition_to(CircuitState::Open);
                     state.current_backoff = self.config.min_backoff;
+                    state.half_open_successes = 0;
                     state.circuit_opened_at = Some(Instant::now());
                     state.open_count += 1;
                     self.record_circuit_open_metric();
@@ -304,6 +325,7 @@ impl CircuitBreaker {
             CircuitState::HalfOpen => {
                 // Probe failed, revert to Open and increase backoff
                 state.transition_to(CircuitState::Open);
+                state.half_open_successes = 0;
                 state.circuit_opened_at = Some(Instant::now());
                 state.open_count += 1;
                 // Exponential backoff

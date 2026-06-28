@@ -102,6 +102,8 @@ pub(crate) async fn apply_turn_outcome(
                                     HarnessEventKind::BlockedHandoffWritten,
                                     Some("Blocked handoff written".to_string()),
                                     Some(path_text),
+                                    None,
+                                    None,
                                 ),
                             );
                         }
@@ -134,6 +136,17 @@ pub(crate) async fn apply_turn_outcome(
                 {
                     Ok(Some(meta)) => {
                         *ctx.next_checkpoint_turn = meta.turn_number.saturating_add(1);
+                        if let Some(emitter) = ctx.harness_emitter {
+                            let _ = emitter.emit(
+                                crate::agent::runloop::unified::inline_events::harness::harness_event(
+                                    HarnessEventKind::SnapshotCreated,
+                                    Some(format!("Turn {} snapshot saved", turn_number)),
+                                    None,
+                                    None,
+                                    None,
+                                ),
+                            );
+                        }
                     }
                     Ok(None) => {}
                     Err(err) => tracing::warn!(

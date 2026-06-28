@@ -434,6 +434,8 @@ pub(crate) fn harness_event(
     event: HarnessEventKind,
     message: Option<String>,
     path: Option<String>,
+    attempt: Option<u32>,
+    error_category: Option<String>,
 ) -> ThreadEvent {
     ThreadEvent::ItemCompleted(ItemCompletedEvent {
         item: ThreadItem {
@@ -444,6 +446,9 @@ pub(crate) fn harness_event(
                 command: None,
                 path,
                 exit_code: None,
+                attempt,
+                error_category,
+                duration_ms: None,
             }),
         },
     })

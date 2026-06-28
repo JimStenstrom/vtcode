@@ -526,6 +526,22 @@ pub struct ConfidenceEscalationConfig {
     /// During single-mode or other orchestration modes, escalation is skipped.
     #[serde(default)]
     pub plan_mode_only: bool,
+
+    /// Maximum number of re-plan attempts via conversation injection before
+    /// prompting the user.  The agent sees a structured message explaining
+    /// which tools were blocked and is asked to try a different approach.
+    #[serde(default = "default_escalation_max_replan")]
+    pub max_replan_attempts: u32,
+
+    /// Maximum total escalations (across all chain steps) before aborting
+    /// with partial results.  Must be >= max_replan_attempts.
+    #[serde(default = "default_escalation_max_total")]
+    pub max_total_escalations: u32,
+
+    /// Whether to prompt the user when the escalation chain is exhausted.
+    /// When false, the chain falls through directly to abort-with-partial-results.
+    #[serde(default = "default_escalation_prompt_user")]
+    pub prompt_user_on_exhaust: bool,
 }
 
 impl ConfidenceEscalationConfig {
@@ -553,6 +569,9 @@ impl Default for ConfidenceEscalationConfig {
             cost_threshold_usd: default_escalation_cost_threshold(),
             use_llm_confidence: default_escalation_llm_confidence(),
             plan_mode_only: false,
+            max_replan_attempts: default_escalation_max_replan(),
+            max_total_escalations: default_escalation_max_total(),
+            prompt_user_on_exhaust: default_escalation_prompt_user(),
         }
     }
 }
@@ -575,6 +594,15 @@ const fn default_escalation_cost_threshold() -> f64 {
 }
 const fn default_escalation_llm_confidence() -> bool {
     false
+}
+const fn default_escalation_max_replan() -> u32 {
+    3
+}
+const fn default_escalation_max_total() -> u32 {
+    5
+}
+const fn default_escalation_prompt_user() -> bool {
+    true
 }
 
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]

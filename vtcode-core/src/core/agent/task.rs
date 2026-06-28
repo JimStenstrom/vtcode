@@ -68,6 +68,15 @@ pub enum TaskOutcome {
     },
     Failed {
         reason: String,
+        /// What was accomplished before the failure occurred.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        accomplished: Vec<String>,
+        /// Optional suggestion for recovery or escalation.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        recovery_suggestion: Option<String>,
+        /// Optional path to preserved state for task resume.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        checkpoint_path: Option<String>,
     },
     Unknown,
 }
@@ -117,7 +126,21 @@ impl TaskOutcome {
             Self::Escalated { reason, tool_name } => {
                 format!("Task escalated: {tool_name} — {reason}")
             }
-            Self::Failed { reason } => format!("Task failed: {reason}"),
+            Self::Failed {
+                reason,
+                accomplished,
+                recovery_suggestion,
+                ..
+            } => {
+                let mut parts = vec![format!("Task failed: {reason}")];
+                if !accomplished.is_empty() {
+                    parts.push(format!("Accomplished: {}", accomplished.join(", ")));
+                }
+                if let Some(suggestion) = recovery_suggestion {
+                    parts.push(format!("Suggestion: {suggestion}"));
+                }
+                parts.join("\n")
+            }
             Self::Unknown => "Task outcome could not be determined".into(),
         }
     }
@@ -178,6 +201,20 @@ impl TaskOutcome {
         }
     }
 
+    pub fn failed(
+        reason: String,
+        accomplished: Vec<String>,
+        recovery_suggestion: Option<String>,
+        checkpoint_path: Option<String>,
+    ) -> Self {
+        Self::Failed {
+            reason,
+            accomplished,
+            recovery_suggestion,
+            checkpoint_path,
+        }
+    }
+
     pub fn escalated(reason: String, tool_name: String) -> Self {
         Self::Escalated { reason, tool_name }
     }
@@ -228,10 +265,8 @@ mod tests {
             ThreadCompletionSubtype::Cancelled
         );
         assert_eq!(
-            (TaskOutcome::Failed {
-                reason: "boom".to_string()
-            })
-            .thread_completion_subtype(),
+            (TaskOutcome::failed("boom".to_string(), vec![], None, None))
+                .thread_completion_subtype(),
             ThreadCompletionSubtype::ErrorDuringExecution
         );
     }

@@ -21,6 +21,11 @@ const HARD_LIMIT_MULTIPLIER: usize = 2; // Hard stop at 2x soft limit
 const MAX_SIMILAR_READ_TARGET_CALLS: usize = 4;
 const MAX_SIMILAR_READ_TARGET_VARIANTS: usize = 3;
 
+/// Sliding-window repeat threshold per Equation 18.15.
+/// When the same (tool, normalized_args) hash appears more than this many
+/// times within the detection window, a loop warning is emitted.
+const SLIDING_WINDOW_MAX_REPEATS: usize = 3;
+
 /// Global hard limit on total read-only tool calls across ALL read-only tools.
 /// Prevents the agent from alternating between different read-only tools to
 /// evade per-tool limits. Fires a HARD STOP when exhausted.
@@ -253,6 +258,9 @@ pub struct LoopDetector {
     /// When true, applies tighter read-only budgets and navigation streak
     /// thresholds appropriate for subagents that should do focused work.
     is_subagent: bool,
+    /// Sliding window of composite (tool, args_hash) values for deduplication
+    /// per Equation 18.15. Used to detect non-consecutive repeated actions.
+    action_hash_window: VecDeque<u64>,
 }
 
 impl LoopDetector {
@@ -272,6 +280,7 @@ impl LoopDetector {
             readonly_streak: 0,
             total_readonly_calls: 0,
             is_subagent: false,
+            action_hash_window: VecDeque::with_capacity(DETECTION_WINDOW),
         }
     }
 
@@ -479,6 +488,50 @@ impl LoopDetector {
 
         if let Some(pattern_warning) = self.detect_patterns() {
             return Some(pattern_warning);
+        }
+
+        // --- Sliding-window action hash deduplication (Equation 18.15) ---
+        // Detect when the same (tool, normalized_args) hash appears multiple
+        // times within the detection window, even if not consecutively (e.g.,
+        // A→B→A→C→A). Runs after all other detectors as a last-resort check
+        // so more specific detectors (read target, navigation, patterns) fire
+        // first.
+        let enforce_identical = Self::should_enforce_identical_limit(tool_name)
+            || (is_command_tool_name(base_tool_name(tool_name))
+                && Self::is_verification_or_read_command(tool_name, args));
+        if enforce_identical {
+            use std::hash::{Hash, Hasher};
+            let mut composite_hasher = DefaultHasher::new();
+            tool_name.hash(&mut composite_hasher);
+            args_hash.hash(&mut composite_hasher);
+            let composite_hash = composite_hasher.finish();
+
+            // Maintain the sliding window
+            if self.action_hash_window.len() >= DETECTION_WINDOW {
+                self.action_hash_window.pop_front();
+            }
+
+            // Count non-consecutive occurrences: skip trailing identical entries
+            // so A→A→A counts as 0, while A→B→A→B→A counts as 2.
+            let count_in_window = self
+                .action_hash_window
+                .iter()
+                .rev()
+                .skip_while(|&&h| h == composite_hash)
+                .filter(|&&h| h == composite_hash)
+                .count() as u32;
+
+            self.action_hash_window.push_back(composite_hash);
+
+            if count_in_window >= SLIDING_WINDOW_MAX_REPEATS as u32 {
+                return Some(format!(
+                    "Warning: Same action ({tool_name}) detected {} times (non-consecutive) within \
+                     the last {} operations. You appear to be repeating the same operation without \
+                     making progress. Consider re-planning your approach.",
+                    count_in_window + 1,
+                    DETECTION_WINDOW,
+                ));
+            }
         }
 
         self.check_for_loops(tool_name)

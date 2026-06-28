@@ -198,6 +198,8 @@ mod tests {
                     command: Some("cargo check".to_string()),
                     path: None,
                     exit_code: Some(101),
+                    attempt: None,
+                    error_category: None,
                 }),
             },
         }))
@@ -218,6 +220,8 @@ mod tests {
                     command: None,
                     path: Some("/tmp/current_blocked.md".to_string()),
                     exit_code: None,
+                    attempt: None,
+                    error_category: None,
                 }),
             },
         }))

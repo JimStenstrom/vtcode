@@ -18,7 +18,7 @@ pub mod atif;
 pub mod trace;
 
 /// Semantic version of the serialized event schema exported by this crate.
-pub const EVENT_SCHEMA_VERSION: &str = "0.4.0";
+pub const EVENT_SCHEMA_VERSION: &str = "0.7.0";
 
 /// Wraps a [`ThreadEvent`] with schema metadata so downstream consumers can
 /// negotiate compatibility before processing an event stream.
@@ -216,6 +216,131 @@ mod tracing_support {
 
 #[cfg(feature = "telemetry-tracing")]
 pub use tracing_support::PublicTracingEmitter as TracingEmitter;
+
+#[cfg(feature = "telemetry-otel")]
+mod otel_support {
+    use opentelemetry::trace::{Span, Status, Tracer};
+    use opentelemetry::KeyValue;
+
+    use super::{EventEmitter, ThreadEvent, ThreadItemDetails};
+
+    /// Emits [`ThreadEvent`]s as OpenTelemetry spans and span events.
+    ///
+    /// Each `ThreadEvent` is recorded as an OTel span with attributes derived
+    /// from the event payload.  Harness events are attached as span events
+    /// with their own attributes (event kind, message, path, etc.).
+    ///
+    /// # Usage
+    ///
+    /// ```rust,no_run
+    /// use vtcode_exec_events::OtelEmitter;
+    /// use opentelemetry::trace::TracerProvider;
+    ///
+    /// let provider = TracerProvider::default();
+    /// let tracer = provider.tracer("vtcode");
+    /// let mut emitter = OtelEmitter::new(tracer);
+    /// ```
+    pub struct OtelEmitter<T: Tracer> {
+        tracer: T,
+    }
+
+    impl<T: Tracer> OtelEmitter<T> {
+        pub fn new(tracer: T) -> Self {
+            Self { tracer }
+        }
+    }
+
+    impl<T: Tracer> EventEmitter for OtelEmitter<T> {
+        fn emit(&mut self, event: &ThreadEvent) {
+            let span_name = match event {
+                ThreadEvent::ThreadStarted(_) => "thread.started",
+                ThreadEvent::ThreadCompleted(_) => "thread.completed",
+                ThreadEvent::TurnStarted(_) => "turn.started",
+                ThreadEvent::TurnCompleted(_) => "turn.completed",
+                ThreadEvent::TurnFailed(_) => "turn.failed",
+                ThreadEvent::ItemStarted(_) => "item.started",
+                ThreadEvent::ItemUpdated(_) => "item.updated",
+                ThreadEvent::ItemCompleted(_) => "item.completed",
+                ThreadEvent::Error(_) => "error",
+                _ => "event",
+            };
+
+            let mut span = self.tracer.start(span_name);
+
+            match event {
+                ThreadEvent::ThreadStarted(e) => {
+                    span.set_attribute(KeyValue::new("thread_id", e.thread_id.clone()));
+                }
+                ThreadEvent::ThreadCompleted(e) => {
+                    if let Some(ref cost) = e.total_cost_usd {
+                        span.set_attribute(KeyValue::new("total_cost_usd", cost.as_f64().unwrap_or(0.0)));
+                    }
+                    span.set_attribute(KeyValue::new(
+                        "input_tokens",
+                        e.usage.input_tokens as i64,
+                    ));
+                    span.set_attribute(KeyValue::new(
+                        "output_tokens",
+                        e.usage.output_tokens as i64,
+                    ));
+                    span.set_attribute(KeyValue::new(
+                        "completion_subtype",
+                        e.subtype.as_str().to_string(),
+                    ));
+                }
+                ThreadEvent::TurnCompleted(e) => {
+                    span.set_attribute(KeyValue::new(
+                        "turn_input_tokens",
+                        e.usage.input_tokens as i64,
+                    ));
+                    span.set_attribute(KeyValue::new(
+                        "turn_output_tokens",
+                        e.usage.output_tokens as i64,
+                    ));
+                }
+                ThreadEvent::ItemCompleted(e) => {
+                    if let ThreadItemDetails::Harness(harness) = &e.item.details {
+                        span.set_attribute(KeyValue::new(
+                            "harness_event",
+                            format!("{:?}", harness.event),
+                        ));
+                        if let Some(ref msg) = harness.message {
+                            span.set_attribute(KeyValue::new("harness_message", msg.clone()));
+                        }
+                        if let Some(ref path) = harness.path {
+                            span.set_attribute(KeyValue::new("harness_path", path.clone()));
+                        }
+                        if let Some(dur) = harness.duration_ms {
+                            span.set_attribute(KeyValue::new("duration_ms", dur as i64));
+                        }
+                        let mut event_attrs = vec![KeyValue::new(
+                            "event_kind",
+                            format!("{:?}", harness.event),
+                        )];
+                        if let Some(ref msg) = harness.message {
+                            event_attrs.push(KeyValue::new("message", msg.clone()));
+                        }
+                        span.add_event("harness_event", event_attrs);
+                    }
+                }
+                ThreadEvent::Error(e) => {
+                    span.set_status(Status::Error {
+                        description: e.message.clone().into(),
+                    });
+                    span.set_attribute(KeyValue::new("error_message", e.message.clone()));
+                }
+                _ => {}
+            }
+
+            span.end();
+        }
+    }
+
+    pub use OtelEmitter as PublicOtelEmitter;
+}
+
+#[cfg(feature = "telemetry-otel")]
+pub use otel_support::PublicOtelEmitter as OtelEmitter;
 
 #[cfg(feature = "schema-export")]
 pub mod schema {
@@ -720,6 +845,16 @@ pub enum HarnessEventKind {
     VerificationStarted,
     VerificationPassed,
     VerificationFailed,
+    /// Agent recovered from a transient error (e.g. after retry succeeded).
+    ErrorRecovered,
+    /// A transient tool failure triggered an automatic retry attempt.
+    ToolRetryAttempted,
+    /// Latency record for a tool execution, emitted on turn completion.
+    ToolLatencyRecorded,
+    /// A checkpoint snapshot was created for the current turn.
+    SnapshotCreated,
+    /// A checkpoint snapshot was restored (rewind operation).
+    SnapshotRestored,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -739,6 +874,15 @@ pub struct HarnessEventItem {
     /// Optional exit code associated with verification results.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub exit_code: Option<i32>,
+    /// Retry/recovery attempt number (1-indexed). Only set for retry-related events.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub attempt: Option<u32>,
+    /// Canonical error category for retry/recovery events.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error_category: Option<String>,
+    /// Latency in milliseconds for tool-execution latency events.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub duration_ms: Option<u64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -859,6 +1003,8 @@ mod tests {
                     command: Some("cargo check".to_string()),
                     path: None,
                     exit_code: Some(101),
+                    attempt: None,
+                    error_category: None,
                 }),
             },
         });

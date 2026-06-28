@@ -202,10 +202,13 @@ impl AgentRunner {
         self.resolve_executable_tool_name(tool_name).await.is_some()
     }
 
+    /// Execute a prepared tool call, returning `(output, attempt_count)`.
+    /// The attempt count reflects retries performed inside the tool registry,
+    /// so callers can emit retry/recovery observability events.
     pub(super) async fn execute_prepared_tool_internal(
         &self,
         prepared: &PreparedToolCall,
-    ) -> std::result::Result<Value, ToolExecutionError> {
+    ) -> std::result::Result<(Value, u32), ToolExecutionError> {
         let resolved_tool_name = prepared.canonical_name.as_str();
         let args = &prepared.effective_args;
         let shell_command = if tool_intent::is_command_run_tool_call(resolved_tool_name, args)
@@ -291,8 +294,9 @@ impl AgentRunner {
                 .execute_prepared_public_tool_request(prepared, policy)
                 .await
         };
+        let attempts = outcome.attempts;
         match (outcome.output, outcome.error) {
-            (Some(output), None) => Ok(restore_exact_file_read_output(output)),
+            (Some(output), None) => Ok((restore_exact_file_read_output(output), attempts)),
             (_, Some(error)) => Err(error.with_surface("agent_runner")),
             _ => Err(ToolExecutionError::policy_violation(
                 resolved_tool_name.to_string(),
@@ -324,7 +328,9 @@ impl AgentRunner {
                 )
                 .with_tool_call_context(tool_name, args)
             })?;
-        self.execute_prepared_tool_internal(&prepared).await
+        self.execute_prepared_tool_internal(&prepared)
+            .await
+            .map(|(value, _attempts)| value)
     }
 }
 

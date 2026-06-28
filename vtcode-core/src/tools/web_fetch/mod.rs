@@ -489,8 +489,9 @@ impl WebFetchTool {
     }
 
     async fn run(&self, raw_args: Value) -> Result<Value> {
-        let args: WebFetchArgs = serde_json::from_value(raw_args)
-            .context("Invalid arguments for web_fetch tool. Provide 'url' (and optionally 'prompt').")?;
+        let args: WebFetchArgs = serde_json::from_value(raw_args).context(
+            "Invalid arguments for web_fetch tool. Provide 'url' (and optionally 'prompt').",
+        )?;
 
         let max_bytes = args
             .max_bytes

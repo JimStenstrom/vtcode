@@ -291,6 +291,8 @@ impl AgentRunner {
             None,
             None,
             None,
+            None,
+            None,
         );
 
         let planner_response = self.request_planner_response(task).await?;
@@ -335,6 +337,8 @@ impl AgentRunner {
             )),
             None,
             Some(spec_path.display().to_string()),
+            None,
+            None,
             None,
         );
 
@@ -428,6 +432,8 @@ impl AgentRunner {
             None,
             None,
             None,
+            None,
+            None,
         );
 
         let evaluator = self
@@ -482,6 +488,8 @@ impl AgentRunner {
                 None,
                 Some(evaluation.evaluation_path.display().to_string()),
                 Some(0),
+                None,
+                None,
             );
             return Ok(EvaluatorGateOutcome::Accept);
         }
@@ -491,6 +499,8 @@ impl AgentRunner {
             Some(evaluation.summary.clone()),
             None,
             Some(evaluation.evaluation_path.display().to_string()),
+            None,
+            None,
             None,
         );
 
@@ -512,6 +522,8 @@ impl AgentRunner {
             )),
             None,
             Some(evaluation.evaluation_path.display().to_string()),
+            None,
+            None,
             None,
         );
 

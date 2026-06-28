@@ -314,6 +314,27 @@ pub(super) fn human_event_line(event: &ThreadEvent) -> Option<String> {
                     vtcode_core::exec::events::HarnessEventKind::VerificationFailed => {
                         style("[VERIFY FAILED]").red().bold()
                     }
+                    vtcode_core::exec::events::HarnessEventKind::EscalationTriggered => {
+                        style("[ESCALATED]").red().bold()
+                    }
+                    vtcode_core::exec::events::HarnessEventKind::EscalationBypassed => {
+                        style("[ESCALATED]").green().bold()
+                    }
+                    vtcode_core::exec::events::HarnessEventKind::ErrorRecovered => {
+                        style("[RECOVERED]").green().bold()
+                    }
+                    vtcode_core::exec::events::HarnessEventKind::ToolRetryAttempted => {
+                        style("[RETRY]").yellow().bold()
+                    }
+                    vtcode_core::exec::events::HarnessEventKind::ToolLatencyRecorded => {
+                        style("[LATENCY]").magenta().bold()
+                    }
+                    vtcode_core::exec::events::HarnessEventKind::SnapshotCreated => {
+                        style("[SNAPSHOT]").cyan().bold()
+                    }
+                    vtcode_core::exec::events::HarnessEventKind::SnapshotRestored => {
+                        style("[REWIND]").yellow().bold()
+                    }
                 };
                 let detail = match (item.message.as_deref(), item.path.as_deref()) {
                     (Some(message), Some(path)) => format!("{message}: {path}"),

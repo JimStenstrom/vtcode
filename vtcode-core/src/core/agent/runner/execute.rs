@@ -73,6 +73,8 @@ fn emit_blocked_handoff_events(
             None,
             Some(path.display().to_string()),
             None,
+            None,
+            None,
         );
     }
 }
@@ -384,7 +386,7 @@ impl AgentRunner {
                 Ok(false)
             }
             EvaluatorGateOutcome::Exhausted { reason } => {
-                session_state.outcome = TaskOutcome::Failed { reason };
+                session_state.outcome = TaskOutcome::failed(reason, vec![], None, None);
                 *should_write_blocked_handoff = true;
                 Ok(true)
             }
@@ -441,6 +443,8 @@ impl AgentRunner {
                 event_recorder.harness_event(
                     HarnessEventKind::ContinuationSkipped,
                     Some(reason),
+                    None,
+                    None,
                     None,
                     None,
                     None,
@@ -517,6 +521,8 @@ impl AgentRunner {
             None,
             None,
             None,
+            None,
+            None,
         );
     }
 
@@ -539,6 +545,8 @@ impl AgentRunner {
                 Some(failure.command.clone()),
                 None,
                 failure.exit_code,
+                None,
+                None,
             );
         } else {
             event_recorder.harness_event(
@@ -547,6 +555,8 @@ impl AgentRunner {
                 commands.last().cloned(),
                 None,
                 Some(0),
+                None,
+                None,
             );
         }
     }
@@ -927,7 +937,25 @@ impl AgentRunner {
                 let response = turn_output.response;
                 runtime.state.stop_reason =
                     Some(stop_reason_from_finish_reason(&response.finish_reason));
-                if records_responses_continuation_state(
+
+                // --- Progress stagnation detection ---
+                // If the assistant produces near-identical responses across consecutive
+                // turns (no tool calls, no progress), inject a nudge to break the loop.
+                if !runtime.state.is_completed
+                    && runtime.state.record_progress_hash_and_check_stagnation()
+                {
+                    let nudge = "It looks like you're repeating the same response. \
+                                 If you're stuck, try a different approach: break the \
+                                 problem into smaller steps, use different tools, or \
+                                 declare the task complete if you have enough information.";
+                    self.runner_println(format_args!(
+                        "{} {}",
+                        agent_prefix,
+                        style("[STAGNATION WARNING]").yellow().bold(),
+                    ));
+                    runtime.state.add_user_message(nudge.into());
+                }
+                if supports_responses_chaining(
                     &provider_name,
                     self.provider_client
                         .supports_responses_compaction(&turn_model),
@@ -1007,10 +1035,12 @@ impl AgentRunner {
 
                 let is_gemini = matches!(provider_kind, ModelProvider::Gemini);
 
-                // --- Confidence-based escalation gate ---
-                // Evaluate tool calls before dispatching them.  If any tool call
-                // triggers the escalation formula, halt the loop and write a
-                // blocked handoff for human review.
+                // --- Confidence-based escalation gate + chain ---
+                // Evaluate tool calls before dispatching them.  Implements the
+                // escalation chain: re-plan → prompt user → abort with partial
+                // results.  (Steps 1–2 already exist at the tool-exec level:
+                // auto-retry and alternative-tool fallback are handled in
+                // tool_exec.rs and execution_facade.rs.)
                 #[allow(unused_assignments)] // compiler keeps flags but this is clear
                 if self.config().agent.harness.confidence_escalation.enabled
                     && !runtime.state.is_completed
@@ -1036,7 +1066,6 @@ impl AgentRunner {
                     );
 
                     if result.any_escalated {
-                        // Combine reasons from all escalated tool calls.
                         let reasons: Vec<String> = result
                             .decisions
                             .iter()
@@ -1054,29 +1083,81 @@ impl AgentRunner {
                             summary
                         ));
 
-                        runtime.state.outcome =
-                            TaskOutcome::escalated(summary.clone(), "multi_tool".to_string());
-
                         event_recorder.harness_event(
                             HarnessEventKind::EscalationTriggered,
-                            Some(summary),
+                            Some(summary.clone()),
+                            None,
+                            None,
                             None,
                             None,
                             None,
                         );
 
-                        should_write_blocked_handoff = true;
-                        break;
-                    }
+                        let esc_count = runtime.state.consecutive_escalations;
 
-                    // Track that we checked escalation and bypassed it.
-                    event_recorder.harness_event(
-                        HarnessEventKind::EscalationBypassed,
-                        Some("All tool calls passed escalation gate".into()),
-                        None,
-                        None,
-                        None,
-                    );
+                        // --- Step 3: Re-plan via conversation injection ---
+                        if esc_count < escalation_config.max_replan_attempts {
+                            runtime.state.consecutive_escalations += 1;
+                            let replan_msg = format!(
+                                "The following tool calls were blocked by the safety \
+                                 escalation gate:\n\n{summary}\n\n\
+                                 Please try a different approach. You can use alternative \
+                                 tools, break the task into smaller steps, or provide a \
+                                 direct answer based on what you have already learned."
+                            );
+                            runtime.state.add_user_message(replan_msg);
+                            // Skip dispatching blocked tool calls — let the LLM re-plan
+                            effective_tool_calls = None;
+                            forced_continuation = true;
+                        }
+                        // --- Step 4: Prompt user for guidance ---
+                        else if esc_count < escalation_config.max_total_escalations
+                            && escalation_config.prompt_user_on_exhaust
+                        {
+                            runtime.state.consecutive_escalations += 1;
+                            let user_msg = format!(
+                                "I've tried multiple approaches but the safety escalation \
+                                 gate keeps blocking my tool calls:\n\n{summary}\n\n\
+                                 Could you provide guidance on how to proceed? \
+                                 What approach should I use instead?"
+                            );
+                            runtime.state.add_user_message(user_msg);
+                            should_write_blocked_handoff = true;
+                            runtime.state.outcome =
+                                TaskOutcome::escalated(summary, "multi_tool".to_string());
+                            break;
+                        }
+                        // --- Step 5: Abort with partial results ---
+                        else {
+                            runtime.state.consecutive_escalations += 1;
+                            should_write_blocked_handoff = true;
+                            runtime.state.outcome = TaskOutcome::failed(
+                                format!("Escalation chain exhausted: {summary}"),
+                                Vec::new(),
+                                Some(
+                                    "The safety escalation gate repeatedly blocked tool calls. \
+                                     Consider disabling the gate or adjusting the confidence \
+                                     threshold if this action should be permitted."
+                                        .into(),
+                                ),
+                                None,
+                            );
+                            break;
+                        }
+                    } else {
+                        // Tool calls passed escalation gate — reset chain counter
+                        runtime.state.consecutive_escalations = 0;
+
+                        event_recorder.harness_event(
+                            HarnessEventKind::EscalationBypassed,
+                            Some("All tool calls passed escalation gate".into()),
+                            None,
+                            None,
+                            None,
+                            None,
+                            None,
+                        );
+                    }
                 }
 
                 if !runtime.state.is_completed
@@ -1119,6 +1200,8 @@ impl AgentRunner {
                                 HarnessEventKind::VerificationStarted,
                                 Some(format!("Running verification: {}", commands.join(", "))),
                                 commands.first().cloned(),
+                                None,
+                                None,
                                 None,
                                 None,
                             );
@@ -1215,6 +1298,15 @@ impl AgentRunner {
                     )
                     .await?;
 
+                // --- Emit tool latency events ---
+                if !runtime.state.turn_tool_latencies.is_empty() {
+                    let latencies =
+                        std::mem::take(&mut runtime.state.turn_tool_latencies);
+                    for (tool_name, duration_ms) in &latencies {
+                        event_recorder.record_tool_latency(tool_name, *duration_ms);
+                    }
+                }
+
                 let had_effective_shell_tool_call =
                     effective_tool_calls.as_ref().is_some_and(|calls| {
                         calls.iter().any(|call| {
@@ -1234,15 +1326,24 @@ impl AgentRunner {
                     let loops = runtime.state.register_tool_loop();
                     if tool_loop_limit_reached(loops, runtime.state.constraints.max_tool_loops) {
                         let warning_message = format!(
-                            "Reached tool-call limit of {} iterations; pausing autonomous loop",
+                            "You have reached the tool-call iteration limit of {}. \
+                             This typically means you are in a loop — repeatedly calling tools \
+                             without making progress toward the task goal.\n\n\
+                             To proceed:\n\
+                             1. Review what you have already learned from previous tool outputs.\n\
+                             2. Synthesize your findings into a concrete answer or implementation.\n\
+                             3. If you need more information, use a different approach or tool.\n\
+                             4. If you are truly stuck, explain what you have accomplished so far \
+                             and what is blocking you.",
                             runtime.state.constraints.max_tool_loops
                         );
                         self.record_warning(
                             &agent_prefix,
                             &mut runtime.state,
                             &mut event_recorder,
-                            warning_message,
+                            warning_message.clone(),
                         );
+                        runtime.state.add_user_message(warning_message);
                         runtime.state.mark_tool_loop_limit_hit();
                         break;
                     }
@@ -1257,15 +1358,22 @@ impl AgentRunner {
                         let idle_turn_limit = self.config().agent.idle_turn_limit;
                         if runtime.state.consecutive_idle_turns >= idle_turn_limit {
                             let warning_message = format!(
-                                "No tool calls or completion for {} consecutive turns; halting to avoid idle loop",
+                                "No tool calls or completion for {} consecutive turns. \
+                                 The agent appears to be idle — it is responding without \
+                                 taking actions or declaring the task complete.\n\n\
+                                 To proceed:\n\
+                                 1. Take concrete action using the available tools.\n\
+                                 2. If you have enough information, present your solution.\n\
+                                 3. If you are waiting for something, explain the situation.",
                                 runtime.state.consecutive_idle_turns
                             );
                             self.record_warning(
                                 &agent_prefix,
                                 &mut runtime.state,
                                 &mut event_recorder,
-                                warning_message,
+                                warning_message.clone(),
                             );
+                            runtime.state.add_user_message(warning_message);
                             runtime.state.outcome = TaskOutcome::StoppedNoAction;
                             break;
                         }
@@ -1451,9 +1559,7 @@ mod tests {
 
         record_terminal_turn_event(
             &mut recorder,
-            &TaskOutcome::Failed {
-                reason: "boom".to_string(),
-            },
+            &TaskOutcome::failed("boom".to_string(), vec![], None, None),
             Default::default(),
         );
 

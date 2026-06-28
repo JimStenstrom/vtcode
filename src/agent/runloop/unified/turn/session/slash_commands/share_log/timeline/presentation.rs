@@ -845,6 +845,13 @@ fn harness_title(event: &HarnessEventKind) -> &'static str {
         HarnessEventKind::VerificationStarted => "Verification started",
         HarnessEventKind::VerificationPassed => "Verification passed",
         HarnessEventKind::VerificationFailed => "Verification failed",
+        HarnessEventKind::EscalationTriggered => "Escalation triggered",
+        HarnessEventKind::EscalationBypassed => "Escalation bypassed",
+        HarnessEventKind::ErrorRecovered => "Error recovered",
+        HarnessEventKind::ToolRetryAttempted => "Tool retry attempted",
+        HarnessEventKind::ToolLatencyRecorded => "Tool latency recorded",
+        HarnessEventKind::SnapshotCreated => "Snapshot created",
+        HarnessEventKind::SnapshotRestored => "Snapshot restored",
     }
 }
 
@@ -860,7 +867,12 @@ fn harness_status_label(event: &HarnessEventKind) -> &'static str {
         | HarnessEventKind::ContinuationSkipped
         | HarnessEventKind::EvaluationStarted
         | HarnessEventKind::RevisionStarted
-        | HarnessEventKind::VerificationStarted => "in_progress",
+        | HarnessEventKind::VerificationStarted
+        | HarnessEventKind::EscalationTriggered
+        | HarnessEventKind::ToolRetryAttempted => "in_progress",
+        HarnessEventKind::EscalationBypassed | HarnessEventKind::ErrorRecovered => "completed",
+        HarnessEventKind::ToolLatencyRecorded => "completed",
+        HarnessEventKind::SnapshotCreated | HarnessEventKind::SnapshotRestored => "completed",
     }
 }
 

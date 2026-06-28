@@ -681,7 +681,9 @@ fn register_send_pty_input(_plan_state: Option<&PlanningWorkflowState>) -> ToolR
         false,
         ToolRegistry::send_pty_input_executor,
     )
-    .with_description("Send stdin to an active PTY session. Internal — use unified_exec action=write instead.")
+    .with_description(
+        "Send stdin to an active PTY session. Internal — use unified_exec action=write instead.",
+    )
     .with_llm_visibility(false)
 }
 
@@ -693,7 +695,9 @@ fn register_read_pty_session(_plan_state: Option<&PlanningWorkflowState>) -> Too
         false,
         ToolRegistry::read_pty_session_executor,
     )
-    .with_description("Read buffered output from a PTY session. Internal — use unified_exec action=poll instead.")
+    .with_description(
+        "Read buffered output from a PTY session. Internal — use unified_exec action=poll instead.",
+    )
     .with_llm_visibility(false)
 }
 

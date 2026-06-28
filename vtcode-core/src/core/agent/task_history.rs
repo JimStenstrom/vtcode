@@ -44,7 +44,7 @@ impl From<TaskResults> for TaskHistoryEntry {
 
         // Extract error categories from the outcome
         let error_categories = match &results.outcome {
-            TaskOutcome::Failed { reason } => vec![categorize_error(reason)],
+            TaskOutcome::Failed { reason, .. } => vec![categorize_error(reason)],
             TaskOutcome::ToolLoopLimitReached { .. } => vec!["tool_loop".to_string()],
             TaskOutcome::LoopDetected => vec!["infinite_loop".to_string()],
             TaskOutcome::TurnLimitReached { .. } => vec!["turn_limit".to_string()],

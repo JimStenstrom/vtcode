@@ -58,6 +58,14 @@ pub struct AgentSessionState {
     // Internal loop state
     pub consecutive_tool_loops: usize,
     pub tool_loop_limit_hit: bool,
+    /// Consecutive escalation events in the current escalation chain.
+    /// Reset to 0 when tool calls dispatch without escalation.
+    pub consecutive_escalations: u32,
+    /// Rolling window of progress hashes for stagnation detection.
+    /// Each entry is a hash of the assistant response content + key state.
+    pub progress_hashes: Vec<u64>,
+    /// Consecutive turns with matching progress hashes.
+    pub stagnant_turns: usize,
     pub last_processed_message_idx: usize,
     /// Responses-style continuation state keyed by normalized provider/model pairs.
     pub previous_response_chains: HashMap<(String, String), ResponsesContinuationState>,
@@ -73,6 +81,9 @@ pub struct AgentSessionState {
     pub turn_total_ms: u128,
     pub turn_max_ms: u128,
     pub turn_durations_ms: Vec<u128>,
+    /// Per-tool execution latencies recorded during the current turn.
+    /// Entries are (tool_name, duration_ms).
+    pub turn_tool_latencies: Vec<(String, u64)>,
 }
 
 /// Statistics tracked during an agent session.
@@ -150,6 +161,9 @@ impl AgentSessionState {
             last_dir_path: None,
             consecutive_tool_loops: 0,
             tool_loop_limit_hit: false,
+            consecutive_escalations: 0,
+            progress_hashes: Vec::with_capacity(16),
+            stagnant_turns: 0,
             last_processed_message_idx: 0,
             previous_response_chains: HashMap::new(),
             error_recovery: Arc::new(Mutex::new(ErrorRecoveryState::default())),
@@ -160,6 +174,7 @@ impl AgentSessionState {
             turn_total_ms: 0,
             turn_max_ms: 0,
             turn_durations_ms: Vec::with_capacity(max_turns),
+            turn_tool_latencies: Vec::with_capacity(32),
         }
     }
 
@@ -281,6 +296,50 @@ impl AgentSessionState {
         self.conversation.push(Content::user_text(text.as_str()));
         self.messages
             .push(Message::user(text).with_metadata(metadata));
+    }
+
+    /// Threshold for consecutive identical progress hashes before stagnation is declared.
+    const PROGRESS_STAGNATION_THRESHOLD: usize = 4;
+
+    /// Compute a hash of the current assistant response content for progress tracking.
+    fn assistant_response_hash(&self) -> Option<u64> {
+        use crate::llm::provider::{MessageContent, MessageRole};
+        let last_assistant = self
+            .messages
+            .iter()
+            .rev()
+            .find(|m| m.role == MessageRole::Assistant)?;
+        use std::hash::{Hash, Hasher};
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        match &last_assistant.content {
+            MessageContent::Text(t) => t.hash(&mut hasher),
+            MessageContent::Parts(parts) => {
+                for part in parts {
+                    if let crate::llm::provider::ContentPart::Text { text, .. } = part {
+                        text.hash(&mut hasher);
+                    }
+                }
+            }
+        }
+        Some(hasher.finish())
+    }
+
+    /// Record the current assistant response hash and return true if stagnation detected.
+    pub fn record_progress_hash_and_check_stagnation(&mut self) -> bool {
+        let Some(hash) = self.assistant_response_hash() else {
+            self.stagnant_turns = 0;
+            return false;
+        };
+        if self.progress_hashes.last() == Some(&hash) {
+            self.stagnant_turns += 1;
+        } else {
+            self.stagnant_turns = 0;
+        }
+        self.progress_hashes.push(hash);
+        if self.progress_hashes.len() > 16 {
+            self.progress_hashes.remove(0);
+        }
+        self.stagnant_turns >= Self::PROGRESS_STAGNATION_THRESHOLD
     }
 
     /// Attach metadata to the most recent message. Used by the execution loop

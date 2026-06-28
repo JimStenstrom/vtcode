@@ -17,6 +17,7 @@ default = ["serde-json"]
 serde-json = []
 telemetry-tracing = ["dep:tracing"]
 telemetry-log = ["serde-json", "dep:log"]
+telemetry-otel = ["dep:opentelemetry", "dep:tracing-opentelemetry"]
 schema-export = ["dep:schemars"]
 
 [dependencies]
@@ -31,6 +32,8 @@ schemars = { workspace = true, optional = true, features = [
 ] }
 uuid = { workspace = true, features = ["v4", "serde"] }
 chrono = { workspace = true }
+opentelemetry = { workspace = true, optional = true }
+tracing-opentelemetry = { workspace = true, optional = true }
 
 [lints]
 workspace = true

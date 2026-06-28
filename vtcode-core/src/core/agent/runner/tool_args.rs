@@ -33,7 +33,7 @@ impl AgentRunner {
             session_state.conversation.push(Content {
                 role: ROLE_USER.to_owned(),
                 parts: vec![Part::Text {
-                    text: warning,
+                    text: warning.clone(),
                     thought_signature: None,
                 }],
             });
@@ -41,7 +41,16 @@ impl AgentRunner {
             session_state.outcome = TaskOutcome::LoopDetected;
             true
         } else {
-            session_state.warnings.push(warning);
+            session_state.warnings.push(warning.clone());
+            // Inject soft loop warnings into conversation so the LLM sees them
+            // and can self-correct (re-plan, use alternatives, synthesize).
+            session_state.conversation.push(Content {
+                role: ROLE_USER.to_owned(),
+                parts: vec![Part::Text {
+                    text: warning,
+                    thought_signature: None,
+                }],
+            });
             false
         }
     }

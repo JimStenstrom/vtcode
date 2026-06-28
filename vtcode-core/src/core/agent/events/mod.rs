@@ -451,6 +451,8 @@ impl ExecEventRecorder {
         command: Option<String>,
         path: Option<String>,
         exit_code: Option<i32>,
+        attempt: Option<u32>,
+        error_category: Option<String>,
     ) {
         let item = ThreadItem {
             id: self.next_item_id(),
@@ -460,9 +462,64 @@ impl ExecEventRecorder {
                 command,
                 path,
                 exit_code,
+                attempt,
+                error_category,
+                duration_ms: None,
             }),
         };
         self.record(ThreadEvent::ItemCompleted(ItemCompletedEvent { item }));
+    }
+
+    /// Emit a tool latency harness event with recorded duration.
+    pub fn record_tool_latency(&mut self, tool_name: &str, duration_ms: u64) {
+        let item = ThreadItem {
+            id: self.next_item_id(),
+            details: ThreadItemDetails::Harness(HarnessEventItem {
+                event: HarnessEventKind::ToolLatencyRecorded,
+                message: Some(format!("{tool_name} completed in {duration_ms}ms")),
+                command: None,
+                path: None,
+                exit_code: None,
+                attempt: None,
+                error_category: None,
+                duration_ms: Some(duration_ms),
+            }),
+        };
+        self.record(ThreadEvent::ItemCompleted(ItemCompletedEvent { item }));
+    }
+
+    /// Emit an `ErrorRecovered` harness event, recording that the agent
+    /// successfully recovered from a transient error after retries.
+    pub fn error_recovered(&mut self, tool_name: &str, attempt: u32, error_category: &str) {
+        self.harness_event(
+            HarnessEventKind::ErrorRecovered,
+            Some(format!("{tool_name} recovered after {attempt} retries")),
+            None,
+            None,
+            None,
+            Some(attempt),
+            Some(error_category.to_string()),
+        );
+    }
+
+    /// Emit a `ToolRetryAttempted` harness event, recording that a transient
+    /// tool failure triggered an automatic retry.
+    pub fn tool_retry_attempted(
+        &mut self,
+        tool_name: &str,
+        attempt: u32,
+        error_category: &str,
+        delay_ms: u64,
+    ) {
+        self.harness_event(
+            HarnessEventKind::ToolRetryAttempted,
+            Some(format!("{tool_name}: retry {attempt} after {delay_ms}ms")),
+            None,
+            None,
+            None,
+            Some(attempt),
+            Some(error_category.to_string()),
+        );
     }
 
     pub fn into_events(mut self) -> Vec<ThreadEvent> {
