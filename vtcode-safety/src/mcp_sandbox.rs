@@ -18,9 +18,7 @@ use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
-use crate::sandboxing::{
-    NetworkAllowlistEntry, ResourceLimits, SandboxPolicy, SeccompProfile, WritableRoot,
-};
+use crate::sandboxing::{NetworkAllowlistEntry, ResourceLimits, SandboxPolicy, WritableRoot};
 
 /// Per-MCP-server sandbox settings.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -108,7 +106,7 @@ pub fn derive_mcp_sandbox_policy(
         // have a place to hang the restrictions.
         derived = match derived {
             SandboxPolicy::WorkspaceWrite {
-                writable_roots,
+                writable_roots: _,
                 network_access,
                 network_allowlist,
                 sensitive_paths,
@@ -306,11 +304,6 @@ fn policy_to_json(policy: &SandboxPolicy) -> String {
     serde_json::to_string(policy).unwrap_or_else(|_| format!("{policy:?}"))
 }
 
-#[cfg(not(target_os = "linux"))]
-fn policy_to_json(policy: &SandboxPolicy) -> String {
-    format!("{policy:?}")
-}
-
 /// Apply the per-server sandbox wrapper to a stdio command.
 ///
 /// On macOS the wrapper invokes `/usr/bin/sandbox-exec -p <profile>`; on
@@ -323,7 +316,7 @@ fn policy_to_json(policy: &SandboxPolicy) -> String {
 /// this call.
 #[must_use]
 pub fn wrap_stdio_command(
-    mut command: std::process::Command,
+    command: std::process::Command,
     sandbox_policy: &SandboxPolicy,
 ) -> std::process::Command {
     let Some(wrapper) = McpSandboxWrapper::for_current_platform(sandbox_policy) else {

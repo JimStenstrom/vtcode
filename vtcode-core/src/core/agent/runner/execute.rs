@@ -378,10 +378,7 @@ impl AgentRunner {
                 session_state.outcome = TaskOutcome::Success;
                 Ok(true)
             }
-            EvaluatorGateOutcome::Continue {
-                prompt,
-                artifacts: _,
-            } => {
+            EvaluatorGateOutcome::Continue { prompt } => {
                 session_state.add_user_message(prompt);
                 Ok(false)
             }

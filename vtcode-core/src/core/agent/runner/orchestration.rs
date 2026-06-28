@@ -67,7 +67,6 @@ pub(super) enum EvaluatorGateOutcome {
     Accept,
     Continue {
         prompt: String,
-        artifacts: Option<PlannerArtifacts>,
     },
     Exhausted {
         reason: String,
@@ -361,7 +360,7 @@ impl AgentRunner {
     /// annotates the existing artifacts with evaluator context.
     pub(super) async fn replan_from_failure(
         &mut self,
-        task: &Task,
+        _task: &Task,
         evaluation: &EvaluationArtifacts,
         revision_round: usize,
     ) -> Option<PlannerArtifacts> {
@@ -554,12 +553,10 @@ impl AgentRunner {
 
             Ok(EvaluatorGateOutcome::Continue {
                 prompt,
-                artifacts: Some(artifacts.clone()),
             })
         } else {
             Ok(EvaluatorGateOutcome::Continue {
                 prompt: self.evaluation_retry_prompt(&evaluation, *revision_rounds_used),
-                artifacts: None,
             })
         }
     }

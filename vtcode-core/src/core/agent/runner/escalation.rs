@@ -38,6 +38,7 @@ pub enum EscalationDecision {
     /// Proceed with the tool call as normal.
     Proceed,
     /// Escalate — halt the loop and write a blocked handoff.
+    #[allow(dead_code)]
     Escalate {
         /// Human-readable reason for the escalation.
         reason: String,

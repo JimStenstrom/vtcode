@@ -27,7 +27,7 @@ use crate::tools::output_envelope::{
     NormalizedOutput, OutputMetrics, RetryRecommendation, ToolOutputEnvelope, ToolOutputInput,
     ToolPipelineStatus, ValidationReport,
 };
-use crate::tools::output_limits::{ToolOutputLimits, TruncationReport};
+use crate::tools::output_limits::ToolOutputLimits;
 
 /// Configuration knobs for the pipeline. Each field has a sensible default
 /// in [`ToolOutputPolicy::default`].
