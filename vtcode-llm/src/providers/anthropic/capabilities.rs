@@ -261,7 +261,6 @@ pub fn supports_vision(model: &str, default_model: &str) -> bool {
     requested.starts_with("claude-3") || requested.starts_with("claude-4-sonnet")
 }
 
-#[expect(dead_code)]
 pub fn is_claude_model(model: &str, default_model: &str) -> bool {
     claude_thinking_profile(model, default_model).is_some()
 }

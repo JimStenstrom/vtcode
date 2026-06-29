@@ -128,7 +128,7 @@ mod log_support {
         fn emit(&mut self, event: &ThreadEvent) {
             if log::log_enabled!(self.level) {
                 match json::to_string(event) {
-                    Ok(serialized) => log::log!(self.level, "{}", serialized),
+                    Ok(serialized) => log::log!(self.level, "{serialized}"),
                     Err(err) => log::log!(
                         self.level,
                         "failed to serialize vtcode exec event for logging: {err}"
@@ -1003,6 +1003,7 @@ mod tests {
                     exit_code: Some(101),
                     attempt: None,
                     error_category: None,
+                    duration_ms: None,
                 }),
             },
         });

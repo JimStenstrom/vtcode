@@ -250,7 +250,7 @@ async fn open_file_in_editor_event_submits_edit_command_with_path() {
         .expect("process open file in editor");
     assert!(matches!(
         action,
-        InlineLoopAction::Submit(ref command) if command == &format!("/edit {}", path)
+        InlineLoopAction::Submit(ref command) if command == &format!("/edit {path}")
     ));
 }
 

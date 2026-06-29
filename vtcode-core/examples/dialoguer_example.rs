@@ -28,7 +28,7 @@ fn main() -> Result<()> {
         .default("VT Code User".into())
         .interact_text()?;
 
-    println!("Hello, {}!", name);
+    println!("Hello, {name}!");
 
     // Select prompt
     let selections = &[

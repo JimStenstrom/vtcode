@@ -127,7 +127,7 @@ pub enum CompactionStrategy {
 
 /// Select the manual-compaction strategy for a provider/model.
 ///
-/// `NativeStandalone` when the provider opts in via `supports_manual_compaction`
+/// `NativeStandalone` when the provider opts in via `supports_manual_openai_compaction`
 /// (e.g. OpenAI `/responses/compact`), `NativeInline` when the provider reports
 /// inline compaction support via `supports_native_inline_compaction` (e.g.
 /// Anthropic `compact_20260112`), otherwise `Local`.
@@ -139,7 +139,7 @@ pub enum CompactionStrategy {
 /// `compact_20260112` edit) would otherwise be misrouted to `NativeInline` and
 /// waste a rejected `generate` call before falling back to `Local`.
 pub fn manual_compaction_strategy(provider: &dyn LLMProvider, model: &str) -> CompactionStrategy {
-    if provider.supports_manual_compaction(model) {
+    if provider.supports_manual_openai_compaction(model) {
         CompactionStrategy::NativeStandalone
     } else if provider.supports_native_inline_compaction(model) {
         CompactionStrategy::NativeInline
@@ -670,13 +670,13 @@ mod tests {
     struct NativeCompactionProvider;
 
     /// Provider that opts into the standalone manual-compaction path
-    /// (`supports_manual_compaction -> true`), e.g. OpenAI `/responses/compact`.
+    /// (`supports_manual_openai_compaction -> true`), e.g. OpenAI `/responses/compact`.
     struct ManualStandaloneProvider {
         last_options: Mutex<Option<ResponsesCompactionOptions>>,
     }
 
     /// Inline-compaction-capable provider (`supports_responses_compaction -> true`,
-    /// `supports_manual_compaction -> false`), e.g. Anthropic `compact_20260112`.
+    /// `supports_manual_openai_compaction -> false`), e.g. Anthropic `compact_20260112`.
     /// Returns a `Pause` finish with a compaction block so the inline path succeeds.
     struct InlinePauseProvider {
         last_request: Mutex<Option<LLMRequest>>,
@@ -770,7 +770,7 @@ mod tests {
             Ok(())
         }
 
-        fn supports_manual_compaction(&self, _model: &str) -> bool {
+        fn supports_manual_openai_compaction(&self, _model: &str) -> bool {
             true
         }
 
@@ -892,7 +892,7 @@ mod tests {
         }
 
         // Reports Responses API support but neither standalone nor inline
-        // compaction (defaults: supports_manual_compaction and
+        // compaction (defaults: supports_manual_openai_compaction and
         // supports_native_inline_compaction are both false).
         fn supports_responses_compaction(&self, _model: &str) -> bool {
             true

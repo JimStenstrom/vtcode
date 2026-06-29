@@ -6,7 +6,8 @@ use crate::provider::{
     MessageRole, ToolDefinition,
 };
 use crate::providers::shared::{
-    NoopStreamTelemetry, StreamTelemetry, function_output_value_from_message_content,
+    NoopStreamTelemetry, StreamTelemetry, Utf8StreamDecoder,
+    function_output_value_from_message_content,
 };
 use async_stream::try_stream;
 use async_trait::async_trait;
@@ -823,7 +824,7 @@ Enable that provider in your HuggingFace Inference Providers settings, or switch
         if use_responses_api {
             format!("{base}/responses")
         } else {
-            format!("{base}/chat/completions")
+            super::common::chat_completions_url(base)
         }
     }
 }
@@ -980,14 +981,14 @@ impl HuggingFaceProvider {
     ) -> Result<LLMStream, LLMError> {
         let mut bytes_stream = response.bytes_stream();
         let mut buffer = String::with_capacity(4096);
+        let mut decoder = Utf8StreamDecoder::new();
         let mut aggregator = crate::providers::shared::StreamAggregator::new(model.clone());
         let telemetry = NoopStreamTelemetry;
 
         let stream = try_stream! {
             'outer: while let Some(chunk_result) = bytes_stream.next().await {
                 let chunk = chunk_result.map_err(|err| format_network_error(PROVIDER_NAME, &err))?;
-                let text = String::from_utf8_lossy(&chunk);
-                buffer.push_str(&text);
+                buffer.push_str(&decoder.push(&chunk));
 
                 if buffer.len() > 128_000 {
                     Err(LLMError::Provider {

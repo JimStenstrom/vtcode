@@ -5,7 +5,9 @@
 //!
 //! See <https://www.openresponses.org> for the full specification.
 
+pub mod provider;
 pub mod streaming;
 pub mod types;
 
+pub use provider::OpenResponsesProvider;
 pub use types::*;

@@ -1,6 +1,4 @@
-use crate::error_display;
-use crate::provider::{LLMError, LLMProvider, LLMRequest, LLMResponse, LLMStream, LLMStreamEvent};
-use async_stream::try_stream;
+use crate::provider::{LLMError, LLMProvider, LLMRequest, LLMResponse, LLMStream};
 use async_trait::async_trait;
 use reqwest::Client as HttpClient;
 use serde_json::{Map, Value};
@@ -9,11 +7,11 @@ use vtcode_config::constants::{env_vars, models, urls};
 use vtcode_config::core::{AnthropicConfig, ModelConfig, PromptCachingConfig};
 
 use super::common::{
-    ensure_model, impl_llm_client, map_finish_reason_common, override_base_url,
-    parse_json_response, parse_response_openai_format, resolve_model,
-    serialize_messages_openai_format,
+    chat_completions_url, ensure_model, impl_llm_client, override_base_url, parse_json_response,
+    parse_response_openai_format, resolve_model, serialize_messages_openai_format,
+    spawn_openai_compatible_stream,
 };
-use super::error_handling::handle_openai_http_error;
+use super::error_handling::{format_network_error, handle_openai_http_error};
 
 const PROVIDER_NAME: &str = "Moonshot";
 const PROVIDER_KEY: &str = "moonshot";
@@ -179,7 +177,7 @@ impl LLMProvider for MoonshotProvider {
         let model = request.model.clone();
 
         let payload = self.convert_to_moonshot_format(&request)?;
-        let url = format!("{}/chat/completions", self.base_url.trim_end_matches('/'));
+        let url = chat_completions_url(&self.base_url);
 
         let response = self
             .http_client
@@ -188,14 +186,7 @@ impl LLMProvider for MoonshotProvider {
             .json(&payload)
             .send()
             .await
-            .map_err(|e| {
-                let formatted_error =
-                    error_display::format_llm_error(PROVIDER_NAME, &format!("Network error: {e}"));
-                LLMError::Network {
-                    message: formatted_error,
-                    metadata: None,
-                }
-            })?;
+            .map_err(|e| format_network_error(PROVIDER_NAME, &e))?;
 
         let response =
             handle_openai_http_error(response, PROVIDER_NAME, "MOONSHOT_API_KEY").await?;
@@ -219,7 +210,7 @@ impl LLMProvider for MoonshotProvider {
         request.stream = true;
 
         let payload = self.convert_to_moonshot_format(&request)?;
-        let url = format!("{}/chat/completions", self.base_url.trim_end_matches('/'));
+        let url = chat_completions_url(&self.base_url);
 
         let response = self
             .http_client
@@ -228,97 +219,19 @@ impl LLMProvider for MoonshotProvider {
             .json(&payload)
             .send()
             .await
-            .map_err(|e| {
-                let formatted_error =
-                    error_display::format_llm_error(PROVIDER_NAME, &format!("Network error: {e}"));
-                LLMError::Network {
-                    message: formatted_error,
-                    metadata: None,
-                }
-            })?;
+            .map_err(|e| format_network_error(PROVIDER_NAME, &e))?;
 
         let response =
             handle_openai_http_error(response, PROVIDER_NAME, "MOONSHOT_API_KEY").await?;
 
-        let bytes_stream = response.bytes_stream();
-        let (event_tx, event_rx) =
-            tokio::sync::mpsc::unbounded_channel::<Result<LLMStreamEvent, LLMError>>();
-        let tx = event_tx.clone();
-
-        let model_clone = model.clone();
-        tokio::spawn(async move {
-            let mut aggregator =
-                crate::providers::shared::StreamAggregator::new(model_clone.clone());
-
-            let result = crate::providers::shared::process_openai_stream(
-                bytes_stream,
-                PROVIDER_NAME,
-                model_clone,
-                |value| {
-                    if let Some(choices) = value.get("choices").and_then(|c| c.as_array())
-                        && let Some(choice) = choices.first()
-                    {
-                        if let Some(delta) = choice.get("delta") {
-                            // Handle reasoning_content field (Kimi K2 Thinking models)
-                            if let Some(reasoning) =
-                                delta.get("reasoning_content").and_then(|c| c.as_str())
-                                && let Some(d) = aggregator.handle_reasoning(reasoning)
-                            {
-                                let _ = tx.send(Ok(LLMStreamEvent::Reasoning { delta: d }));
-                            }
-
-                            // Handle regular content
-                            if let Some(content) = delta.get("content").and_then(|c| c.as_str()) {
-                                for event in aggregator.handle_content(content) {
-                                    let _ = tx.send(Ok(event));
-                                }
-                            }
-
-                            // Handle tool calls
-                            if let Some(tool_calls) =
-                                delta.get("tool_calls").and_then(|tc| tc.as_array())
-                            {
-                                aggregator.handle_tool_calls(tool_calls);
-                            }
-                        }
-
-                        if let Some(reason) = choice.get("finish_reason").and_then(|r| r.as_str()) {
-                            aggregator.set_finish_reason(map_finish_reason_common(reason));
-                        }
-                    }
-
-                    if let Some(_usage_value) = value.get("usage")
-                        && let Some(usage) =
-                            crate::providers::common::parse_usage_openai_format(&value, false)
-                    {
-                        aggregator.set_usage(usage);
-                    }
-                    Ok(())
-                },
-            )
-            .await;
-
-            match result {
-                Ok(_) => {
-                    let response = aggregator.finalize();
-                    let _ = tx.send(Ok(LLMStreamEvent::Completed {
-                        response: Box::new(response),
-                    }));
-                }
-                Err(err) => {
-                    let _ = tx.send(Err(err));
-                }
-            }
-        });
-
-        let stream = try_stream! {
-            let mut receiver = event_rx;
-            while let Some(event) = receiver.recv().await {
-                yield event?;
-            }
-        };
-
-        Ok(Box::pin(stream))
+        Ok(spawn_openai_compatible_stream(
+            response,
+            PROVIDER_NAME,
+            model,
+            &["reasoning_content"],
+            super::shared::OpenAiDeltaOrder::ReasoningFirst,
+            false,
+        ))
     }
 
     fn supported_models(&self) -> Vec<String> {

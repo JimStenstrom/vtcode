@@ -212,14 +212,14 @@ fn current_default_prompt(ctx: &SlashCommandContext<'_>) -> Option<String> {
 fn manual_compaction_available(ctx: &mut SlashCommandContext<'_>) -> Result<bool> {
     if ctx
         .provider_client
-        .supports_manual_compaction(&ctx.config.model)
+        .supports_manual_openai_compaction(&ctx.config.model)
     {
         return Ok(true);
     }
 
     let message = ctx
         .provider_client
-        .manual_compaction_unavailable_message(&ctx.config.model);
+        .manual_openai_compaction_unavailable_message(&ctx.config.model);
     ctx.renderer.line(MessageStyle::Error, &message)?;
     Ok(false)
 }

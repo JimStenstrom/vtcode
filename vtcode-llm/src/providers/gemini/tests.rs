@@ -858,10 +858,6 @@ fn sanitize_function_parameters_drops_invalid_required_entries() {
     assert_eq!(sanitized["required"], json!(["label"]));
 }
 
-// NOTE: sanitize_function_parameters_renames_nested_description_property_names was removed
-// because it required vtcode-core::tools::RequestUserInputTool which is not available in
-// vtcode-llm. If this test coverage is needed, move it to vtcode-core.
-
 #[test]
 fn sanitize_function_parameters_preserves_real_details_property() {
     let parameters = json!({
@@ -1100,6 +1096,7 @@ fn thought_signature_roundtrip_in_request() {
                 tool_call_id: None,
                 phase: None,
                 origin_tool: None,
+                metadata: None,
             },
         ],
         model: models::google::GEMINI_3_1_PRO_PREVIEW.to_string(),
@@ -1785,7 +1782,7 @@ fn part_json_deserialization_function_call_with_thought_signature() {
                 "thoughtSignature (camelCase) should be captured"
             );
         }
-        other => panic!("Expected FunctionCall, got {:?}", other),
+        other => panic!("Expected FunctionCall, got {other:?}"),
     }
 
     // Test 2: FunctionCall WITHOUT thought signature
@@ -1802,7 +1799,7 @@ fn part_json_deserialization_function_call_with_thought_signature() {
             assert_eq!(function_call.name, "test_func");
             assert_eq!(thought_signature, &None, "missing signature should be None");
         }
-        other => panic!("Expected FunctionCall, got {:?}", other),
+        other => panic!("Expected FunctionCall, got {other:?}"),
     }
 
     // Test 3: Text part
@@ -1812,7 +1809,7 @@ fn part_json_deserialization_function_call_with_thought_signature() {
         Part::Text { text, .. } => {
             assert_eq!(text, "hello world");
         }
-        other => panic!("Expected Text, got {:?}", other),
+        other => panic!("Expected Text, got {other:?}"),
     }
 
     // Test 4: Full candidate with function call + thought signature (simulates API response)
@@ -1841,6 +1838,6 @@ fn part_json_deserialization_function_call_with_thought_signature() {
                 "thought signature should be preserved from API response"
             );
         }
-        other => panic!("Expected FunctionCall in candidate, got {:?}", other),
+        other => panic!("Expected FunctionCall in candidate, got {other:?}"),
     }
 }

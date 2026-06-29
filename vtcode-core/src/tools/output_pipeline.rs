@@ -243,7 +243,6 @@ mod tests {
         assert_eq!(env.status, ToolPipelineStatus::Success);
         assert_eq!(env.normalized.text, "hello world");
         assert!(matches!(env.retry_decision, RetryRecommendation::NoRetry));
-        assert!(env.metrics.parse_us >= 0);
         assert!(env.truncated.is_none());
     }
 

@@ -138,7 +138,7 @@ async fn test_execute_tool_with_timeout() {
                 panic!("Expected tool to return error object for unknown tool");
             }
         }
-        other => panic!("Unexpected result type: {:?}", other),
+        other => panic!("Unexpected result type: {other:?}"),
     }
 }
 
@@ -218,8 +218,7 @@ fn test_process_tool_output_loop_detection() {
         );
     } else {
         panic!(
-            "Expected Success variant for loop detection (to avoid blocked-streak increment), got: {:?}",
-            status
+            "Expected Success variant for loop detection (to avoid blocked-streak increment), got: {status:?}"
         );
     }
 }

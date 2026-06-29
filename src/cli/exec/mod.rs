@@ -200,6 +200,7 @@ mod tests {
                     exit_code: Some(101),
                     attempt: None,
                     error_category: None,
+                    duration_ms: None,
                 }),
             },
         }))
@@ -222,6 +223,7 @@ mod tests {
                     exit_code: None,
                     attempt: None,
                     error_category: None,
+                    duration_ms: None,
                 }),
             },
         }))

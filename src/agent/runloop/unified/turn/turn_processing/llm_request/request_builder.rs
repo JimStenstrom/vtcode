@@ -1833,7 +1833,7 @@ mod tests {
         let mut backing = TestTurnProcessingBacking::new(4).await;
         let mut spec = test_primary_agent_spec("planner", "Use agent metadata.");
         spec.model = Some("overlay-model".to_string());
-        spec.reasoning_effort = Some(vtcode_config::ReasoningEffortLevel::High);
+        spec.reasoning_effort = Some(ReasoningEffortLevel::High);
         backing.select_primary_agent_from_specs(&[spec], "planner");
 
         let mut cfg = VTCodeConfig::default();

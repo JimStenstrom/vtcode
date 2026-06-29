@@ -131,6 +131,7 @@ impl StreamingProcessor {
         let mut _has_valid_content = false;
         // Optimize: Pre-allocate buffer with typical SSE line size to reduce reallocations
         let mut buffer = String::with_capacity(self.config.buffer_size);
+        let mut decoder = crate::providers::shared::Utf8StreamDecoder::new();
         let request_start = Instant::now();
 
         // Wait for the first chunk with a longer timeout
@@ -144,7 +145,7 @@ impl StreamingProcessor {
                 self.report_progress(first_chunk_start, request_start);
 
                 // Process the first chunk
-                buffer.push_str(&String::from_utf8_lossy(&bytes));
+                buffer.push_str(&decoder.push(&bytes));
                 match self.process_buffer(&mut buffer, &mut accumulated_response, &mut on_chunk) {
                     Ok(valid) => _has_valid_content = valid,
                     Err(e) => return Err(e),
@@ -196,7 +197,7 @@ impl StreamingProcessor {
                     self.metrics.total_bytes += bytes.len();
 
                     // Add to buffer
-                    buffer.push_str(&String::from_utf8_lossy(&bytes));
+                    buffer.push_str(&decoder.push(&bytes));
 
                     // Process buffer
                     match self.process_buffer(&mut buffer, &mut accumulated_response, &mut on_chunk)
@@ -592,12 +593,11 @@ impl StreamingProcessor {
                         .and_then(Value::as_str)
                         .unwrap_or("Gemini streaming error")
                         .to_owned();
-                    #[allow(clippy::cast_sign_loss)] // clamped to 0..u16::MAX
+                    #[allow(clippy::cast_sign_loss)]
                     let code = error_value
                         .get("code")
                         .and_then(Value::as_i64)
-                        .unwrap_or(500)
-                        .clamp(0, u16::MAX as i64) as u16;
+                        .unwrap_or(500) as u16;
                     return Err(StreamingError::ApiError {
                         status_code: code,
                         message,

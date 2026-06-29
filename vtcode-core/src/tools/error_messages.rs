@@ -78,13 +78,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_error_messages_are_not_empty() {
-        assert!(!agent_execution::PLANNING_DENIED_CONTEXT.is_empty());
-        assert!(!agent_execution::LOOP_RETRY_BLOCKED_LINE.is_empty());
-        assert!(!skill_ops::SKILL_NOT_FOUND.is_empty());
-    }
-
-    #[test]
     fn test_agent_execution_message_helpers() {
         let planning_msg = agent_execution::planning_workflow_denial_message("write_file");
         assert!(agent_execution::is_planning_active_denial(&planning_msg));

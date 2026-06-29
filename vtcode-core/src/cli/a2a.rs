@@ -51,18 +51,18 @@ async fn serve_a2a_agent(
     println!("Starting VT Code A2A Agent Server...");
     println!("Feature: a2a-server enabled ✓");
 
-    let base_url = base_url.unwrap_or_else(|| format!("http://{}:{}", host, port));
+    let base_url = base_url.unwrap_or_else(|| format!("http://{host}:{port}"));
     let agent_card = AgentCard::vtcode_default(&base_url);
     let task_manager = TaskManager::new();
 
     let server_state = A2aServerState::new(task_manager, agent_card);
     let router = create_router(server_state);
 
-    let addr = format!("{}:{}", host, port).parse::<SocketAddr>()?;
-    println!("Listening on http://{}", addr);
-    println!("Agent Card: http://{}/.well-known/agent-card.json", addr);
-    println!("JSON-RPC API: http://{}/a2a", addr);
-    println!("Streaming API: http://{}/a2a/stream", addr);
+    let addr = format!("{host}:{port}").parse::<SocketAddr>()?;
+    println!("Listening on http://{addr}");
+    println!("Agent Card: http://{addr}/.well-known/agent-card.json");
+    println!("JSON-RPC API: http://{addr}/a2a");
+    println!("Streaming API: http://{addr}/a2a/stream");
 
     let listener = tokio::net::TcpListener::bind(addr).await?;
     axum::serve(listener, router)

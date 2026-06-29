@@ -12,10 +12,9 @@
 //! See: <https://lmstudio.ai/docs/developer>
 
 use super::common::resolve_model;
-use super::openai::OpenAIProvider;
 use crate::client::LLMClient;
 use crate::error_display;
-use crate::provider::{LLMError, LLMProvider, LLMRequest, LLMResponse, LLMStream};
+use crate::provider::{LLMError, LLMProvider, LLMRequest, LLMResponse, LLMStream, Message};
 use crate::providers::common::override_base_url;
 use anyhow::Result;
 use async_trait::async_trait;
@@ -125,7 +124,8 @@ pub async fn fetch_lmstudio_models(base_url: Option<String>) -> Result<Vec<Strin
 }
 
 pub struct LmStudioProvider {
-    inner: OpenAIProvider,
+    inner: Box<dyn LLMProvider>,
+    model_id: String,
 }
 
 impl LmStudioProvider {
@@ -145,20 +145,21 @@ impl LmStudioProvider {
         timeouts: Option<TimeoutsConfig>,
         anthropic: Option<AnthropicConfig>,
         model_behavior: Option<ModelConfig>,
-    ) -> OpenAIProvider {
+    ) -> (Box<dyn LLMProvider>, String) {
         let resolved_model = resolve_model(model, models::lmstudio::DEFAULT_MODEL);
         let resolved_base = Self::resolve_base_url(base_url);
-        OpenAIProvider::from_config(
+        let inner = Box::new(crate::providers::OpenAIProvider::from_config(
             api_key,
             None,
-            Some(resolved_model),
+            Some(resolved_model.clone()),
             Some(resolved_base),
             prompt_cache,
             timeouts,
             anthropic,
             None,
             model_behavior,
-        )
+        ));
+        (inner, resolved_model)
     }
 
     pub fn new(api_key: String) -> Self {
@@ -175,15 +176,18 @@ impl LmStudioProvider {
         base_url: String,
         timeouts: TimeoutsConfig,
     ) -> Self {
-        let inner = OpenAIProvider::new_with_client(
+        let inner = Box::new(crate::providers::OpenAIProvider::new_with_client(
             "lm-studio".to_string(), // Dummy API key
             None,
-            model,
+            model.clone(),
             http_client,
             base_url,
             timeouts,
-        );
-        Self { inner }
+        ));
+        Self {
+            inner,
+            model_id: model,
+        }
     }
 
     pub fn from_config(
@@ -195,7 +199,7 @@ impl LmStudioProvider {
         anthropic: Option<AnthropicConfig>,
         model_behavior: Option<ModelConfig>,
     ) -> Self {
-        let inner = Self::build_inner(
+        let (inner, model_id) = Self::build_inner(
             api_key,
             model,
             base_url,
@@ -204,7 +208,7 @@ impl LmStudioProvider {
             anthropic,
             model_behavior,
         );
-        Self { inner }
+        Self { inner, model_id }
     }
 
     fn with_model_internal(
@@ -214,7 +218,7 @@ impl LmStudioProvider {
         prompt_cache: Option<PromptCachingConfig>,
         model_behavior: Option<ModelConfig>,
     ) -> Self {
-        let inner = Self::build_inner(
+        let (inner, model_id) = Self::build_inner(
             api_key,
             model,
             base_url,
@@ -223,7 +227,7 @@ impl LmStudioProvider {
             None,
             model_behavior,
         );
-        Self { inner }
+        Self { inner, model_id }
     }
 }
 
@@ -299,10 +303,18 @@ impl LLMProvider for LmStudioProvider {
 #[async_trait]
 impl LLMClient for LmStudioProvider {
     async fn generate(&mut self, prompt: &str) -> Result<LLMResponse, LLMError> {
-        LLMClient::generate(&mut self.inner, prompt).await
+        LLMProvider::generate(
+            self,
+            LLMRequest {
+                messages: vec![Message::user(prompt.to_string())],
+                model: self.model_id.clone(),
+                ..Default::default()
+            },
+        )
+        .await
     }
 
     fn model_id(&self) -> &str {
-        self.inner.model_id()
+        &self.model_id
     }
 }

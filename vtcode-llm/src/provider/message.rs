@@ -1,6 +1,7 @@
 use super::ToolCall;
 use crate::providers::clean_reasoning_text;
 use serde::{Deserialize, Serialize};
+use vtcode_commons::message_metadata::MessageMetadata;
 
 /// Phase metadata for assistant messages in multi-step Responses-style workflows.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -138,6 +139,9 @@ pub struct Message {
     /// Used in tool-aware context retention to preserve results from recently-active tools
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub origin_tool: Option<String>,
+    /// Optional per-message metadata (timestamp, importance, compression status, etc.).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub metadata: Option<MessageMetadata>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -369,6 +373,7 @@ impl Message {
             tool_call_id: None,
             phase: None,
             origin_tool: None,
+            metadata: None,
         }
     }
 
@@ -544,6 +549,13 @@ impl Message {
         } else {
             None
         };
+        self
+    }
+
+    /// Attach per-message metadata.
+    #[must_use]
+    pub fn with_metadata(mut self, metadata: MessageMetadata) -> Self {
+        self.metadata = Some(metadata);
         self
     }
 

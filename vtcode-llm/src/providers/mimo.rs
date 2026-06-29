@@ -2,7 +2,6 @@ use async_trait::async_trait;
 use reqwest::Client as HttpClient;
 use serde_json::{Map, Value};
 
-use crate::error_display;
 use crate::provider::{LLMError, LLMProvider, LLMRequest, LLMResponse, LLMStream};
 use vtcode_config::TimeoutsConfig;
 use vtcode_config::constants::{env_vars, models};
@@ -11,9 +10,9 @@ use vtcode_config::models::{MiMoAuthMethod, detect_mimo_auth_method};
 
 use super::{
     common::{
-        ensure_model, extract_prompt_cache_settings_default, impl_llm_client, override_base_url,
-        parse_json_response, parse_response_openai_format, resolve_model,
-        serialize_messages_openai_format, serialize_tools_openai_format,
+        chat_completions_url, ensure_model, extract_prompt_cache_settings_default, impl_llm_client,
+        override_base_url, parse_json_response, parse_response_openai_format, resolve_model,
+        send_chat_completions, serialize_messages_openai_format, serialize_tools_openai_format,
         spawn_openai_compatible_stream, validate_supported_models,
     },
     error_handling::handle_openai_http_error,
@@ -227,12 +226,11 @@ impl MiMoProvider {
     }
 
     async fn send_request(&self, payload: &Value) -> Result<reqwest::Response, LLMError> {
-        let url = format!("{}/chat/completions", self.base_url.trim_end_matches('/'));
-
-        let mut request = self.http_client.post(&url).json(payload);
+        let url = chat_completions_url(&self.base_url);
+        let request = self.http_client.post(&url);
 
         // Use different header format based on auth method
-        request = match self.auth_method {
+        let request = match self.auth_method {
             MiMoAuthMethod::PayAsYouGo | MiMoAuthMethod::Unknown => {
                 request.header("api-key", &self.api_key)
             }
@@ -241,10 +239,7 @@ impl MiMoProvider {
             }
         };
 
-        request.send().await.map_err(|e| LLMError::Network {
-            message: error_display::format_llm_error(PROVIDER_NAME, &format!("network error: {e}")),
-            metadata: None,
-        })
+        send_chat_completions(request, payload, PROVIDER_NAME).await
     }
 
     fn serialize_messages(&self, request: &LLMRequest) -> Result<Vec<Value>, LLMError> {

@@ -178,7 +178,7 @@ async fn test_unicode_rendering_scenarios() {
                 .and_then(|value| value.as_str())
                 .unwrap_or_default();
             println!("Command output:");
-            println!("{}", output);
+            println!("{output}");
 
             // Check if unicode characters are preserved
             assert!(
@@ -197,7 +197,7 @@ async fn test_unicode_rendering_scenarios() {
             println!("✓ Unicode characters preserved in PTY output");
         }
         Err(e) => {
-            println!("Error running unicode test: {}", e);
+            println!("Error running unicode test: {e}");
             // Don't fail the test, just report the issue
         }
     }

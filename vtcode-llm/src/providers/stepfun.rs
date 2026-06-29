@@ -1,19 +1,18 @@
-use async_stream::try_stream;
 use async_trait::async_trait;
 use reqwest::Client as HttpClient;
 use serde_json::{Map, Value};
 
-use crate::error_display;
-use crate::provider::{LLMError, LLMProvider, LLMRequest, LLMResponse, LLMStream, LLMStreamEvent};
+use crate::provider::{LLMError, LLMProvider, LLMRequest, LLMResponse, LLMStream};
 use vtcode_config::TimeoutsConfig;
 use vtcode_config::constants::{env_vars, models, urls};
 use vtcode_config::core::{AnthropicConfig, ModelConfig, PromptCachingConfig};
 use vtcode_config::types::ReasoningEffortLevel;
 
 use super::common::{
-    ensure_model, impl_llm_client, map_finish_reason_common, override_base_url,
-    parse_json_response, parse_response_openai_format, resolve_model,
-    serialize_messages_openai_format, serialize_tools_openai_format, validate_supported_models,
+    chat_completions_url, ensure_model, impl_llm_client, override_base_url, parse_json_response,
+    parse_response_openai_format, resolve_model, send_chat_completions,
+    serialize_messages_openai_format, serialize_tools_openai_format,
+    spawn_openai_compatible_stream, validate_supported_models,
 };
 use super::error_handling::handle_openai_http_error;
 use super::extract_reasoning_trace;
@@ -263,22 +262,14 @@ impl LLMProvider for StepFunProvider {
         let model = ensure_model(&mut request, &self.model);
 
         let payload = self.convert_to_stepfun_format(&request)?;
-        let url = format!("{}/chat/completions", self.base_url.trim_end_matches('/'));
+        let url = chat_completions_url(&self.base_url);
 
-        let response = self
-            .http_client
-            .post(&url)
-            .bearer_auth(&self.api_key)
-            .json(&payload)
-            .send()
-            .await
-            .map_err(|error| LLMError::Network {
-                message: error_display::format_llm_error(
-                    PROVIDER_NAME,
-                    &format!("network error: {error}"),
-                ),
-                metadata: None,
-            })?;
+        let response = send_chat_completions(
+            self.http_client.post(&url).bearer_auth(&self.api_key),
+            &payload,
+            PROVIDER_NAME,
+        )
+        .await?;
 
         let response =
             handle_openai_http_error(response, PROVIDER_NAME, PRIMARY_API_KEY_ENV).await?;
@@ -307,102 +298,26 @@ impl LLMProvider for StepFunProvider {
         let model = request.model.clone();
 
         let payload = self.convert_to_stepfun_format(&request)?;
-        let url = format!("{}/chat/completions", self.base_url.trim_end_matches('/'));
+        let url = chat_completions_url(&self.base_url);
 
-        let response = self
-            .http_client
-            .post(&url)
-            .bearer_auth(&self.api_key)
-            .json(&payload)
-            .send()
-            .await
-            .map_err(|error| LLMError::Network {
-                message: error_display::format_llm_error(
-                    PROVIDER_NAME,
-                    &format!("network error: {error}"),
-                ),
-                metadata: None,
-            })?;
+        let response = send_chat_completions(
+            self.http_client.post(&url).bearer_auth(&self.api_key),
+            &payload,
+            PROVIDER_NAME,
+        )
+        .await?;
 
         let response =
             handle_openai_http_error(response, PROVIDER_NAME, PRIMARY_API_KEY_ENV).await?;
 
-        let bytes_stream = response.bytes_stream();
-        let (event_tx, event_rx) =
-            tokio::sync::mpsc::unbounded_channel::<Result<LLMStreamEvent, LLMError>>();
-        let tx = event_tx.clone();
-
-        let model_clone = model.clone();
-        tokio::spawn(async move {
-            let mut aggregator =
-                crate::providers::shared::StreamAggregator::new(model_clone.clone());
-
-            let result = crate::providers::shared::process_openai_stream(
-                bytes_stream,
-                PROVIDER_NAME,
-                model_clone,
-                |value| {
-                    if let Some(choices) =
-                        value.get("choices").and_then(|choices| choices.as_array())
-                        && let Some(choice) = choices.first()
-                    {
-                        if let Some(delta) = choice.get("delta") {
-                            if let Some(reasoning) = delta.get("reasoning").and_then(|v| v.as_str())
-                                && let Some(delta) = aggregator.handle_reasoning(reasoning)
-                            {
-                                let _ = tx.send(Ok(LLMStreamEvent::Reasoning { delta }));
-                            }
-
-                            if let Some(content) = delta.get("content").and_then(|v| v.as_str()) {
-                                for event in aggregator.handle_content(content) {
-                                    let _ = tx.send(Ok(event));
-                                }
-                            }
-
-                            if let Some(tool_calls) =
-                                delta.get("tool_calls").and_then(|calls| calls.as_array())
-                            {
-                                aggregator.handle_tool_calls(tool_calls);
-                            }
-                        }
-
-                        if let Some(reason) = choice.get("finish_reason").and_then(|v| v.as_str()) {
-                            aggregator.set_finish_reason(map_finish_reason_common(reason));
-                        }
-                    }
-
-                    if let Some(_usage_value) = value.get("usage")
-                        && let Some(usage) =
-                            crate::providers::common::parse_usage_openai_format(&value, false)
-                    {
-                        aggregator.set_usage(usage);
-                    }
-                    Ok(())
-                },
-            )
-            .await;
-
-            match result {
-                Ok(_) => {
-                    let response = aggregator.finalize();
-                    let _ = tx.send(Ok(LLMStreamEvent::Completed {
-                        response: Box::new(response),
-                    }));
-                }
-                Err(error) => {
-                    let _ = tx.send(Err(error));
-                }
-            }
-        });
-
-        let stream = try_stream! {
-            let mut receiver = event_rx;
-            while let Some(event) = receiver.recv().await {
-                yield event?;
-            }
-        };
-
-        Ok(Box::pin(stream))
+        Ok(spawn_openai_compatible_stream(
+            response,
+            PROVIDER_NAME,
+            model,
+            &["reasoning"],
+            super::shared::OpenAiDeltaOrder::ReasoningFirst,
+            false,
+        ))
     }
 
     fn supported_models(&self) -> Vec<String> {

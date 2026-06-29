@@ -1,4 +1,3 @@
-use crate::error_display;
 use crate::provider::{LLMError, LLMProvider, LLMRequest, LLMResponse, LLMStream, LLMStreamEvent};
 use async_stream::try_stream;
 use async_trait::async_trait;
@@ -7,10 +6,10 @@ use serde_json::{Map, Value};
 use vtcode_config::models::model_catalog_entry;
 
 use super::common::{
-    ensure_model, map_finish_reason_common, parse_json_response, parse_response_openai_format,
-    serialize_messages_openai_format, validate_supported_models,
+    chat_completions_url, ensure_model, map_finish_reason_common, parse_json_response,
+    parse_response_openai_format, serialize_messages_openai_format, validate_supported_models,
 };
-use super::error_handling::handle_openai_http_error;
+use super::error_handling::{format_network_error, handle_openai_http_error};
 
 pub(crate) struct OpenCodeCompatibleProvider {
     provider_name: &'static str,
@@ -157,7 +156,7 @@ impl LLMProvider for OpenCodeCompatibleProvider {
         let model = ensure_model(&mut request, &self.model);
 
         let payload = self.convert_to_format(&request)?;
-        let url = format!("{}/chat/completions", self.base_url.trim_end_matches('/'));
+        let url = chat_completions_url(&self.base_url);
 
         let response = self
             .http_client
@@ -166,16 +165,7 @@ impl LLMProvider for OpenCodeCompatibleProvider {
             .json(&payload)
             .send()
             .await
-            .map_err(|error| {
-                let formatted_error = error_display::format_llm_error(
-                    self.provider_name,
-                    &format!("Network error: {error}"),
-                );
-                LLMError::Network {
-                    message: formatted_error,
-                    metadata: None,
-                }
-            })?;
+            .map_err(|error| format_network_error(self.provider_name, &error))?;
 
         let response =
             handle_openai_http_error(response, self.provider_name, self.api_key_env).await?;
@@ -196,7 +186,7 @@ impl LLMProvider for OpenCodeCompatibleProvider {
         request.stream = true;
 
         let payload = self.convert_to_format(&request)?;
-        let url = format!("{}/chat/completions", self.base_url.trim_end_matches('/'));
+        let url = chat_completions_url(&self.base_url);
 
         let response = self
             .http_client
@@ -205,16 +195,7 @@ impl LLMProvider for OpenCodeCompatibleProvider {
             .json(&payload)
             .send()
             .await
-            .map_err(|error| {
-                let formatted_error = error_display::format_llm_error(
-                    self.provider_name,
-                    &format!("Network error: {error}"),
-                );
-                LLMError::Network {
-                    message: formatted_error,
-                    metadata: None,
-                }
-            })?;
+            .map_err(|error| format_network_error(self.provider_name, &error))?;
 
         let response =
             handle_openai_http_error(response, self.provider_name, self.api_key_env).await?;
@@ -226,58 +207,70 @@ impl LLMProvider for OpenCodeCompatibleProvider {
 
         let model_clone = model.clone();
         let provider_name = self.provider_name;
+        // Timeout for the entire streaming task (5 minutes).
+        // Prevents indefinite hangs when upstream server stops responding.
+        let stream_timeout = std::time::Duration::from_secs(300);
         tokio::spawn(async move {
             let mut aggregator =
                 crate::providers::shared::StreamAggregator::new(model_clone.clone());
 
-            let result = crate::providers::shared::process_openai_stream(
-                bytes_stream,
-                provider_name,
-                model_clone,
-                |value| {
-                    if let Some(choices) = value
-                        .get("choices")
-                        .and_then(|candidate| candidate.as_array())
-                        && let Some(choice) = choices.first()
-                    {
-                        if let Some(delta) = choice.get("delta")
-                            && let Some(content) = delta
-                                .get("content")
-                                .and_then(|candidate| candidate.as_str())
+            let result = tokio::time::timeout(
+                stream_timeout,
+                crate::providers::shared::process_openai_stream(
+                    bytes_stream,
+                    provider_name,
+                    model_clone,
+                    |value| {
+                        if let Some(choices) = value
+                            .get("choices")
+                            .and_then(|candidate| candidate.as_array())
+                            && let Some(choice) = choices.first()
                         {
-                            for event in aggregator.handle_content(content) {
-                                let _ = tx.send(Ok(event));
+                            if let Some(delta) = choice.get("delta")
+                                && let Some(content) = delta
+                                    .get("content")
+                                    .and_then(|candidate| candidate.as_str())
+                            {
+                                for event in aggregator.handle_content(content) {
+                                    let _ = tx.send(Ok(event));
+                                }
+                            }
+
+                            if let Some(reason) = choice
+                                .get("finish_reason")
+                                .and_then(|candidate| candidate.as_str())
+                            {
+                                aggregator.set_finish_reason(map_finish_reason_common(reason));
                             }
                         }
 
-                        if let Some(reason) = choice
-                            .get("finish_reason")
-                            .and_then(|candidate| candidate.as_str())
+                        if value.get("usage").is_some()
+                            && let Some(usage) =
+                                crate::providers::common::parse_usage_openai_format(&value, false)
                         {
-                            aggregator.set_finish_reason(map_finish_reason_common(reason));
+                            aggregator.set_usage(usage);
                         }
-                    }
-
-                    if value.get("usage").is_some()
-                        && let Some(usage) =
-                            crate::providers::common::parse_usage_openai_format(&value, false)
-                    {
-                        aggregator.set_usage(usage);
-                    }
-                    Ok(())
-                },
+                        Ok(())
+                    },
+                ),
             )
             .await;
 
             match result {
-                Ok(_) => {
+                Ok(Ok(_)) => {
                     let response = aggregator.finalize();
                     let _ = tx.send(Ok(LLMStreamEvent::Completed {
                         response: Box::new(response),
                     }));
                 }
-                Err(error) => {
+                Ok(Err(error)) => {
                     let _ = tx.send(Err(error));
+                }
+                Err(_elapsed) => {
+                    let _ = tx.send(Err(LLMError::Provider {
+                        message: format!("{provider_name}: streaming timed out after 5 minutes"),
+                        metadata: None,
+                    }));
                 }
             }
         });

@@ -342,13 +342,13 @@ pub(crate) fn format_spool_notification(result: &SpoolResult) -> String {
         // Find a good split point (at path separator)
         if let Some(idx) = path_str.rfind('/') {
             let (dir, file) = path_str.split_at(idx + 1);
-            lines.push(format!("│ {}", dir));
-            lines.push(format!("│ {}", file));
+            lines.push(format!("│ {dir}"));
+            lines.push(format!("│ {file}"));
         } else {
-            lines.push(format!("│ {}", path_str));
+            lines.push(format!("│ {path_str}"));
         }
     } else {
-        lines.push(format!("│ {}", path_str));
+        lines.push(format!("│ {path_str}"));
     }
 
     lines.join("\n")

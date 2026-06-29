@@ -5,8 +5,8 @@
 //! the native OpenAI provider. Request construction, HTTP clients, replay, and
 //! ChatGPT-specific policy live in `vtcode-llm::providers::openai`.
 
-use crate::llm::provider::LLMError;
-use crate::llm::providers::shared::StreamAssemblyError;
+use crate::provider::LLMError;
+use crate::providers::shared::StreamAssemblyError;
 use rig::providers::openai::responses_api::Output as RigResponsesOutput;
 use rig::providers::openai::responses_api::streaming::{
     ItemChunkKind as RigResponsesItemChunkKind, ResponseChunkKind as RigResponsesChunkKind,

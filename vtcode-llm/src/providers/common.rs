@@ -3,11 +3,12 @@ use crate::provider::{
     ContentPart, FinishReason, LLMError, LLMRequest, LLMStream, LLMStreamEvent, Message,
     MessageContent, MessageRole, ToolCall, ToolDefinition,
 };
-use crate::providers::openai::tool_serialization::sanitize_openai_function_parameters;
 use crate::types as llm_types;
 use crate::utils::extract_reasoning_content;
 use serde_json::{Value, json};
 use vtcode_config::core::{PromptCachingConfig, ProviderPromptCachingConfig};
+
+use crate::providers::openai::tool_serialization::sanitize_openai_function_parameters;
 
 /// Returns the first present header among `names`, as an owned string.
 pub fn extract_header(headers: &reqwest::header::HeaderMap, names: &[&str]) -> Option<String> {
@@ -432,6 +433,31 @@ pub fn validate_supported_models(
     validate_request_common(request, provider_name, provider_key, Some(&models))
 }
 
+/// Builds the `/chat/completions` endpoint URL for an OpenAI-compatible base URL,
+/// tolerating a trailing slash on the configured base.
+#[inline]
+pub fn chat_completions_url(base_url: &str) -> String {
+    format!("{}/chat/completions", base_url.trim_end_matches('/'))
+}
+
+/// Sends an OpenAI-compatible chat-completions POST, mapping transport failures
+/// to `LLMError::Network` with consistent formatting.
+///
+/// The caller supplies a `RequestBuilder` with the endpoint, authentication, and
+/// any provider-specific headers already applied; this helper only attaches the
+/// JSON payload, dispatches the request, and normalizes network errors.
+pub async fn send_chat_completions(
+    request: reqwest::RequestBuilder,
+    payload: &Value,
+    provider_name: &str,
+) -> Result<reqwest::Response, LLMError> {
+    request
+        .json(payload)
+        .send()
+        .await
+        .map_err(|error| super::error_handling::format_network_error(provider_name, &error))
+}
+
 /// Spawns an OpenAI-compatible streaming response handler.
 /// Returns an `LLMStream` backed by a tokio task that processes chunks via
 /// `process_openai_stream` with the `handle_openai_compatible_chunk` handler.
@@ -453,37 +479,49 @@ pub fn spawn_openai_compatible_stream(
         tokio::sync::mpsc::unbounded_channel::<Result<LLMStreamEvent, LLMError>>();
     let tx = event_tx.clone();
 
+    // Timeout for the entire streaming task (5 minutes).
+    // Prevents indefinite hangs when upstream server stops responding.
+    let stream_timeout = std::time::Duration::from_secs(300);
     tokio::spawn(async move {
         let aggregator_model = model.clone();
         let mut aggregator = crate::providers::shared::StreamAggregator::new(aggregator_model);
 
-        let result = crate::providers::shared::process_openai_stream(
-            bytes_stream,
-            provider_name,
-            model,
-            |value| {
-                crate::providers::shared::handle_openai_compatible_chunk(
-                    &value,
-                    &mut aggregator,
-                    &tx,
-                    reasoning_fields,
-                    delta_order,
-                    include_cache_metrics,
-                );
-                Ok(())
-            },
+        let result = tokio::time::timeout(
+            stream_timeout,
+            crate::providers::shared::process_openai_stream(
+                bytes_stream,
+                provider_name,
+                model,
+                |value| {
+                    crate::providers::shared::handle_openai_compatible_chunk(
+                        &value,
+                        &mut aggregator,
+                        &tx,
+                        reasoning_fields,
+                        delta_order,
+                        include_cache_metrics,
+                    );
+                    Ok(())
+                },
+            ),
         )
         .await;
 
         match result {
-            Ok(_) => {
+            Ok(Ok(_)) => {
                 let response = aggregator.finalize();
                 let _ = tx.send(Ok(LLMStreamEvent::Completed {
                     response: Box::new(response),
                 }));
             }
-            Err(err) => {
+            Ok(Err(err)) => {
                 let _ = tx.send(Err(err));
+            }
+            Err(_elapsed) => {
+                let _ = tx.send(Err(LLMError::Provider {
+                    message: format!("{provider_name}: streaming timed out after 5 minutes"),
+                    metadata: None,
+                }));
             }
         }
     });
@@ -1391,7 +1429,7 @@ mod tests {
         assistant_interleaved_history_text, extract_reasoning_text_from_detail_values,
         extract_reasoning_text_from_serialized_details, is_interleaved_thinking_model,
         is_minimax_m2_model, normalize_reasoning_detail_object, parse_chat_request_openai_format,
-        parse_response_openai_format,
+        parse_response_openai_format, parse_usage_openai_format,
     };
     use crate::provider::{AssistantPhase, Message};
     use serde_json::{Value, json};
@@ -1569,5 +1607,64 @@ mod tests {
         assert_eq!(request.messages[0].phase, Some(AssistantPhase::Commentary));
         assert_eq!(request.messages[1].phase, Some(AssistantPhase::FinalAnswer));
         assert_eq!(request.messages[2].phase, None);
+    }
+
+    #[test]
+    fn parse_usage_openai_format_extracts_basic_fields() {
+        let response = json!({
+            "usage": {
+                "prompt_tokens": 100,
+                "completion_tokens": 50,
+                "total_tokens": 150
+            }
+        });
+        let usage = parse_usage_openai_format(&response, false).expect("usage expected");
+        assert_eq!(usage.prompt_tokens, 100);
+        assert_eq!(usage.completion_tokens, 50);
+        assert_eq!(usage.total_tokens, 150);
+        assert_eq!(usage.cached_prompt_tokens, None);
+        assert_eq!(usage.cache_creation_tokens, None);
+    }
+
+    #[test]
+    fn parse_usage_openai_format_includes_cache_metrics_when_enabled() {
+        let response = json!({
+            "usage": {
+                "prompt_tokens": 100,
+                "completion_tokens": 50,
+                "total_tokens": 150,
+                "prompt_cache_hit_tokens": 30,
+                "prompt_cache_miss_tokens": 70
+            }
+        });
+        let usage = parse_usage_openai_format(&response, true).expect("usage expected");
+        assert_eq!(usage.prompt_tokens, 100);
+        assert_eq!(usage.completion_tokens, 50);
+        assert_eq!(usage.total_tokens, 150);
+        assert_eq!(usage.cached_prompt_tokens, Some(30));
+        assert_eq!(usage.cache_creation_tokens, Some(70));
+    }
+
+    #[test]
+    fn parse_usage_openai_format_excludes_cache_metrics_when_disabled() {
+        let response = json!({
+            "usage": {
+                "prompt_tokens": 100,
+                "completion_tokens": 50,
+                "total_tokens": 150,
+                "prompt_cache_hit_tokens": 30,
+                "prompt_cache_miss_tokens": 70
+            }
+        });
+        let usage = parse_usage_openai_format(&response, false).expect("usage expected");
+        assert_eq!(usage.prompt_tokens, 100);
+        assert_eq!(usage.cached_prompt_tokens, None);
+        assert_eq!(usage.cache_creation_tokens, None);
+    }
+
+    #[test]
+    fn parse_usage_openai_format_handles_missing_usage() {
+        let response = json!({"choices": []});
+        assert!(parse_usage_openai_format(&response, true).is_none());
     }
 }

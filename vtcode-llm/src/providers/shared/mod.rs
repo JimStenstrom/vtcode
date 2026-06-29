@@ -7,6 +7,7 @@ pub use crate::providers::ReasoningBuffer;
 use crate::providers::common::{
     extract_reasoning_text_from_serialized_details, map_finish_reason_common,
 };
+mod responses_adapter;
 mod responses_stream;
 mod tag_sanitizer;
 use crate::providers::split_reasoning_from_text;
@@ -320,6 +321,30 @@ fn function_output_items_from_parts(parts: &[ContentPart]) -> Vec<FunctionOutput
     items
 }
 
+pub(crate) fn tool_result_content_from_message_content(content: &MessageContent) -> Vec<Value> {
+    match content {
+        MessageContent::Text(text) => {
+            if text.trim().is_empty() {
+                return Vec::new();
+            }
+            if let Some(items) = parse_function_output_content_items_text(text) {
+                return items
+                    .iter()
+                    .map(FunctionOutputContentItem::to_tool_result_json)
+                    .collect();
+            }
+            vec![serde_json::json!({
+                "type": "output_text",
+                "text": text
+            })]
+        }
+        MessageContent::Parts(parts) => function_output_items_from_parts(parts)
+            .iter()
+            .map(FunctionOutputContentItem::to_tool_result_json)
+            .collect(),
+    }
+}
+
 fn function_output_value_from_items(items: Vec<FunctionOutputContentItem>) -> Value {
     if items.is_empty() {
         return Value::String(String::new());
@@ -350,30 +375,6 @@ pub(crate) fn function_output_value_from_message_content(content: &MessageConten
             let items = function_output_items_from_parts(parts);
             function_output_value_from_items(items)
         }
-    }
-}
-
-pub(crate) fn tool_result_content_from_message_content(content: &MessageContent) -> Vec<Value> {
-    match content {
-        MessageContent::Text(text) => {
-            if text.trim().is_empty() {
-                return Vec::new();
-            }
-            if let Some(items) = parse_function_output_content_items_text(text) {
-                return items
-                    .iter()
-                    .map(FunctionOutputContentItem::to_tool_result_json)
-                    .collect();
-            }
-            vec![serde_json::json!({
-                "type": "output_text",
-                "text": text
-            })]
-        }
-        MessageContent::Parts(parts) => function_output_items_from_parts(parts)
-            .iter()
-            .map(FunctionOutputContentItem::to_tool_result_json)
-            .collect(),
     }
 }
 
@@ -822,6 +823,61 @@ impl StreamAggregator {
     }
 }
 
+/// Incrementally decodes a byte stream into UTF-8 text.
+///
+/// Network chunks can split a multibyte code point (CJK, emoji, accented
+/// characters, smart quotes) across boundaries. Decoding each chunk
+/// independently with `String::from_utf8_lossy` corrupts such code points into
+/// `U+FFFD` replacement characters. This decoder buffers any trailing incomplete
+/// sequence until the rest of its bytes arrive, while still replacing genuinely
+/// invalid bytes with `U+FFFD` (matching `from_utf8_lossy` semantics).
+#[derive(Debug, Default)]
+pub struct Utf8StreamDecoder {
+    pending: Vec<u8>,
+}
+
+impl Utf8StreamDecoder {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Appends `bytes` and returns the decodable UTF-8 prefix. A trailing
+    /// incomplete multibyte sequence is retained for the next call.
+    pub fn push(&mut self, bytes: &[u8]) -> String {
+        self.pending.extend_from_slice(bytes);
+        let mut out = String::new();
+        loop {
+            match std::str::from_utf8(&self.pending) {
+                Ok(text) => {
+                    out.push_str(text);
+                    self.pending.clear();
+                    break;
+                }
+                Err(err) => {
+                    let valid = err.valid_up_to();
+                    if let Some(valid_bytes) = self.pending.get(..valid) {
+                        // `valid_bytes` is guaranteed valid UTF-8 by `valid_up_to`.
+                        out.push_str(&String::from_utf8_lossy(valid_bytes));
+                    }
+                    match err.error_len() {
+                        // Genuinely invalid sequence: emit replacement and skip it.
+                        Some(invalid_len) => {
+                            out.push('\u{FFFD}');
+                            self.pending.drain(..valid + invalid_len);
+                        }
+                        // Incomplete trailing sequence: keep it for the next push.
+                        None => {
+                            self.pending.drain(..valid);
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        out
+    }
+}
+
 /// Common helper for processing OpenAI-compatible SSE streams.
 ///
 /// This simplifies stream implementations across providers like DeepSeek, ZAI, Moonshot, etc.
@@ -841,13 +897,13 @@ where
     use futures::StreamExt;
 
     let mut buffer = String::new();
+    let mut decoder = Utf8StreamDecoder::new();
     let mut last_response_value = None;
 
     while let Some(chunk_result) = byte_stream.next().await {
         let chunk_bytes =
             chunk_result.map_err(|e| format_network_error(provider_name, &e.to_string()))?;
-        let chunk_str = String::from_utf8_lossy(&chunk_bytes);
-        buffer.push_str(&chunk_str);
+        buffer.push_str(&decoder.push(&chunk_bytes));
 
         while let Some((boundary_idx, boundary_len)) = find_sse_boundary(&buffer) {
             let event = buffer[..boundary_idx].to_string();
@@ -1310,20 +1366,6 @@ mod tests {
     }
 
     #[test]
-    fn tool_result_content_parses_multimodal_tool_output_text() {
-        let content = MessageContent::Text(
-            r#"[{"type":"input_text","text":"note"},{"type":"input_image","image_url":"data:image/png;base64,abc"}]"#
-                .to_string(),
-        );
-        let parts = tool_result_content_from_message_content(&content);
-        assert_eq!(parts.len(), 2);
-        assert_eq!(parts[0]["type"], "output_text");
-        assert_eq!(parts[0]["text"], "note");
-        assert_eq!(parts[1]["type"], "input_image");
-        assert_eq!(parts[1]["image_url"], "data:image/png;base64,abc");
-    }
-
-    #[test]
     fn function_output_value_parses_multimodal_tool_output_text() {
         let content = MessageContent::Text(
             r#"[{"type":"input_text","text":"note"},{"type":"input_image","image_url":"data:image/png;base64,abc"}]"#
@@ -1391,5 +1433,167 @@ mod tests {
         let response = aggregator.finalize();
         assert_eq!(response.reasoning.as_deref(), Some("step one"));
         assert!(response.reasoning_details.is_some());
+    }
+
+    #[test]
+    fn handle_chunk_extracts_content_delta() {
+        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+        let mut aggregator = StreamAggregator::new("test-model".to_string());
+        let chunk = json!({
+            "choices": [{"delta": {"content": "hello"}}]
+        });
+
+        handle_openai_compatible_chunk(
+            &chunk,
+            &mut aggregator,
+            &tx,
+            &[],
+            OpenAiDeltaOrder::ContentFirst,
+            false,
+        );
+
+        let event = rx.try_recv().expect("event expected");
+        match event.unwrap() {
+            LLMStreamEvent::Token { delta } => {
+                assert_eq!(delta, "hello");
+            }
+            other => panic!("expected Token event, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn handle_chunk_extracts_reasoning_delta() {
+        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+        let mut aggregator = StreamAggregator::new("test-model".to_string());
+        let chunk = json!({
+            "choices": [{"delta": {"reasoning_content": "thinking..."}}]
+        });
+
+        handle_openai_compatible_chunk(
+            &chunk,
+            &mut aggregator,
+            &tx,
+            &["reasoning_content"],
+            OpenAiDeltaOrder::ReasoningFirst,
+            false,
+        );
+
+        let event = rx.try_recv().expect("event expected");
+        match event.unwrap() {
+            LLMStreamEvent::Reasoning { delta } => {
+                assert_eq!(delta, "thinking...");
+            }
+            other => panic!("expected Reasoning event, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn handle_chunk_aggregates_tool_calls() {
+        let (tx, _rx) = tokio::sync::mpsc::unbounded_channel();
+        let mut aggregator = StreamAggregator::new("test-model".to_string());
+        let chunk = json!({
+            "choices": [{
+                "delta": {
+                    "tool_calls": [{
+                        "index": 0,
+                        "id": "call_1",
+                        "function": {"name": "search", "arguments": "{\"q\":\"test\"}"}
+                    }]
+                }
+            }]
+        });
+
+        handle_openai_compatible_chunk(
+            &chunk,
+            &mut aggregator,
+            &tx,
+            &[],
+            OpenAiDeltaOrder::ContentFirst,
+            false,
+        );
+
+        let response = aggregator.finalize();
+        let calls = response.tool_calls.expect("tool calls expected");
+        assert_eq!(calls.len(), 1);
+        assert_eq!(calls[0].id, "call_1");
+        let func = calls[0].function.as_ref().expect("function expected");
+        assert_eq!(func.name, "search");
+        assert_eq!(func.arguments, "{\"q\":\"test\"}");
+    }
+
+    #[test]
+    fn handle_chunk_skips_empty_reasoning_and_falls_back() {
+        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+        let mut aggregator = StreamAggregator::new("test-model".to_string());
+        // Evolink-style: reasoning is empty string, reasoning_content has actual content
+        let chunk = json!({
+            "choices": [{"delta": {"reasoning": "", "reasoning_content": "actual reasoning"}}]
+        });
+
+        handle_openai_compatible_chunk(
+            &chunk,
+            &mut aggregator,
+            &tx,
+            &["reasoning", "reasoning_content"],
+            OpenAiDeltaOrder::ReasoningFirst,
+            false,
+        );
+
+        let event = rx.try_recv().expect("event expected");
+        match event.unwrap() {
+            LLMStreamEvent::Reasoning { delta } => {
+                assert_eq!(delta, "actual reasoning");
+            }
+            other => panic!("expected Reasoning event, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn handle_chunk_passes_include_cache_metrics_to_usage() {
+        let (tx, _rx) = tokio::sync::mpsc::unbounded_channel();
+        let mut aggregator = StreamAggregator::new("test-model".to_string());
+        let chunk = json!({
+            "choices": [{"delta": {}}],
+            "usage": {
+                "prompt_tokens": 100,
+                "completion_tokens": 50,
+                "total_tokens": 150,
+                "prompt_cache_hit_tokens": 30,
+                "prompt_cache_miss_tokens": 70
+            }
+        });
+
+        // With include_cache_metrics = false (Evolink/Moonshot/StepFun/ZAI behavior)
+        handle_openai_compatible_chunk(
+            &chunk,
+            &mut aggregator,
+            &tx,
+            &[],
+            OpenAiDeltaOrder::ContentFirst,
+            false,
+        );
+
+        let response = aggregator.finalize();
+        let usage = response.usage.expect("usage expected");
+        assert_eq!(usage.prompt_tokens, 100);
+        assert_eq!(usage.cached_prompt_tokens, None);
+        assert_eq!(usage.cache_creation_tokens, None);
+
+        // With include_cache_metrics = true (DeepSeek behavior)
+        let mut aggregator2 = StreamAggregator::new("test-model".to_string());
+        handle_openai_compatible_chunk(
+            &chunk,
+            &mut aggregator2,
+            &tx,
+            &[],
+            OpenAiDeltaOrder::ContentFirst,
+            true,
+        );
+
+        let response2 = aggregator2.finalize();
+        let usage2 = response2.usage.expect("usage expected");
+        assert_eq!(usage2.prompt_tokens, 100);
+        assert_eq!(usage2.cached_prompt_tokens, Some(30));
+        assert_eq!(usage2.cache_creation_tokens, Some(70));
     }
 }

@@ -2003,7 +2003,7 @@ mod tests {
         // These should all normalize to __verify__:ast-grep
         let args1 = json!({"command": "command -v ast-grep"});
         let args2 = json!({"command": "which ast-grep"});
-        let args3 = json!({"command": "ast-grep --help"});
+        let _args3 = json!({"command": "ast-grep --help"});
 
         assert!(detector.record_call(tool, &args1).is_none());
         // Second call with equivalent command should trigger
@@ -2039,7 +2039,7 @@ mod tests {
 
         // Verification spiral: different commands checking the same tool
         let args1 = json!({"command": "command -v ast-grep"});
-        let args2 = json!({"command": "ast-grep --version 2>&1 | head -5"});
+        let _args2 = json!({"command": "ast-grep --version 2>&1 | head -5"});
 
         assert!(detector.record_call(tool, &args1).is_none());
         // --version doesn't normalize (has pipe), so this shouldn't trigger

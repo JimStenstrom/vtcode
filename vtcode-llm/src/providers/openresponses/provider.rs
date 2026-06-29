@@ -1,28 +1,28 @@
-use crate::config::TimeoutsConfig;
-use crate::config::constants::{env_vars, models, urls};
-use crate::config::core::{AnthropicConfig, ModelConfig, PromptCachingConfig};
-use crate::config::models::Provider as ModelProvider;
-use crate::llm::error_display;
-use crate::llm::provider::{
+use crate::error_display;
+use crate::provider::{
     FinishReason, LLMError, LLMNormalizedStream, LLMProvider, LLMRequest, LLMResponse, LLMStream,
     LLMStreamEvent, Message, ResponsesCompactionOptions, ToolCall,
 };
-use crate::llm::providers::common::{
+use crate::providers::common::{
     append_normalized_reasoning_detail_items, chat_completions_url,
     serialize_message_content_openai,
 };
-use crate::llm::providers::shared::{
+use crate::providers::shared::{
     ResponsesNormalizedStreamOptions, Utf8StreamDecoder,
     collect_tool_references_from_tool_search_output, create_responses_normalized_stream,
     function_output_value_from_message_content, parse_compacted_output_messages,
 };
-use crate::llm::rig_adapter::RigProviderCapabilities;
+use crate::rig_adapter::RigProviderCapabilities;
 use anyhow::Result;
 use async_stream::try_stream;
 use async_trait::async_trait;
 use futures::StreamExt;
 use reqwest::Client as HttpClient;
 use serde_json::{Value, json};
+use vtcode_config::TimeoutsConfig;
+use vtcode_config::constants::{env_vars, models, urls};
+use vtcode_config::core::{AnthropicConfig, ModelConfig, PromptCachingConfig};
+use vtcode_config::models::Provider as ModelProvider;
 
 use super::super::common::{override_base_url, resolve_model};
 use super::super::error_handling::{format_network_error, format_parse_error};
@@ -101,11 +101,11 @@ impl OpenResponsesProvider {
         let mut reasoning_details: Option<Vec<String>> = None;
         let (final_reasoning, final_content) = if reasoning.is_none() && !content.is_empty() {
             let (reasoning_parts, cleaned_content) =
-                crate::llm::utils::extract_reasoning_content(&content);
+                crate::utils::extract_reasoning_content(&content);
             if reasoning_parts.is_empty() {
                 (None, Some(content))
             } else {
-                crate::llm::providers::common::preserve_interleaved_content_in_reasoning_details(
+                crate::providers::common::preserve_interleaved_content_in_reasoning_details(
                     &mut reasoning_details,
                     &content,
                 );
@@ -204,7 +204,7 @@ impl OpenResponsesProvider {
         timeouts: TimeoutsConfig,
         model_behavior: Option<ModelConfig>,
     ) -> Self {
-        use crate::llm::http_client::HttpClientFactory;
+        use crate::http_client::HttpClientFactory;
 
         Self {
             http_client: HttpClientFactory::for_llm(&timeouts),
@@ -337,30 +337,28 @@ impl OpenResponsesProvider {
                 let id = format!("msg_{i}");
                 let mut content = Vec::new();
                 match &message.content {
-                    crate::llm::provider::MessageContent::Text(text) => {
+                    crate::provider::MessageContent::Text(text) => {
                         if !text.trim().is_empty() {
                             content.push(ContentPart::input_text(text.as_str()));
                         }
                     }
-                    crate::llm::provider::MessageContent::Parts(parts) => {
+                    crate::provider::MessageContent::Parts(parts) => {
                         for part in parts {
                             match part {
-                                crate::llm::provider::ContentPart::Text { text } => {
+                                crate::provider::ContentPart::Text { text } => {
                                     if !text.trim().is_empty() {
                                         content.push(ContentPart::input_text(text.as_str()));
                                     }
                                 }
-                                crate::llm::provider::ContentPart::Image {
-                                    data,
-                                    mime_type,
-                                    ..
+                                crate::provider::ContentPart::Image {
+                                    data, mime_type, ..
                                 } => {
                                     content.push(ContentPart::InputImage(InputImageContent {
                                         image_url: format!("data:{mime_type};base64,{data}"),
                                         detail: Some(ImageDetail::Auto),
                                     }));
                                 }
-                                crate::llm::provider::ContentPart::File {
+                                crate::provider::ContentPart::File {
                                     filename,
                                     file_id,
                                     file_data,
@@ -441,14 +439,7 @@ impl OpenResponsesProvider {
         });
 
         if let Some(tools) = &request.tools {
-            // Convert vtcode-core ToolDefinition -> vtcode-llm ToolDefinition via serde.
-            // Both crates define identical structs during the extraction transition.
-            let converted: Vec<vtcode_llm::provider::ToolDefinition> = tools
-                .iter()
-                .filter_map(|t| serde_json::to_value(t).ok())
-                .filter_map(|v| serde_json::from_value(v).ok())
-                .collect();
-            req.tools = Some(converted);
+            req.tools = Some(tools.as_ref().clone());
         }
 
         let mut payload = serde_json::to_value(req).map_err(|e| LLMError::Provider {
@@ -681,17 +672,17 @@ impl OpenResponsesProvider {
             let mut body_stream = response.bytes_stream();
             let mut buffer = String::new();
             let mut decoder = Utf8StreamDecoder::new();
-            let mut aggregator = crate::llm::providers::shared::StreamAggregator::new(model);
+            let mut aggregator = crate::providers::shared::StreamAggregator::new(model);
 
             while let Some(chunk_result) = body_stream.next().await {
                 let chunk = chunk_result.map_err(|e| format_network_error("OpenResponses", &e))?;
                 buffer.push_str(&decoder.push(&chunk));
 
-                while let Some((split_idx, delimiter_len)) = crate::llm::providers::shared::find_sse_boundary(&buffer) {
+                while let Some((split_idx, delimiter_len)) = crate::providers::shared::find_sse_boundary(&buffer) {
                     let event = buffer[..split_idx].to_string();
                     buffer.drain(..split_idx + delimiter_len);
 
-                    if let Some(data_payload) = crate::llm::providers::shared::extract_data_payload(&event) {
+                    if let Some(data_payload) = crate::providers::shared::extract_data_payload(&event) {
                         let trimmed = data_payload.trim();
                         if trimmed.is_empty() || trimmed == "[DONE]" {
                             continue;
@@ -756,7 +747,7 @@ impl LLMProvider for OpenResponsesProvider {
     // route it to NativeInline (Anthropic `compact_20260112` via `generate`),
     // which OpenResponses cannot serve, silently downgrading auto/recovery
     // compaction to the local summarization fallback.
-    fn supports_manual_compaction(&self, _model: &str) -> bool {
+    fn supports_manual_openai_compaction(&self, _model: &str) -> bool {
         self.supports_compaction_endpoint()
     }
 
@@ -790,7 +781,7 @@ impl LLMProvider for OpenResponsesProvider {
     }
 
     fn supported_models(&self) -> Vec<String> {
-        use crate::config::constants::models::openresponses::SUPPORTED_MODELS;
+        use vtcode_config::constants::models::openresponses::SUPPORTED_MODELS;
         SUPPORTED_MODELS.iter().map(|s| s.to_string()).collect()
     }
 
@@ -904,17 +895,17 @@ impl LLMProvider for OpenResponsesProvider {
             let mut body_stream = response.bytes_stream();
             let mut buffer = String::new();
             let mut decoder = Utf8StreamDecoder::new();
-            let mut aggregator = crate::llm::providers::shared::StreamAggregator::new(model);
+            let mut aggregator = crate::providers::shared::StreamAggregator::new(model);
 
             while let Some(chunk_result) = body_stream.next().await {
                 let chunk = chunk_result.map_err(|e| format_network_error("OpenResponses", &e))?;
                 buffer.push_str(&decoder.push(&chunk));
 
-                while let Some((split_idx, delimiter_len)) = crate::llm::providers::shared::find_sse_boundary(&buffer) {
+                while let Some((split_idx, delimiter_len)) = crate::providers::shared::find_sse_boundary(&buffer) {
                     let event_text = buffer[..split_idx].to_string();
                     buffer.drain(..split_idx + delimiter_len);
 
-                    if let Some(data_payload) = crate::llm::providers::shared::extract_data_payload(&event_text) {
+                    if let Some(data_payload) = crate::providers::shared::extract_data_payload(&event_text) {
                         let trimmed = data_payload.trim();
                         if trimmed.is_empty() || trimmed == "[DONE]" {
                             continue;
@@ -1036,7 +1027,7 @@ impl LLMProvider for OpenResponsesProvider {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::llm::provider::NormalizedStreamEvent;
+    use crate::provider::NormalizedStreamEvent;
     use futures::StreamExt;
     use wiremock::matchers::{method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};

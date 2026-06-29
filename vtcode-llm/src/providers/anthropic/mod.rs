@@ -14,7 +14,7 @@
 
 #[cfg(feature = "anthropic-api")]
 pub mod api;
-pub(crate) mod capabilities;
+pub mod capabilities;
 pub mod compat;
 mod headers;
 mod prompt_cache;

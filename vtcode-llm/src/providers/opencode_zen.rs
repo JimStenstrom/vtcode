@@ -7,9 +7,9 @@ use vtcode_config::constants::{env_vars, models, urls};
 use vtcode_config::core::{AnthropicConfig, ModelConfig, PromptCachingConfig};
 use vtcode_config::models::model_catalog_entry;
 
+use super::AnthropicProvider;
 use super::common::{override_base_url, resolve_model};
 use super::opencode_shared::OpenCodeCompatibleProvider;
-use super::{AnthropicProvider, OpenAIProvider};
 
 const PROVIDER_NAME: &str = "OpenCode Zen";
 const PROVIDER_KEY: &str = "opencode-zen";
@@ -135,7 +135,7 @@ impl OpenCodeZenProvider {
     fn delegate_for_model(&self, model: &str) -> Box<dyn LLMProvider> {
         let requested = self.requested_model(model).to_string();
         match Self::protocol_for_model(requested.as_str()) {
-            ZenProtocol::OpenAI => Box::new(OpenAIProvider::new_with_client(
+            ZenProtocol::OpenAI => Box::new(crate::providers::OpenAIProvider::new_with_client(
                 self.api_key.clone(),
                 None,
                 requested,

@@ -966,8 +966,7 @@ mod tests {
         assert_eq!(
             view.selected,
             Some(InlineListSelection::ConfigAction(format!(
-                "{}auto",
-                LIGHTWEIGHT_MODEL_ACTION_PREFIX
+                "{LIGHTWEIGHT_MODEL_ACTION_PREFIX}auto"
             )))
         );
         assert!(
@@ -993,8 +992,7 @@ mod tests {
         assert_eq!(
             view.selected,
             Some(InlineListSelection::ConfigAction(format!(
-                "{}main",
-                LIGHTWEIGHT_MODEL_ACTION_PREFIX
+                "{LIGHTWEIGHT_MODEL_ACTION_PREFIX}main"
             )))
         );
     }

@@ -276,10 +276,8 @@ fn collect_interview_research_context_extracts_path_from_json() {
 fn maybe_force_planning_workflow_interview_does_not_duplicate_reminder() {
     let mut stats = SessionStats::default();
     let mut plan_session = PlanningWorkflowSessionState::default();
-    let text = format!(
-        "<proposed_plan>\nPlan content\n</proposed_plan>\n\n{}",
-        PLANNING_WORKFLOW_REMINDER
-    );
+    let text =
+        format!("<proposed_plan>\nPlan content\n</proposed_plan>\n\n{PLANNING_WORKFLOW_REMINDER}");
     let processing_result = TurnProcessingResult::TextResponse {
         text: text.clone(),
         reasoning: Vec::new(),

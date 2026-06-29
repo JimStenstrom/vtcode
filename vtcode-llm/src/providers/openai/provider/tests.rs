@@ -2937,7 +2937,7 @@ fn harmony_detection_handles_common_variants() {
 
 // ─── Prompt Cache & Websocket ────────────────────────────────────────────────
 
-use vtcode_config::core::{PromptCacheRetention, PromptCachingConfig};
+use vtcode_config::core::PromptCachingConfig;
 
 #[test]
 fn responses_payload_includes_prompt_cache_retention_for_native_openai() {

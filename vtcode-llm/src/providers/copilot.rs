@@ -15,11 +15,11 @@ use crate::copilot::{
     CopilotRuntimeRequest, CopilotToolCallFailure, CopilotToolCallResponse, PromptSession,
     PromptSessionCancelHandle, PromptUpdate, probe_auth_status,
 };
-use crate::llm::provider::{
+use crate::provider::{
     LLMError, LLMProvider, LLMRequest, LLMResponse, LLMStream, LLMStreamEvent, Message,
     MessageRole, ToolDefinition,
 };
-use crate::llm::providers::common::validate_request_common;
+use crate::providers::common::validate_request_common;
 
 pub struct CopilotProvider {
     model: String,
@@ -75,12 +75,7 @@ impl CopilotProvider {
             });
         }
 
-        // Convert vtcode-core ToolDefinition -> vtcode-llm ToolDefinition via serde
-        let llm_tools: Vec<vtcode_llm::provider::ToolDefinition> = tools
-            .iter()
-            .filter_map(|t| serde_json::to_value(t).ok())
-            .filter_map(|v| serde_json::from_value(v).ok())
-            .collect();
+        let llm_tools: Vec<ToolDefinition> = tools.to_vec();
 
         let created = Arc::new(
             CopilotAcpClient::connect(
@@ -520,8 +515,8 @@ fn render_message_for_copilot(message: &Message) -> String {
 
 fn count_non_text_parts(message: &Message) -> (usize, usize) {
     match &message.content {
-        crate::llm::provider::MessageContent::Text(_) => (0, 0),
-        crate::llm::provider::MessageContent::Parts(parts) => {
+        crate::provider::MessageContent::Text(_) => (0, 0),
+        crate::provider::MessageContent::Parts(parts) => {
             let image_count = parts.iter().filter(|part| part.is_image()).count();
             let file_count = parts.iter().filter(|part| part.is_file()).count();
             (image_count, file_count)
@@ -556,13 +551,13 @@ fn map_copilot_error(error: anyhow::Error) -> LLMError {
     }
 }
 
-fn map_stop_reason(stop_reason: &str) -> crate::llm::provider::FinishReason {
+fn map_stop_reason(stop_reason: &str) -> crate::provider::FinishReason {
     match stop_reason {
-        "end_turn" => crate::llm::provider::FinishReason::Stop,
-        "max_tokens" => crate::llm::provider::FinishReason::Length,
-        "refusal" => crate::llm::provider::FinishReason::Refusal,
-        "cancelled" => crate::llm::provider::FinishReason::Error("cancelled".to_string()),
-        other => crate::llm::provider::FinishReason::Error(other.to_string()),
+        "end_turn" => crate::provider::FinishReason::Stop,
+        "max_tokens" => crate::provider::FinishReason::Length,
+        "refusal" => crate::provider::FinishReason::Refusal,
+        "cancelled" => crate::provider::FinishReason::Error("cancelled".to_string()),
+        other => crate::provider::FinishReason::Error(other.to_string()),
     }
 }
 
@@ -604,7 +599,7 @@ fn normalize_copilot_model_id(model: &str) -> Option<Option<String>> {
 mod tests {
     use super::CopilotProvider;
     use super::normalize_copilot_model_id;
-    use crate::llm::provider::{ContentPart, LLMProvider, LLMRequest, Message, ToolCall};
+    use crate::provider::{ContentPart, LLMProvider, LLMRequest, Message, ToolCall};
     use std::path::PathBuf;
     use std::sync::Arc;
     use vtcode_config::constants::models::copilot as copilot_models;

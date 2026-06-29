@@ -611,8 +611,7 @@ mod tests {
             let after: String = truncated[char_idx.0 + '…'.len_utf8()..].chars().collect();
             assert!(
                 after.starts_with('/') || after.starts_with('h') || after.starts_with('s'),
-                "Expected path break after ellipsis, got: {}",
-                after
+                "Expected path break after ellipsis, got: {after}"
             );
         }
     }

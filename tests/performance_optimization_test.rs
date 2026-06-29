@@ -24,8 +24,8 @@ fn test_configuration_caching() {
     // Both should load successfully
     assert!(config1.is_some() || config2.is_some());
 
-    println!("First load time: {:?}", first_load_time);
-    println!("Second load time: {:?}", second_load_time);
+    println!("First load time: {first_load_time:?}");
+    println!("Second load time: {second_load_time:?}");
 }
 
 #[test]

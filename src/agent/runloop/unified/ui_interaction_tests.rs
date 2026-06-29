@@ -872,8 +872,7 @@ async fn inline_streams_small_content_deltas_after_reasoning() {
 
     assert!(
         replace_last_agent_updates >= 2,
-        "expected at least 2 incremental agent updates, got {}",
-        replace_last_agent_updates
+        "expected at least 2 incremental agent updates, got {replace_last_agent_updates}"
     );
 }
 
@@ -1010,8 +1009,7 @@ async fn inline_batches_many_token_deltas_for_performance() {
 
     assert!(
         replace_last_agent_updates < 300,
-        "expected batched updates for 600 deltas, got {} replace operations",
-        replace_last_agent_updates
+        "expected batched updates for 600 deltas, got {replace_last_agent_updates} replace operations"
     );
 }
 
@@ -1053,7 +1051,6 @@ async fn inline_batches_many_reasoning_deltas_for_performance() {
 
     assert!(
         policy_inline_updates < 300,
-        "expected batched reasoning updates for 600 deltas, got {} inline updates",
-        policy_inline_updates
+        "expected batched reasoning updates for 600 deltas, got {policy_inline_updates} inline updates"
     );
 }

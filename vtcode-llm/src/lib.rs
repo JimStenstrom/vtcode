@@ -19,7 +19,7 @@ pub mod provider_base;
 pub mod provider_config_types;
 pub mod providers;
 pub mod rig_adapter;
-mod single_response;
+pub mod single_response;
 pub mod system_prompt;
 pub mod tool_bridge;
 pub mod types;
@@ -39,7 +39,6 @@ pub use model_resolver::{
 pub use optimized_client::{OptimizedLLMClient, OptimizedRequest, OptimizedResponse};
 pub use provider::{FinishReason, LLMStream, LLMStreamEvent, Usage};
 pub use provider_config_types::ProviderConfig as ProviderConfigData;
-pub use single_response::collect_single_response;
 pub use tool_bridge::{
     CorrelationStats, IntentFulfillment, MessageCorrelationTracker, MessageToolCorrelation,
     ToolExecution, ToolIntent, ToolIntentExtractor,

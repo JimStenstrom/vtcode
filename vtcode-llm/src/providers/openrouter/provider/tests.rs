@@ -4,7 +4,7 @@ use crate::provider::{LLMProvider, NormalizedStreamEvent};
 use crate::providers::openrouter::stream_decoder::parse_stream_payload;
 use vtcode_config::TimeoutsConfig;
 
-use crate::FinishReason;
+use crate::provider::FinishReason;
 use crate::provider::ToolDefinition;
 use crate::providers::ReasoningBuffer;
 use crate::providers::shared::NoopStreamTelemetry;

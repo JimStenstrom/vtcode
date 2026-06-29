@@ -33,7 +33,7 @@ async fn test_adaptive_loop_detection_integration() -> Result<()> {
     let warning3 = executor.record_tool_call(tool_name, &tool_args_3);
     assert!(warning3.is_some(), "Call 3 should warn");
     let msg = warning3.unwrap();
-    println!("Warning message: {}", msg);
+    println!("Warning message: {msg}");
     assert!(
         msg.contains("HARD STOP") || msg.to_lowercase().contains("loop"),
         "Message should mention Loop or Hard Stop"

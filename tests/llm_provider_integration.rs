@@ -3,7 +3,7 @@
 use vtcode_core::config::constants::models;
 use vtcode_core::llm::{
     factory::{LLMFactory, create_provider_for_model},
-    provider::{ExtractedLLMProvider as _, LLMProvider, Message},
+    provider::{LLMProvider, Message},
     providers::{AnthropicProvider, GeminiProvider, OpenAIProvider},
 };
 

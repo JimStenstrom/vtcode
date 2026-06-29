@@ -466,6 +466,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::float_cmp)]
     fn similarity_score_exact_match() {
         assert_eq!(similarity_score("chat", "chat"), 1.0);
     }

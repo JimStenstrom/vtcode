@@ -3,8 +3,6 @@ use async_trait::async_trait;
 use compact_str::format_compact;
 use once_cell::sync::Lazy;
 use rustc_hash::FxHashMap;
-#[cfg(feature = "copilot")]
-use std::future::Future;
 use std::sync::RwLock;
 use vtcode_commons::llm::BackendKind;
 
@@ -224,6 +222,22 @@ pub trait LLMProvider: Send + Sync {
         false
     }
 
+    /// Whether the provider supports threshold-triggered inline compaction via
+    /// request fields (Anthropic `compact_20260112`).
+    ///
+    /// This is distinct from [`supports_responses_compaction`](LLMProvider::supports_responses_compaction),
+    /// which is overloaded: OpenAI-compatible endpoints report it for their
+    /// standalone `/responses/compact` endpoint while Anthropic reports it for
+    /// inline compaction. Only the latter can be driven through `generate` with a
+    /// `compact_20260112` context-management edit, so the unified compaction
+    /// dispatch uses this method (not the overloaded flag) to pick the
+    /// `NativeInline` strategy and avoid sending an Anthropic-specific payload to
+    /// an OpenAI-compatible endpoint (which would only be rejected and fall back
+    /// to local summarization anyway).
+    fn supports_native_inline_compaction(&self, _model: &str) -> bool {
+        false
+    }
+
     /// Explain why the `--native-only` manual `/compact` path is unavailable.
     ///
     /// This message only surfaces when the user explicitly passes `--native-only`
@@ -307,7 +321,7 @@ pub trait LLMProvider: Send + Sync {
         &'a self,
         _request: LLMRequest,
         _tools: &'a [super::ToolDefinition],
-    ) -> Option<std::pin::Pin<Box<dyn Future<Output = ()> + Send + 'a>>> {
+    ) -> Option<crate::copilot::CopilotPromptSessionFuture<'a>> {
         None
     }
 

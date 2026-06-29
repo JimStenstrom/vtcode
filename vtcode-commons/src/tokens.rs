@@ -70,7 +70,7 @@ mod tests {
     #[test]
     fn count_is_reasonable() {
         let count = estimate_tokens("Hello, how are you today?");
-        assert!(count >= 4 && count <= 12, "count={count}");
+        assert!((4..=12).contains(&count), "count={count}");
     }
 
     #[test]
@@ -98,6 +98,6 @@ mod tests {
     fn json_tokenizes() {
         let json = r#"{"name":"test","value":123,"nested":{"key":"value"}}"#;
         let count = estimate_tokens(json);
-        assert!(count >= 10 && count <= 40, "json count={count}");
+        assert!((10..=40).contains(&count), "json count={count}");
     }
 }

@@ -157,7 +157,7 @@ async fn test_run_tool_call_respects_max_tool_calls_budget() {
                     .contains("exceeded max tool calls per turn")
             );
         }
-        other => panic!("Expected permission denial, got: {:?}", other),
+        other => panic!("Expected permission denial, got: {other:?}"),
     }
 }
 
@@ -308,7 +308,7 @@ async fn test_run_tool_call_forwards_runtime_agent_permissions_to_routing() {
         ToolExecutionStatus::Failure { error } => {
             assert!(error.to_string().contains("Tool permission denied"));
         }
-        other => panic!("Expected permission denial, got: {:?}", other),
+        other => panic!("Expected permission denial, got: {other:?}"),
     }
     assert!(!test_ctx.workspace.join("notes.md").exists());
 }
@@ -396,7 +396,7 @@ async fn test_run_tool_call_prevalidated_blocks_mutation_in_planning_workflow() 
         ToolExecutionStatus::Failure { error } => {
             assert!(error.to_string().contains("planning workflow"));
         }
-        other => panic!("Expected planning workflow failure, got: {:?}", other),
+        other => panic!("Expected planning workflow failure, got: {other:?}"),
     }
     assert!(registry.is_planning_active());
     assert!(registry.planning_workflow_state().is_active());
@@ -483,10 +483,7 @@ async fn test_run_tool_call_prevalidated_allows_task_tracker_in_planning_workflo
                 output["status"]
             );
         }
-        other => panic!(
-            "Expected task_tracker success in planning workflow, got: {:?}",
-            other
-        ),
+        other => panic!("Expected task_tracker success in planning workflow, got: {other:?}"),
     }
 }
 
@@ -572,10 +569,7 @@ async fn test_run_tool_call_non_prevalidated_allows_task_tracker_in_planning_wor
                 output["status"]
             );
         }
-        other => panic!(
-            "Expected task_tracker success in planning workflow, got: {:?}",
-            other
-        ),
+        other => panic!("Expected task_tracker success in planning workflow, got: {other:?}"),
     }
 
     assert_eq!(ctx.harness_state.tool_calls, 1);
@@ -779,7 +773,7 @@ async fn test_run_tool_call_unified_exec_git_diff_uses_cache_on_repeat() {
                     .expect("command output should include session id")
                     .to_string()
             }
-            other => panic!("Expected success status, got: {:?}", other),
+            other => panic!("Expected success status, got: {other:?}"),
         }
     };
 
@@ -892,7 +886,7 @@ async fn test_run_tool_call_rejects_escalated_shell_when_hitl_disabled() {
         ToolExecutionStatus::Failure { error } => {
             assert!(error.to_string().contains("Tool permission denied"));
         }
-        other => panic!("Expected permission denial, got: {:?}", other),
+        other => panic!("Expected permission denial, got: {other:?}"),
     }
     assert_eq!(ctx.harness_state.tool_calls, 0);
 }
@@ -975,10 +969,7 @@ async fn test_run_tool_call_allows_escalated_shell_with_saved_prefix_rule() {
 
     match outcome.status {
         ToolExecutionStatus::Success { .. } => {}
-        other => panic!(
-            "Expected saved prefix approval to allow execution, got: {:?}",
-            other
-        ),
+        other => panic!("Expected saved prefix approval to allow execution, got: {other:?}"),
     }
 }
 

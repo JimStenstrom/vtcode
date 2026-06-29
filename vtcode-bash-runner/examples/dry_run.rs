@@ -13,7 +13,7 @@ fn main() -> Result<()> {
     runner.cd("logs")?;
     let listing = runner.ls(None, false)?;
 
-    println!("dry-run listing: {}", listing);
+    println!("dry-run listing: {listing}");
 
     for invocation in executor.logged_invocations() {
         println!("{}", invocation.command);

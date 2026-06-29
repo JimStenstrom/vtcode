@@ -153,7 +153,7 @@ mod tests {
         let mut history = Vec::new();
         history.push(uni::Message::system("system".to_string()));
         for idx in 0..(output_limits::DEFAULT_MESSAGE_LIMIT + 1) {
-            history.push(uni::Message::assistant(format!("msg {}", idx)));
+            history.push(uni::Message::assistant(format!("msg {idx}")));
         }
 
         enforce_history_limits(&mut history);

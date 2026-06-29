@@ -4,7 +4,7 @@
 
 ## Key Modules
 
-`core/agent/` runtime | `llm/` + `models_manager/` providers | `tools/` + `tool_policy.rs` registry | `safety/` + `sandboxing/` + `exec_policy/` + `command_safety/` policies | `config/` + `constants.rs` | `context/` + `memory/` conversation | `prompts/` | `exec/events.rs` (re-exports `vtcode-exec-events::ThreadEvent`) | `git/` worktree management | `loop_memory.rs` + `loop_state.rs` loop persistence | `tools/web_search/` | `tools/defuddle/` | `tools/outline_search/`
+`core/agent/` runtime | `llm/` **thin re-export layer** + `models_manager/` + `factory.rs` + `cgp.rs` | `tools/` + `tool_policy.rs` registry | `safety/` + `sandboxing/` + `exec_policy/` + `command_safety/` policies | `config/` + `constants.rs` | `context/` + `memory/` conversation | `prompts/` | `exec/events.rs` (re-exports `vtcode-exec-events::ThreadEvent`) | `git/` worktree management | `loop_memory.rs` + `loop_state.rs` loop persistence | `tools/web_search/` | `tools/defuddle/` | `tools/outline_search/`
 
 ## Rules
 
@@ -20,10 +20,10 @@ Implement in `tools/` (web_search, defuddle, outline_search are reference patter
 
 ## Adding an LLM Provider
 
-Use `adding-llm-providers` skill. Update `ModelId::all_models()` + `builtin_model_presets()`.
+Implement in `vtcode-llm/src/providers/` (the canonical home). Use `adding-llm-providers` skill. Update `ModelId::all_models()` + `builtin_model_presets()`. Then add a re-export in `vtcode-core/src/llm/providers/mod.rs`.
 
 ## Gotchas
 
 - `lib.rs` is 500+ lines — append re-exports, don't restructure.
 - `#[cfg_attr(not(test), allow(...))]` clippy suppressions — do not remove.
-- `anthropic_api/`, `gemini/` are facades; real code in `llm/providers/`.
+- Provider implementations live in `vtcode-llm/src/providers/`, not in core. Core's `llm/providers/` is a re-export facade.

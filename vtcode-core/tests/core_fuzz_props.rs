@@ -113,7 +113,7 @@ proptest! {
         let mut policy = Policy::empty();
         for _ in 0..pattern_count {
             let pat_len = 1 + (pattern_count % 3);
-            let pat: Vec<String> = (0..pat_len).map(|i| format!("cmd{}", i)).collect();
+            let pat: Vec<String> = (0..pat_len).map(|i| format!("cmd{i}")).collect();
             let dec = match pattern_count % 3 {
                 0 => Decision::Allow,
                 1 => Decision::Prompt,
@@ -191,8 +191,7 @@ fn fuzz_known_dangerous_commands() {
         let command: Vec<String> = cmd.iter().map(|s| s.to_string()).collect();
         assert!(
             command_might_be_dangerous(&command),
-            "expected dangerous: {:?}",
-            cmd
+            "expected dangerous: {cmd:?}"
         );
     }
 }
@@ -214,8 +213,7 @@ fn fuzz_known_safe_commands() {
         let command: Vec<String> = cmd.iter().map(|s| s.to_string()).collect();
         assert!(
             !command_might_be_dangerous(&command),
-            "expected safe: {:?}",
-            cmd
+            "expected safe: {cmd:?}"
         );
     }
 }

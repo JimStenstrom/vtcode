@@ -418,8 +418,8 @@ pub(crate) async fn manual_compact_history_in_place(
     // provider exposes a real standalone compaction endpoint (OpenAI
     // `/responses/compact`). Without the flag, every provider proceeds via the
     // strategy dispatch (native standalone, native inline, or local summary).
-    if native_only && !provider.supports_manual_compaction(model) {
-        anyhow::bail!(provider.manual_compaction_unavailable_message(model));
+    if native_only && !provider.supports_manual_openai_compaction(model) {
+        anyhow::bail!(provider.manual_openai_compaction_unavailable_message(model));
     }
 
     let previous_response_chain_present = session_stats

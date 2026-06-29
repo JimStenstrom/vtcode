@@ -202,6 +202,7 @@ async fn handle_stream(
                 }
                 StreamingEvent::TaskStatus { task_id: tid, .. } => tid == &task_id_clone,
                 StreamingEvent::TaskArtifact { task_id: tid, .. } => tid == &task_id_clone,
+                _ => false,
             };
 
             if matches {

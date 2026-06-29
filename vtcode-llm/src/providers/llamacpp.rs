@@ -1,6 +1,5 @@
 use super::common::resolve_model;
 use super::ollama::base_url_to_host_root;
-use super::openai::OpenAIProvider;
 use crate::client::LLMClient;
 use crate::error_display;
 use crate::provider::{LLMError, LLMProvider, LLMRequest, LLMResponse, LLMStream, Message};
@@ -171,9 +170,10 @@ pub async fn fetch_llamacpp_models(base_url: Option<String>) -> Result<Vec<Strin
 }
 
 pub struct LlamaCppProvider {
-    inner: OpenAIProvider,
+    inner: Box<dyn LLMProvider>,
     api_key: Option<String>,
     configured_model: Option<String>,
+    model_id: String,
     base_url: String,
     prompt_cache: Option<PromptCachingConfig>,
     timeouts: Option<TimeoutsConfig>,
@@ -198,20 +198,21 @@ impl LlamaCppProvider {
         timeouts: Option<TimeoutsConfig>,
         anthropic: Option<AnthropicConfig>,
         model_behavior: Option<ModelConfig>,
-    ) -> OpenAIProvider {
+    ) -> (Box<dyn LLMProvider>, String) {
         let resolved_model = resolve_model(model, models::llamacpp::DEFAULT_MODEL);
         let resolved_base = Self::resolve_base_url(base_url);
-        OpenAIProvider::from_config(
+        let inner = Box::new(crate::providers::OpenAIProvider::from_config(
             api_key,
             None,
-            Some(resolved_model),
+            Some(resolved_model.clone()),
             Some(resolved_base),
             prompt_cache,
             timeouts,
             anthropic,
             None,
             model_behavior,
-        )
+        ));
+        (inner, resolved_model)
     }
 
     fn managed_server_for(base_url: &str) -> Arc<ManagedLlamaCppServer> {
@@ -604,7 +605,7 @@ impl LlamaCppProvider {
         }
     }
 
-    fn build_request_provider(&self, model: String) -> OpenAIProvider {
+    fn build_request_provider(&self, model: String) -> Box<dyn LLMProvider> {
         Self::build_inner(
             self.api_key.clone(),
             Some(model),
@@ -614,12 +615,13 @@ impl LlamaCppProvider {
             self.anthropic.clone(),
             self.model_behavior.clone(),
         )
+        .0
     }
 
     async fn prepare_request(
         &self,
         mut request: LLMRequest,
-    ) -> Result<(OpenAIProvider, LLMRequest), LLMError> {
+    ) -> Result<(Box<dyn LLMProvider>, LLMRequest), LLMError> {
         let discovered_model = self.ensure_server_ready().await?;
         let discovered_models = vec![discovered_model.clone()];
 
@@ -644,18 +646,20 @@ impl LlamaCppProvider {
         model_behavior: Option<ModelConfig>,
     ) -> Self {
         let resolved_base_url = Self::resolve_base_url(base_url.clone());
+        let (inner, model_id) = Self::build_inner(
+            api_key.clone(),
+            model.clone(),
+            base_url,
+            prompt_cache.clone(),
+            timeouts.clone(),
+            anthropic.clone(),
+            model_behavior.clone(),
+        );
         Self {
-            inner: Self::build_inner(
-                api_key.clone(),
-                model.clone(),
-                base_url,
-                prompt_cache.clone(),
-                timeouts.clone(),
-                anthropic.clone(),
-                model_behavior.clone(),
-            ),
+            inner,
             api_key,
             configured_model: model,
+            model_id,
             base_url: resolved_base_url,
             prompt_cache,
             timeouts,
@@ -750,6 +754,6 @@ impl LLMClient for LlamaCppProvider {
     }
 
     fn model_id(&self) -> &str {
-        self.inner.model_id()
+        &self.model_id
     }
 }

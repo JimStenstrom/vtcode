@@ -28,6 +28,8 @@ pub mod tool_format;
 pub mod zai;
 
 pub mod common;
+#[cfg(feature = "copilot")]
+pub mod copilot;
 pub mod reasoning;
 pub mod shared;
 pub use shared::TagStreamSanitizer;
@@ -43,6 +45,8 @@ pub use reasoning::{
 };
 
 pub use anthropic::AnthropicProvider;
+#[cfg(feature = "copilot")]
+pub use copilot::CopilotProvider;
 pub use deepseek::DeepSeekProvider;
 pub use evolink::EvolinkProvider;
 pub use gemini::GeminiProvider;
@@ -57,6 +61,7 @@ pub use ollama::OllamaProvider;
 pub use openai::OpenAIProvider;
 pub use opencode_go::OpenCodeGoProvider;
 pub use opencode_zen::OpenCodeZenProvider;
+pub use openresponses::OpenResponsesProvider;
 pub use openrouter::OpenRouterProvider;
 pub use poolside::PoolsideProvider;
 pub use qwen::QwenProvider;

@@ -398,7 +398,7 @@ fn has_stored_key(provider: Provider) -> bool {
         .is_some()
 }
 
-pub(crate) fn heuristic_provider_from_model(model: &str) -> Option<Provider> {
+pub fn heuristic_provider_from_model(model: &str) -> Option<Provider> {
     let trimmed = model.trim();
     if trimmed.is_empty() {
         return None;

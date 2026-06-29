@@ -534,8 +534,7 @@ mod tests {
         assert_eq!(
             entry.selection,
             Some(InlineListSelection::ConfigAction(format!(
-                "{}{}",
-                ACTION_PREFIX_OPEN, SETTINGS_MODEL_CONFIG_PATH
+                "{ACTION_PREFIX_OPEN}{SETTINGS_MODEL_CONFIG_PATH}"
             )))
         );
     }

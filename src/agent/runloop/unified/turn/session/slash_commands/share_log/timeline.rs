@@ -284,6 +284,7 @@ mod tests {
         let messages = vec![uni::Message {
             role: uni::MessageRole::User,
             content: uni::MessageContent::Text("hello".to_string()),
+            metadata: None,
             reasoning: None,
             reasoning_details: None,
             tool_calls: None,

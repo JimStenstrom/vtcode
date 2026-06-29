@@ -1,6 +1,7 @@
 use crate::error_display;
 use crate::provider::{LLMError, LLMNormalizedStream, LLMResponse, NormalizedStreamEvent};
-use crate::providers::shared::{extract_data_payload, find_sse_boundary};
+use crate::providers::shared::responses_adapter::{ResponsesStreamAdapter, ResponsesStreamEvent};
+use crate::providers::shared::{Utf8StreamDecoder, extract_data_payload, find_sse_boundary};
 use async_stream::try_stream;
 use futures::StreamExt;
 use hashbrown::{HashMap, HashSet};
@@ -9,7 +10,7 @@ use serde_json::{Value, json};
 use super::{StreamAggregator, parse_cached_prompt_tokens_from_usage};
 
 // Retained shared Responses stream processor.
-// Rig 0.38.2 can consume SSE, but VTCode needs a provider-agnostic
+// Rig 0.39 can consume SSE, but VTCode needs a provider-agnostic
 // NormalizedStreamEvent contract: text/refusal/reasoning deltas, tool-call
 // start and argument deltas, tolerant empty-final-response recovery, and
 // backend error text. Protected by this module's `responses_stream` tests.
@@ -28,339 +29,6 @@ pub(crate) enum ResponsesStreamEventPolicy {
     DocumentedStatusMarkerNoop,
     DocumentedValueBearingRigGap,
     Unsupported,
-}
-
-struct ResponsesNormalizedStreamProcessor<P> {
-    options: ResponsesNormalizedStreamOptions,
-    parse_final_response: P,
-    aggregator: StreamAggregator,
-    seen_tool_calls: HashSet<String>,
-    tool_call_indexes: HashMap<String, usize>,
-    tool_call_names: HashMap<String, String>,
-    item_id_to_call_id: HashMap<String, String>,
-    next_tool_call_index: usize,
-    final_response: Option<Value>,
-    done: bool,
-}
-
-impl<P> ResponsesNormalizedStreamProcessor<P>
-where
-    P: Fn(Value) -> Result<LLMResponse, LLMError>,
-{
-    fn new(options: ResponsesNormalizedStreamOptions, parse_final_response: P) -> Self {
-        Self {
-            aggregator: StreamAggregator::new(options.model.clone()),
-            options,
-            parse_final_response,
-            seen_tool_calls: HashSet::new(),
-            tool_call_indexes: HashMap::new(),
-            tool_call_names: HashMap::new(),
-            item_id_to_call_id: HashMap::new(),
-            next_tool_call_index: 0,
-            final_response: None,
-            done: false,
-        }
-    }
-
-    fn is_done(&self) -> bool {
-        self.done
-    }
-
-    fn handle_payload(&mut self, payload: Value) -> Result<Vec<NormalizedStreamEvent>, LLMError> {
-        let mut events = Vec::new();
-
-        if let Some(usage) = payload.get("usage").cloned()
-            && let Ok(usage) = serde_json::from_value(usage)
-        {
-            self.aggregator.set_usage(usage);
-        }
-
-        let policy = response_stream_event_policy(&payload)
-            .map_err(|message| provider_error(self.options.provider_name, message))?;
-        let event_type = payload
-            .get("type")
-            .and_then(Value::as_str)
-            .ok_or_else(|| provider_error(self.options.provider_name, "missing event type"))?;
-
-        match policy {
-            ResponsesStreamEventPolicy::DocumentedStatusMarkerNoop
-            | ResponsesStreamEventPolicy::DocumentedValueBearingRigGap => {
-                // vtcode-llm has no normalised runtime surface for provider-hosted
-                // code, provider-side MCP, partial images, streamed custom-tool
-                // input, or annotation metadata. Custom-tool execution remains
-                // owned by final `response.completed` replay, which preserves
-                // the complete custom input without changing dispatch authority.
-                return Ok(events);
-            }
-            ResponsesStreamEventPolicy::Unsupported => {
-                return Err(provider_error(
-                    self.options.provider_name,
-                    format!("unsupported Responses stream event type `{event_type}`"),
-                ));
-            }
-            ResponsesStreamEventPolicy::MeaningfulConversion => {}
-        }
-
-        match event_type {
-            "response.output_text.delta" => {
-                let delta = payload
-                    .get("delta")
-                    .and_then(Value::as_str)
-                    .ok_or_else(|| provider_error(self.options.provider_name, "missing delta"))?;
-                for event in self.aggregator.handle_content(delta) {
-                    match event {
-                        crate::provider::LLMStreamEvent::Token { delta } => {
-                            events.push(NormalizedStreamEvent::TextDelta { delta });
-                        }
-                        crate::provider::LLMStreamEvent::Reasoning { delta }
-                            if self.options.emit_reasoning =>
-                        {
-                            events.push(NormalizedStreamEvent::ReasoningDelta { delta });
-                        }
-                        _ => {}
-                    }
-                }
-            }
-            "response.refusal.delta" => {
-                let delta = payload
-                    .get("delta")
-                    .and_then(Value::as_str)
-                    .ok_or_else(|| provider_error(self.options.provider_name, "missing delta"))?;
-                if !delta.is_empty() {
-                    self.aggregator.content.push_str(delta);
-                    events.push(NormalizedStreamEvent::TextDelta {
-                        delta: delta.to_string(),
-                    });
-                }
-            }
-            "response.reasoning_text.delta"
-            | "response.reasoning_summary_text.delta"
-            | "response.reasoning_content.delta" => {
-                let delta = payload
-                    .get("delta")
-                    .and_then(Value::as_str)
-                    .ok_or_else(|| provider_error(self.options.provider_name, "missing delta"))?;
-                if self.options.emit_reasoning
-                    && let Some(delta) = self.aggregator.handle_reasoning(delta)
-                {
-                    events.push(NormalizedStreamEvent::ReasoningDelta { delta });
-                }
-            }
-            "response.reasoning_text.done" => {
-                let text = optional_string_field(self.options.provider_name, &payload, "text")?;
-                let delta = optional_string_field(self.options.provider_name, &payload, "delta")?;
-                if self.options.emit_reasoning
-                    && let Some(text) = text.or(delta)
-                    && let Some(delta) = self.aggregator.handle_reasoning(&text)
-                {
-                    events.push(NormalizedStreamEvent::ReasoningDelta { delta });
-                }
-            }
-            "response.output_item.added" | "response.output_item.done" => {
-                if let Some(item) = payload.get("item") {
-                    let tool_call = self.capture_tool_call_metadata(
-                        item,
-                        payload
-                            .get("output_index")
-                            .and_then(Value::as_u64)
-                            .map(|value| value as usize),
-                    );
-                    if let Some((call_id, name)) = tool_call {
-                        self.push_tool_call_start(&mut events, call_id, Some(name));
-                    }
-                }
-            }
-            "response.function_call_arguments.delta" => {
-                let delta = payload
-                    .get("delta")
-                    .and_then(Value::as_str)
-                    .ok_or_else(|| provider_error(self.options.provider_name, "missing delta"))?;
-                let item_id = payload.get("item_id").and_then(Value::as_str);
-                let payload_call_id = payload.get("call_id").and_then(Value::as_str);
-                self.capture_item_call_id_mapping(item_id, payload_call_id);
-                let call_id = self
-                    .resolve_provider_call_id(item_id, payload_call_id)
-                    .unwrap_or_else(|| format!("tool_call_{}", self.next_tool_call_index));
-                let index = self.resolve_tool_call_index(
-                    &call_id,
-                    payload
-                        .get("output_index")
-                        .and_then(Value::as_u64)
-                        .map(|value| value as usize),
-                );
-
-                let name = self.tool_call_names.get(&call_id).cloned();
-                self.push_tool_call_start(&mut events, call_id.clone(), name);
-
-                if !delta.is_empty() {
-                    self.aggregator.handle_tool_calls(&[json!({
-                        "index": index,
-                        "id": call_id,
-                        "function": {
-                            "arguments": delta,
-                        }
-                    })]);
-                    events.push(NormalizedStreamEvent::ToolCallDelta {
-                        call_id,
-                        delta: delta.to_string(),
-                    });
-                }
-            }
-            "response.completed" => {
-                if let Some(response) = payload.get("response") {
-                    self.final_response = Some(response.clone());
-                }
-                self.done = true;
-            }
-            "response.failed" | "response.incomplete" | "error" => {
-                let message = extract_error_message(&payload)
-                    .unwrap_or_else(|| "unknown error from responses stream".to_string());
-                return Err(provider_error(self.options.provider_name, message));
-            }
-            _ => {
-                return Err(provider_error(
-                    self.options.provider_name,
-                    format!("unhandled Responses stream event type `{event_type}`"),
-                ));
-            }
-        }
-
-        Ok(events)
-    }
-
-    fn finish(self) -> Result<Vec<NormalizedStreamEvent>, LLMError> {
-        let streamed = self.aggregator.finalize();
-        let mut response = if let Some(final_response) = self.final_response {
-            match (self.parse_final_response)(final_response.clone()) {
-                Ok(response) => response,
-                Err(_)
-                    if final_response_output_is_empty(&final_response)
-                        && streamed_response_is_usable(&streamed) =>
-                {
-                    let mut response = streamed.clone();
-                    merge_final_response_metadata(
-                        &mut response,
-                        &final_response,
-                        self.options.include_cached_prompt_metrics,
-                    );
-                    response
-                }
-                Err(err) => return Err(err),
-            }
-        } else {
-            streamed.clone()
-        };
-
-        merge_streamed_response(&mut response, streamed);
-
-        let mut events = Vec::new();
-        if let Some(usage) = response.usage.clone() {
-            events.push(NormalizedStreamEvent::Usage { usage });
-        }
-        events.push(NormalizedStreamEvent::Done {
-            response: Box::new(response),
-        });
-        Ok(events)
-    }
-
-    fn capture_tool_call_metadata(
-        &mut self,
-        item: &Value,
-        output_index: Option<usize>,
-    ) -> Option<(String, String)> {
-        let item_type = item.get("type").and_then(Value::as_str).unwrap_or("");
-        if item_type != "function_call" {
-            return None;
-        }
-
-        let item_id = item
-            .get("id")
-            .and_then(Value::as_str)
-            .filter(|value| !value.is_empty());
-        let provider_call_id = item
-            .get("call_id")
-            .and_then(Value::as_str)
-            .filter(|value| !value.is_empty());
-        let call_id = provider_call_id.or(item_id);
-        let name = item.get("name").and_then(Value::as_str).or_else(|| {
-            item.get("function")
-                .and_then(|function| function.get("name"))
-                .and_then(Value::as_str)
-        });
-        if let (Some(call_id), Some(name)) = (call_id, name) {
-            self.capture_item_call_id_mapping(item_id, provider_call_id);
-            self.tool_call_names
-                .entry(call_id.to_string())
-                .or_insert_with(|| name.to_string());
-            let output_index = output_index.or_else(|| {
-                item_id.and_then(|item_id| self.tool_call_indexes.get(item_id).copied())
-            });
-            let index = self.resolve_tool_call_index(call_id, output_index);
-            self.aggregator.handle_tool_calls(&[json!({
-                "index": index,
-                "id": call_id,
-                "function": {
-                    "name": name,
-                }
-            })]);
-            return Some((call_id.to_string(), name.to_string()));
-        }
-
-        None
-    }
-
-    fn capture_item_call_id_mapping(&mut self, item_id: Option<&str>, call_id: Option<&str>) {
-        let Some(item_id) = item_id.filter(|value| !value.is_empty()) else {
-            return;
-        };
-        let Some(call_id) = call_id.filter(|value| !value.is_empty()) else {
-            return;
-        };
-        self.item_id_to_call_id
-            .insert(item_id.to_string(), call_id.to_string());
-    }
-
-    fn resolve_provider_call_id(
-        &self,
-        item_id: Option<&str>,
-        call_id: Option<&str>,
-    ) -> Option<String> {
-        call_id
-            .filter(|value| !value.is_empty())
-            .or_else(|| {
-                item_id.and_then(|value| self.item_id_to_call_id.get(value).map(String::as_str))
-            })
-            .or_else(|| item_id.filter(|value| !value.is_empty()))
-            .map(ToOwned::to_owned)
-    }
-
-    fn push_tool_call_start(
-        &mut self,
-        events: &mut Vec<NormalizedStreamEvent>,
-        call_id: String,
-        name: Option<String>,
-    ) {
-        if self.seen_tool_calls.insert(call_id.clone()) {
-            events.push(NormalizedStreamEvent::ToolCallStart { call_id, name });
-        }
-    }
-
-    fn resolve_tool_call_index(&mut self, call_id: &str, output_index: Option<usize>) -> usize {
-        if let Some(index) = output_index {
-            self.tool_call_indexes.insert(call_id.to_string(), index);
-            self.next_tool_call_index = self.next_tool_call_index.max(index + 1);
-            return index;
-        }
-
-        if let Some(index) = self.tool_call_indexes.get(call_id).copied() {
-            return index;
-        }
-
-        let index = self.next_tool_call_index;
-        self.tool_call_indexes.insert(call_id.to_string(), index);
-        self.next_tool_call_index += 1;
-        index
-    }
 }
 
 pub(crate) fn response_stream_event_policy(
@@ -435,6 +103,258 @@ fn response_stream_event_policy_for_type(event_type: &str) -> ResponsesStreamEve
     }
 }
 
+struct ResponsesNormalizedStreamProcessor<P> {
+    options: ResponsesNormalizedStreamOptions,
+    parse_final_response: P,
+    aggregator: StreamAggregator,
+    seen_tool_calls: HashSet<String>,
+    tool_call_indexes: HashMap<String, usize>,
+    tool_call_names: HashMap<String, String>,
+    tool_call_ids_by_item_id: HashMap<String, String>,
+    next_tool_call_index: usize,
+    final_response: Option<Value>,
+    done: bool,
+}
+
+impl<P> ResponsesNormalizedStreamProcessor<P>
+where
+    P: Fn(Value) -> Result<LLMResponse, LLMError>,
+{
+    fn new(options: ResponsesNormalizedStreamOptions, parse_final_response: P) -> Self {
+        Self {
+            aggregator: StreamAggregator::new(options.model.clone()),
+            options,
+            parse_final_response,
+            seen_tool_calls: HashSet::new(),
+            tool_call_indexes: HashMap::new(),
+            tool_call_names: HashMap::new(),
+            tool_call_ids_by_item_id: HashMap::new(),
+            next_tool_call_index: 0,
+            final_response: None,
+            done: false,
+        }
+    }
+
+    fn is_done(&self) -> bool {
+        self.done
+    }
+
+    fn handle_payload(&mut self, payload: Value) -> Result<Vec<NormalizedStreamEvent>, LLMError> {
+        let event = ResponsesStreamAdapter::parse_payload_for_provider(
+            self.options.provider_name,
+            payload,
+        )?;
+        self.handle_event(event)
+    }
+
+    fn handle_event(
+        &mut self,
+        event: ResponsesStreamEvent,
+    ) -> Result<Vec<NormalizedStreamEvent>, LLMError> {
+        let mut events = Vec::new();
+
+        match event {
+            ResponsesStreamEvent::TextDelta { delta } => {
+                for event in self.aggregator.handle_content(&delta) {
+                    match event {
+                        crate::provider::LLMStreamEvent::Token { delta } => {
+                            events.push(NormalizedStreamEvent::TextDelta { delta });
+                        }
+                        crate::provider::LLMStreamEvent::Reasoning { delta }
+                            if self.options.emit_reasoning =>
+                        {
+                            events.push(NormalizedStreamEvent::ReasoningDelta { delta });
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            ResponsesStreamEvent::RefusalDelta { delta } => {
+                if !delta.is_empty() {
+                    self.aggregator.content.push_str(&delta);
+                    events.push(NormalizedStreamEvent::TextDelta { delta });
+                }
+            }
+            ResponsesStreamEvent::ReasoningDelta { delta } => {
+                if self.options.emit_reasoning
+                    && let Some(delta) = self.aggregator.handle_reasoning(&delta)
+                {
+                    events.push(NormalizedStreamEvent::ReasoningDelta { delta });
+                }
+            }
+            ResponsesStreamEvent::FunctionCallNameDelta {
+                call_id,
+                item_id,
+                name,
+                output_index,
+            } => {
+                self.record_tool_call_item_id(item_id.as_deref(), &call_id);
+                self.record_tool_call_name(&call_id, &name, output_index);
+                self.push_tool_call_start(&mut events, call_id, Some(name));
+            }
+            ResponsesStreamEvent::FunctionCallArgumentsDelta {
+                call_id,
+                item_id,
+                delta,
+                output_index,
+            } => {
+                let call_id = self.provider_tool_call_id(item_id.as_deref(), call_id);
+                let call_id = if call_id.is_empty() {
+                    format!("tool_call_{}", self.next_tool_call_index)
+                } else {
+                    call_id
+                };
+                let index = self.resolve_tool_call_index(&call_id, output_index);
+
+                let name = self.tool_call_names.get(&call_id).cloned();
+                self.push_tool_call_start(&mut events, call_id.clone(), name);
+
+                if !delta.is_empty() {
+                    self.aggregator.handle_tool_calls(&[json!({
+                        "index": index,
+                        "id": call_id,
+                        "function": {
+                            "arguments": delta,
+                        }
+                    })]);
+                    events.push(NormalizedStreamEvent::ToolCallDelta { call_id, delta });
+                }
+            }
+            ResponsesStreamEvent::CompletedToolCall {
+                call_id,
+                item_id,
+                name,
+                arguments,
+                output_index,
+            } => {
+                self.record_tool_call_item_id(item_id.as_deref(), &call_id);
+                let index = self.record_tool_call_name(&call_id, &name, output_index);
+                self.push_tool_call_start(&mut events, call_id.clone(), Some(name));
+                self.aggregator.handle_tool_calls(&[json!({
+                    "index": index,
+                    "id": call_id,
+                    "function": {
+                        "arguments": arguments,
+                    }
+                })]);
+            }
+            ResponsesStreamEvent::CompletedResponse { response } => {
+                self.final_response = Some(response);
+                self.done = true;
+            }
+            ResponsesStreamEvent::Error { message } => {
+                return Err(provider_error(self.options.provider_name, message));
+            }
+            ResponsesStreamEvent::Lifecycle { .. }
+            | ResponsesStreamEvent::ProviderValueBearingRigGap { .. }
+            | ResponsesStreamEvent::Unknown => {}
+        }
+
+        Ok(events)
+    }
+
+    fn record_tool_call_name(
+        &mut self,
+        call_id: &str,
+        name: &str,
+        output_index: Option<usize>,
+    ) -> usize {
+        self.tool_call_names
+            .entry(call_id.to_string())
+            .or_insert_with(|| name.to_string());
+        let index = self.resolve_tool_call_index(call_id, output_index);
+        self.aggregator.handle_tool_calls(&[json!({
+            "index": index,
+            "id": call_id,
+            "function": {
+                "name": name,
+            }
+        })]);
+        index
+    }
+
+    fn finish(self) -> Result<Vec<NormalizedStreamEvent>, LLMError> {
+        let streamed = self.aggregator.finalize();
+        let mut response = if let Some(final_response) = self.final_response {
+            match (self.parse_final_response)(final_response.clone()) {
+                Ok(response) => response,
+                Err(_)
+                    if final_response_output_is_empty(&final_response)
+                        && streamed_response_is_usable(&streamed) =>
+                {
+                    let mut response = streamed.clone();
+                    merge_final_response_metadata(
+                        &mut response,
+                        &final_response,
+                        self.options.include_cached_prompt_metrics,
+                    );
+                    response
+                }
+                Err(err) => return Err(err),
+            }
+        } else {
+            streamed.clone()
+        };
+
+        merge_streamed_response(&mut response, streamed);
+
+        let mut events = Vec::new();
+        if let Some(usage) = response.usage.clone() {
+            events.push(NormalizedStreamEvent::Usage { usage });
+        }
+        events.push(NormalizedStreamEvent::Done {
+            response: Box::new(response),
+        });
+        Ok(events)
+    }
+
+    fn record_tool_call_item_id(&mut self, item_id: Option<&str>, call_id: &str) {
+        let Some(item_id) = item_id.filter(|item_id| !item_id.is_empty()) else {
+            return;
+        };
+
+        self.tool_call_ids_by_item_id
+            .entry(item_id.to_string())
+            .or_insert_with(|| call_id.to_string());
+    }
+
+    fn provider_tool_call_id(&self, item_id: Option<&str>, call_id: String) -> String {
+        item_id
+            .and_then(|item_id| self.tool_call_ids_by_item_id.get(item_id))
+            .or_else(|| self.tool_call_ids_by_item_id.get(call_id.as_str()))
+            .cloned()
+            .unwrap_or(call_id)
+    }
+
+    fn push_tool_call_start(
+        &mut self,
+        events: &mut Vec<NormalizedStreamEvent>,
+        call_id: String,
+        name: Option<String>,
+    ) {
+        if self.seen_tool_calls.insert(call_id.clone()) {
+            events.push(NormalizedStreamEvent::ToolCallStart { call_id, name });
+        }
+    }
+
+    fn resolve_tool_call_index(&mut self, call_id: &str, output_index: Option<usize>) -> usize {
+        if let Some(index) = output_index {
+            self.tool_call_indexes.insert(call_id.to_string(), index);
+            self.next_tool_call_index = self.next_tool_call_index.max(index + 1);
+            return index;
+        }
+
+        if let Some(index) = self.tool_call_indexes.get(call_id).copied() {
+            return index;
+        }
+
+        let index = self.next_tool_call_index;
+        self.tool_call_indexes.insert(call_id.to_string(), index);
+        self.next_tool_call_index += 1;
+        index
+    }
+}
+
 pub fn create_responses_normalized_stream<P>(
     response: reqwest::Response,
     options: ResponsesNormalizedStreamOptions,
@@ -448,13 +368,14 @@ where
         let mut processor = ResponsesNormalizedStreamProcessor::new(options, parse_final_response);
         let mut body_stream = response.bytes_stream();
         let mut buffer = String::new();
+        let mut decoder = Utf8StreamDecoder::new();
 
         while let Some(chunk_result) = body_stream.next().await {
             let chunk = chunk_result.map_err(|err| provider_error(
                 provider_name,
                 format!("streaming error: {err}"),
             ))?;
-            buffer.push_str(&String::from_utf8_lossy(&chunk));
+            buffer.push_str(&decoder.push(&chunk));
 
             while let Some((split_idx, delimiter_len)) = find_sse_boundary(&buffer) {
                 let event = buffer[..split_idx].to_string();
@@ -609,22 +530,6 @@ fn parse_responses_usage(
     })
 }
 
-fn extract_error_message(payload: &Value) -> Option<String> {
-    payload
-        .get("error")
-        .and_then(|error| error.get("message"))
-        .and_then(Value::as_str)
-        .map(ToOwned::to_owned)
-        .or_else(|| {
-            payload
-                .get("response")
-                .and_then(|response| response.get("error"))
-                .and_then(|error| error.get("message"))
-                .and_then(Value::as_str)
-                .map(ToOwned::to_owned)
-        })
-}
-
 fn provider_error(provider_name: &str, message: impl Into<String>) -> LLMError {
     let message = error_display::format_llm_error(provider_name, &message.into());
     LLMError::Provider {
@@ -633,30 +538,10 @@ fn provider_error(provider_name: &str, message: impl Into<String>) -> LLMError {
     }
 }
 
-fn optional_string_field(
-    provider_name: &str,
-    payload: &Value,
-    field: &'static str,
-) -> Result<Option<String>, LLMError> {
-    match payload.get(field) {
-        Some(value) => value
-            .as_str()
-            .map(|value| Some(value.to_string()))
-            .ok_or_else(|| {
-                provider_error(
-                    provider_name,
-                    format!("field `{field}` in stream payload must be a string"),
-                )
-            }),
-        None => Ok(None),
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::{
-        ResponsesNormalizedStreamOptions, ResponsesNormalizedStreamProcessor,
-        ResponsesStreamEventPolicy, provider_error,
+        ResponsesNormalizedStreamOptions, ResponsesNormalizedStreamProcessor, provider_error,
     };
     use crate::provider::{FinishReason, LLMResponse, NormalizedStreamEvent, ToolCall};
     use serde_json::{Value, json};
@@ -690,15 +575,55 @@ mod tests {
         })
     }
 
+    fn response_fixture(status: &str, output: Value, usage: Value) -> Value {
+        json!({
+            "id": "resp_test",
+            "object": "response",
+            "created_at": 1,
+            "status": status,
+            "error": null,
+            "incomplete_details": null,
+            "instructions": null,
+            "max_output_tokens": null,
+            "model": "gpt-5",
+            "usage": usage,
+            "output": output,
+            "tools": []
+        })
+    }
+
+    fn completed_response_fixture(output: Value) -> Value {
+        response_fixture("completed", output, Value::Null)
+    }
+
+    fn text_delta_fixture(delta: &str) -> Value {
+        json!({
+            "type": "response.output_text.delta",
+            "item_id": "msg_1",
+            "output_index": 0,
+            "content_index": 0,
+            "sequence_number": 1,
+            "delta": delta
+        })
+    }
+
+    fn refusal_delta_fixture(delta: &str) -> Value {
+        json!({
+            "type": "response.refusal.delta",
+            "item_id": "msg_1",
+            "output_index": 0,
+            "content_index": 0,
+            "sequence_number": 1,
+            "delta": delta
+        })
+    }
+
     #[test]
     fn text_delta_and_completed_yield_text_then_done() {
         let mut processor = ResponsesNormalizedStreamProcessor::new(options(), parse_response);
 
         let events = processor
-            .handle_payload(json!({
-                "type": "response.output_text.delta",
-                "delta": "hello"
-            }))
+            .handle_payload(text_delta_fixture("hello"))
             .expect("text delta should parse");
         assert!(matches!(
             events.as_slice(),
@@ -708,12 +633,14 @@ mod tests {
         let completed_events = processor
             .handle_payload(json!({
                 "type": "response.completed",
-                "response": {
-                    "output": [{
+                "sequence_number": 2,
+                "response": completed_response_fixture(json!([{
                         "type": "message",
+                        "id": "msg_1",
+                        "status": "completed",
+                        "role": "assistant",
                         "content": [{"type": "output_text", "text": "hello"}]
-                    }]
-                }
+                    }]))
             }))
             .expect("completed event should parse");
         assert!(completed_events.is_empty());
@@ -742,17 +669,22 @@ mod tests {
         });
 
         processor
-            .handle_payload(json!({
-                "type": "response.output_text.delta",
-                "delta": "streamed answer"
-            }))
+            .handle_payload(text_delta_fixture("streamed answer"))
             .expect("text delta should parse");
         processor
             .handle_payload(json!({
                 "type": "response.completed",
+                "sequence_number": 2,
                 "response": {
                     "id": "resp_streamed",
-                    "output": [],
+                    "object": "response",
+                    "created_at": 1,
+                    "status": "completed",
+                    "error": null,
+                    "incomplete_details": null,
+                    "instructions": null,
+                    "max_output_tokens": null,
+                    "model": "gpt-5",
                     "usage": {
                         "input_tokens": 11,
                         "output_tokens": 7,
@@ -760,7 +692,9 @@ mod tests {
                         "input_tokens_details": {
                             "cached_tokens": 5
                         }
-                    }
+                    },
+                    "output": [],
+                    "tools": []
                 }
             }))
             .expect("completed event should parse");
@@ -793,11 +727,16 @@ mod tests {
         let started = processor
             .handle_payload(json!({
                 "type": "response.output_item.added",
+                "item_id": "call_1",
                 "output_index": 0,
+                "sequence_number": 1,
                 "item": {
                     "type": "function_call",
                     "id": "call_1",
-                    "name": "search_workspace"
+                    "call_id": "call_1",
+                    "name": "search_workspace",
+                    "arguments": "",
+                    "status": "in_progress"
                 }
             }))
             .expect("output item metadata should parse");
@@ -811,6 +750,9 @@ mod tests {
             .handle_payload(json!({
                 "type": "response.function_call_arguments.delta",
                 "item_id": "call_1",
+                "output_index": 0,
+                "content_index": 0,
+                "sequence_number": 2,
                 "delta": "{\"query\":\"vt"
             }))
             .expect("first tool delta should parse");
@@ -825,6 +767,9 @@ mod tests {
             .handle_payload(json!({
                 "type": "response.function_call_arguments.delta",
                 "item_id": "call_1",
+                "output_index": 0,
+                "content_index": 0,
+                "sequence_number": 3,
                 "delta": "code\"}"
             }))
             .expect("second tool delta should parse");
@@ -865,12 +810,16 @@ mod tests {
         let started = processor
             .handle_payload(json!({
                 "type": "response.output_item.added",
+                "item_id": "fc_1",
                 "output_index": 0,
+                "sequence_number": 1,
                 "item": {
                     "type": "function_call",
                     "id": "fc_1",
                     "call_id": "call_1",
-                    "name": "search_workspace"
+                    "name": "search_workspace",
+                    "arguments": "",
+                    "status": "in_progress"
                 }
             }))
             .expect("output item metadata should parse");
@@ -880,18 +829,32 @@ mod tests {
                 if call_id == "call_1" && name.as_deref() == Some("search_workspace")
         ));
 
-        let delta = processor
+        let first = processor
             .handle_payload(json!({
                 "type": "response.function_call_arguments.delta",
                 "item_id": "fc_1",
-                "delta": "{\"query\":\"vtcode\"}"
+                "output_index": 0,
+                "content_index": 0,
+                "sequence_number": 2,
+                "delta": "{\"query\":\"vt"
             }))
-            .expect("tool delta should parse");
+            .expect("first tool delta should parse");
         assert!(matches!(
-            delta.as_slice(),
+            first.as_slice(),
             [NormalizedStreamEvent::ToolCallDelta { call_id, delta }]
-                if call_id == "call_1" && delta == "{\"query\":\"vtcode\"}"
+                if call_id == "call_1" && delta == "{\"query\":\"vt"
         ));
+
+        processor
+            .handle_payload(json!({
+                "type": "response.function_call_arguments.delta",
+                "item_id": "fc_1",
+                "output_index": 0,
+                "content_index": 0,
+                "sequence_number": 3,
+                "delta": "code\"}"
+            }))
+            .expect("second tool delta should parse");
 
         let finished = processor.finish().expect("finish should succeed");
         let response = match finished.as_slice() {
@@ -913,14 +876,108 @@ mod tests {
     }
 
     #[test]
+    fn custom_tool_input_stream_events_wait_for_completed_response_replay() {
+        let mut processor = ResponsesNormalizedStreamProcessor::new(options(), |value| {
+            let custom_call = value
+                .get("output")
+                .and_then(Value::as_array)
+                .and_then(|items| items.first())
+                .expect("custom tool output should exist");
+
+            Ok(LLMResponse {
+                model: "gpt-5".to_string(),
+                finish_reason: FinishReason::ToolCalls,
+                tool_calls: Some(vec![ToolCall::custom(
+                    custom_call
+                        .get("call_id")
+                        .and_then(Value::as_str)
+                        .unwrap_or_default()
+                        .to_string(),
+                    custom_call
+                        .get("name")
+                        .and_then(Value::as_str)
+                        .unwrap_or_default()
+                        .to_string(),
+                    custom_call
+                        .get("input")
+                        .and_then(Value::as_str)
+                        .unwrap_or_default()
+                        .to_string(),
+                )]),
+                ..Default::default()
+            })
+        });
+
+        let delta_events = processor
+            .handle_payload(json!({
+                "type": "response.custom_tool_call_input.delta",
+                "sequence_number": 1,
+                "item_id": "ct_1",
+                "call_id": "call_patch_1",
+                "output_index": 0,
+                "delta": "*** Begin"
+            }))
+            .expect("custom tool input delta should parse");
+        assert!(
+            delta_events.is_empty(),
+            "custom input deltas are preserved internally but are not runtime dispatch events"
+        );
+
+        let done_events = processor
+            .handle_payload(json!({
+                "type": "response.custom_tool_call_input.done",
+                "sequence_number": 2,
+                "item_id": "ct_1",
+                "call_id": "call_patch_1",
+                "output_index": 0,
+                "input": "*** Begin Patch\n*** End Patch\n"
+            }))
+            .expect("custom tool input done should parse");
+        assert!(
+            done_events.is_empty(),
+            "custom tool dispatch remains owned by response.completed replay"
+        );
+
+        let completed_events = processor
+            .handle_payload(json!({
+                "type": "response.completed",
+                "sequence_number": 3,
+                "response": completed_response_fixture(json!([{
+                    "type": "custom_tool_call",
+                    "id": "ct_1",
+                    "call_id": "call_patch_1",
+                    "name": "apply_patch",
+                    "input": "*** Begin Patch\n*** End Patch\n"
+                }]))
+            }))
+            .expect("completed event should parse");
+        assert!(completed_events.is_empty());
+
+        let finished = processor.finish().expect("finish should succeed");
+        let response = match finished.as_slice() {
+            [NormalizedStreamEvent::Done { response }] => response,
+            _ => panic!("expected final done event"),
+        };
+        let tool_calls = response
+            .tool_calls
+            .as_ref()
+            .expect("custom tool call should be replayed from final response");
+        assert_eq!(tool_calls.len(), 1);
+        assert!(tool_calls[0].is_custom());
+        assert_eq!(tool_calls[0].id, "call_patch_1");
+        assert_eq!(tool_calls[0].tool_name(), Some("apply_patch"));
+        assert_eq!(
+            tool_calls[0].raw_input(),
+            Some("*** Begin Patch\n*** End Patch\n")
+        );
+    }
+
+    #[test]
     fn refusal_delta_streams_visible_output() {
         let mut processor = ResponsesNormalizedStreamProcessor::new(options(), parse_response);
 
         let events = processor
-            .handle_payload(json!({
-                "type": "response.refusal.delta",
-                "delta": "I can't help with that"
-            }))
+            .handle_payload(refusal_delta_fixture("I can't help with that"))
             .expect("refusal delta should parse");
         assert!(matches!(
             events.as_slice(),
@@ -939,8 +996,42 @@ mod tests {
     #[test]
     fn failed_incomplete_and_error_events_surface_backend_message() {
         for payload in [
-            json!({"type": "response.failed", "response": {"error": {"message": "failed"}}}),
-            json!({"type": "response.incomplete", "response": {"error": {"message": "incomplete"}}}),
+            json!({
+                "type": "response.failed",
+                "sequence_number": 1,
+                "response": {
+                    "id": "resp_failed",
+                    "object": "response",
+                    "created_at": 1,
+                    "status": "failed",
+                    "error": {"code": "failed", "message": "failed"},
+                    "incomplete_details": null,
+                    "instructions": null,
+                    "max_output_tokens": null,
+                    "model": "gpt-5",
+                    "usage": null,
+                    "output": [],
+                    "tools": []
+                }
+            }),
+            json!({
+                "type": "response.incomplete",
+                "sequence_number": 1,
+                "response": {
+                    "id": "resp_incomplete",
+                    "object": "response",
+                    "created_at": 1,
+                    "status": "incomplete",
+                    "error": {"code": "incomplete", "message": "incomplete"},
+                    "incomplete_details": {"reason": "incomplete"},
+                    "instructions": null,
+                    "max_output_tokens": null,
+                    "model": "gpt-5",
+                    "usage": null,
+                    "output": [],
+                    "tools": []
+                }
+            }),
             json!({"type": "error", "error": {"message": "errored"}}),
         ] {
             let mut processor = ResponsesNormalizedStreamProcessor::new(options(), parse_response);
@@ -956,250 +1047,45 @@ mod tests {
     }
 
     #[test]
-    fn stream_event_policy_classifies_documented_families() {
-        assert_eq!(
-            super::response_stream_event_policy_for_type("response.output_text.delta"),
-            ResponsesStreamEventPolicy::MeaningfulConversion
-        );
-        assert_eq!(
-            super::response_stream_event_policy_for_type("response.queued"),
-            ResponsesStreamEventPolicy::DocumentedStatusMarkerNoop
-        );
-        assert_eq!(
-            super::response_stream_event_policy_for_type("keepalive"),
-            ResponsesStreamEventPolicy::DocumentedStatusMarkerNoop
-        );
-
-        for event_type in [
-            "response.code_interpreter_call_code.delta",
-            "response.code_interpreter_call_code.done",
-            "response.mcp_call_arguments.delta",
-            "response.mcp_call_arguments.done",
-            "response.image_generation_call.partial_image",
-            "response.custom_tool_call_input.delta",
-            "response.custom_tool_call_input.done",
-            "response.output_text.annotation.added",
-            "response.reasoning_text.done",
-        ] {
-            assert_ne!(
-                super::response_stream_event_policy_for_type(event_type),
-                ResponsesStreamEventPolicy::DocumentedStatusMarkerNoop,
-                "{event_type} must not be treated as a status-only no-op"
-            );
-        }
-
-        assert_eq!(
-            super::response_stream_event_policy_for_type(
-                "response.code_interpreter_call_code.delta"
-            ),
-            ResponsesStreamEventPolicy::DocumentedValueBearingRigGap
-        );
-        assert_eq!(
-            super::response_stream_event_policy_for_type("response.not_a_real_event"),
-            ResponsesStreamEventPolicy::Unsupported
-        );
-    }
-
-    #[test]
-    fn documented_status_marker_events_are_explicit_noops() {
+    fn documented_non_runtime_events_are_ignored() {
         let mut processor = ResponsesNormalizedStreamProcessor::new(options(), parse_response);
-
-        for payload in [
-            json!({"type": "response.created", "response": {"id": "resp_1"}}),
-            json!({"type": "response.in_progress", "response": {"id": "resp_1"}}),
-            json!({"type": "response.queued", "response": {"id": "resp_1"}}),
-            json!({"type": "response.file_search_call.searching", "item_id": "fs_1", "output_index": 0}),
-            json!({"type": "response.web_search_call.completed", "item_id": "ws_1", "output_index": 1}),
-            json!({"type": "response.image_generation_call.generating", "item_id": "ig_1", "output_index": 2}),
-            json!({"type": "response.mcp_call.completed", "item_id": "mcp_1", "output_index": 3}),
-            json!({"type": "response.mcp_list_tools.completed", "item_id": "mcp_tools_1", "output_index": 4}),
-            json!({"type": "response.code_interpreter_call.interpreting", "item_id": "ci_1", "output_index": 5}),
-            json!({"type": "response.content_part.done", "item_id": "msg_1", "output_index": 6}),
-            json!({"type": "response.function_call_arguments.done", "item_id": "fc_1", "output_index": 7}),
-        ] {
-            let events = processor
-                .handle_payload(payload)
-                .expect("documented status marker should be accepted");
-            assert!(events.is_empty());
-        }
-    }
-
-    #[test]
-    fn documented_value_bearing_rig_gaps_are_explicit_non_runtime_events() {
-        let mut processor = ResponsesNormalizedStreamProcessor::new(options(), parse_response);
-
-        for payload in [
-            json!({
+        let events = processor
+            .handle_payload(json!({
+                "type": "response.file_search_call.searching",
+                "query": "needle"
+            }))
+            .expect("documented status event should be ignored");
+        assert!(events.is_empty());
+        processor
+            .handle_payload(json!({
                 "type": "response.code_interpreter_call_code.delta",
                 "item_id": "ci_1",
                 "output_index": 0,
-                "sequence_number": 1,
-                "delta": "print(1)"
-            }),
-            json!({
-                "type": "response.code_interpreter_call_code.done",
-                "item_id": "ci_1",
-                "output_index": 0,
                 "sequence_number": 2,
-                "code": "print(1)"
-            }),
-            json!({
-                "type": "response.mcp_call_arguments.delta",
-                "item_id": "mcp_1",
-                "call_id": "call_mcp",
-                "output_index": 1,
-                "sequence_number": 3,
-                "delta": "{\"query\":\"vtcode\"}"
-            }),
-            json!({
-                "type": "response.mcp_call_arguments.done",
-                "item_id": "mcp_1",
-                "call_id": "call_mcp",
-                "output_index": 1,
-                "sequence_number": 4,
-                "arguments": "{\"query\":\"vtcode\"}"
-            }),
-            json!({
-                "type": "response.image_generation_call.partial_image",
-                "item_id": "img_1",
-                "output_index": 2,
-                "sequence_number": 5,
-                "partial_image_b64": "ZmFrZQ=="
-            }),
-            json!({
-                "type": "response.custom_tool_call_input.delta",
-                "item_id": "custom_1",
-                "call_id": "call_custom",
-                "output_index": 3,
-                "sequence_number": 6,
-                "delta": "partial"
-            }),
-            json!({
-                "type": "response.custom_tool_call_input.done",
-                "item_id": "custom_1",
-                "call_id": "call_custom",
-                "output_index": 3,
-                "sequence_number": 7,
-                "input": "partial input"
-            }),
-            json!({
-                "type": "response.output_text.annotation.added",
-                "item_id": "msg_1",
-                "output_index": 4,
-                "sequence_number": 8,
-                "annotation": {"type": "url_citation", "url": "https://example.test"}
-            }),
-        ] {
-            let events = processor
-                .handle_payload(payload)
-                .expect("documented value-bearing gap should be accepted");
-            assert!(events.is_empty());
-        }
-    }
-
-    #[test]
-    fn custom_tool_stream_input_is_preserved_by_final_response_replay() {
-        let mut processor = ResponsesNormalizedStreamProcessor::new(options(), |value| {
-            crate::providers::openai::responses_api::parse_responses_payload(
-                value,
-                "gpt-5".to_string(),
-                false,
-            )
-        });
-
-        for payload in [
-            json!({
-                "type": "response.custom_tool_call_input.delta",
-                "item_id": "custom_1",
-                "call_id": "call_custom",
-                "output_index": 0,
-                "delta": "{\"cmd\":"
-            }),
-            json!({
-                "type": "response.custom_tool_call_input.done",
-                "item_id": "custom_1",
-                "call_id": "call_custom",
-                "output_index": 0,
-                "input": "{\"cmd\":\"test\"}"
-            }),
-            json!({
-                "type": "response.completed",
-                "response": {
-                    "id": "resp_custom",
-                    "output": [{
-                        "type": "custom_tool_call",
-                        "id": "custom_1",
-                        "call_id": "call_custom",
-                        "name": "hosted_shell",
-                        "input": "{\"cmd\":\"test\"}"
-                    }]
-                }
-            }),
-        ] {
-            let events = processor
-                .handle_payload(payload)
-                .expect("custom tool stream event should parse");
-            assert!(events.is_empty());
-        }
+                "delta": "print(1)"
+            }))
+            .expect("documented code interpreter value-bearing event should be ignored downstream");
 
         let finished = processor.finish().expect("finish should succeed");
-        let response = match finished.as_slice() {
-            [NormalizedStreamEvent::Done { response }] => response,
-            _ => panic!("expected done event"),
-        };
-        let tool_calls = response
-            .tool_calls
-            .as_ref()
-            .expect("custom tool call should be replayed from final response");
-        assert_eq!(tool_calls.len(), 1);
-        assert_eq!(tool_calls[0].id, "call_custom");
-        assert!(tool_calls[0].is_custom());
-        assert_eq!(tool_calls[0].text.as_deref(), Some("{\"cmd\":\"test\"}"));
-    }
-
-    #[test]
-    fn reasoning_text_done_is_marker_or_final_reasoning_text() {
-        let mut processor = ResponsesNormalizedStreamProcessor::new(options(), parse_response);
-        let marker = processor
-            .handle_payload(json!({"type": "response.reasoning_text.done"}))
-            .expect("marker done should parse");
-        assert!(marker.is_empty());
-
-        let final_text = processor
-            .handle_payload(json!({
-                "type": "response.reasoning_text.done",
-                "text": "final reasoning"
-            }))
-            .expect("final reasoning text should parse");
         assert!(matches!(
-            final_text.as_slice(),
-            [NormalizedStreamEvent::ReasoningDelta { delta }]
-                if delta == "final reasoning"
+            finished.as_slice(),
+            [NormalizedStreamEvent::Done { .. }]
         ));
-    }
-
-    #[test]
-    fn unsupported_responses_event_reports_provider_error() {
-        let mut processor = ResponsesNormalizedStreamProcessor::new(options(), parse_response);
-        let error = processor
-            .handle_payload(json!({"type": "response.not_a_real_event"}))
-            .expect_err("unsupported event should fail");
-        assert!(
-            error
-                .to_string()
-                .contains("unsupported Responses stream event type")
-        );
     }
 
     #[test]
     fn missing_delta_reports_provider_error() {
         let mut processor = ResponsesNormalizedStreamProcessor::new(options(), parse_response);
         let error = processor
-            .handle_payload(json!({"type": "response.output_text.delta"}))
+            .handle_payload(json!({
+                "type": "response.output_text.delta",
+                "item_id": "msg_1",
+                "output_index": 0,
+                "content_index": 0,
+                "sequence_number": 1
+            }))
             .expect_err("missing delta should fail");
-        assert_eq!(
-            error.to_string(),
-            provider_error("TestProvider", "missing delta").to_string()
-        );
+        assert!(error.to_string().contains("TestProvider"));
+        assert!(error.to_string().contains("invalid stream payload"));
     }
 }

@@ -64,7 +64,7 @@ wiremock = "0.6.5"
 default = []
 http-server = ["dep:tokio-stream"]
 copilot = ["dep:portable-pty"]
-anthropic-api = ["dep:axum", "dep:tower-http"]
+anthropic-api = ["dep:axum", "dep:tower-http", "dep:tokio-stream"]
 
 [package.metadata.docs.rs]
 all-features = true

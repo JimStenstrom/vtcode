@@ -798,7 +798,7 @@ mod tests {
             evaluate_interim_text_continuation(
                 true,
                 false,
-                &ctx.working_history,
+                ctx.working_history,
                 "Let me continue analyzing the results.",
                 0,
             )
@@ -886,8 +886,7 @@ mod tests {
         // Pad to exceed 800 chars
         let padding = "x".repeat(820usize.saturating_sub(long_analysis_base.len()));
         let long_text = format!(
-            "{}{} Let me now implement the mutex-based fix in the connection pool module.",
-            long_analysis_base, padding
+            "{long_analysis_base}{padding} Let me now implement the mutex-based fix in the connection pool module."
         );
         assert!(
             long_text.len() > 800,

@@ -76,7 +76,7 @@ fn test_agent_response_format() {
     };
 
     let content = (1..=50)
-        .map(|i| format!("Line {}: Some test content here", i))
+        .map(|i| format!("Line {i}: Some test content here"))
         .collect::<Vec<_>>()
         .join("\n");
 

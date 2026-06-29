@@ -104,7 +104,7 @@ impl LLMProvider for ProviderCompactionProvider {
         true
     }
 
-    fn supports_manual_compaction(&self, _model: &str) -> bool {
+    fn supports_manual_openai_compaction(&self, _model: &str) -> bool {
         true
     }
 
@@ -152,7 +152,7 @@ impl LLMProvider for NoOpProviderCompactionProvider {
         true
     }
 
-    fn supports_manual_compaction(&self, _model: &str) -> bool {
+    fn supports_manual_openai_compaction(&self, _model: &str) -> bool {
         true
     }
 
@@ -178,7 +178,7 @@ impl LLMProvider for FailingProviderCompactionProvider {
     async fn generate(&self, _request: LLMRequest) -> Result<LLMResponse, LLMError> {
         // Simulate a true infrastructure failure: the provider cannot produce any
         // response. Under the unified dispatch this provider routes to NativeInline
-        // (it does not override `supports_manual_compaction`), so `generate` is the
+        // (it does not override `supports_manual_openai_compaction`), so `generate` is the
         // only call path; failing it here makes Local fallback impossible, so the
         // compaction propagates `Err` and the existing history is preserved.
         Err(LLMError::Provider {
@@ -251,7 +251,7 @@ impl LLMProvider for RecordingProviderCompactionProvider {
         true
     }
 
-    fn supports_manual_compaction(&self, _model: &str) -> bool {
+    fn supports_manual_openai_compaction(&self, _model: &str) -> bool {
         // Routes to NativeStandalone (uses `compact_history_with_options`) so the
         // recorded history reflects the provider-native compaction input.
         true

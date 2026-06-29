@@ -768,8 +768,7 @@ mod tests {
         let stripped_text = vtcode_core::utils::ansi_parser::strip_ansi(&transcript_text);
         assert!(
             stripped_text.contains("Large output was spooled to"),
-            "Transcript: {:?}",
-            stripped_text
+            "Transcript: {stripped_text:?}"
         );
         assert!(
             !stripped_text.contains("preview text that should stay out of transcript persistence")
